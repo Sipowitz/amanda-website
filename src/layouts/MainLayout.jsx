@@ -1,7 +1,6 @@
 import { motion } from "framer-motion";
 
 import Navbar from "../components/Navbar";
-import Footer from "../components/Footer";
 
 export default function MainLayout({ children }) {
   return (
@@ -75,8 +74,6 @@ export default function MainLayout({ children }) {
         <Navbar />
 
         <main className="flex-1 pt-24">{children}</main>
-
-        <Footer />
       </div>
     </div>
   );
