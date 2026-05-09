@@ -1,53 +1,62 @@
 import { motion } from "framer-motion";
 
+import heroImage from "../assets/hero-image.jpg";
+
 export default function Hero() {
   return (
-    <section className="flex min-h-screen items-center px-6 pt-32">
-      <div className="mx-auto grid max-w-7xl gap-16 md:grid-cols-2 md:items-center">
+    <section className="relative flex min-h-screen items-center px-6 pb-20 pt-32">
+      <div className="mx-auto grid w-full max-w-7xl gap-16 md:grid-cols-2 md:items-center">
+        {/* Left Content */}
         <motion.div
           initial={{ opacity: 0, y: 40 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{
-            duration: 1.2,
+            duration: 1,
             ease: [0.22, 1, 0.36, 1],
           }}
+          className="max-w-2xl"
         >
-          <p className="mb-6 text-sm uppercase tracking-[0.35em] text-[#f1e8ca]/60">
+          <p className="mb-8 text-sm font-medium uppercase tracking-[0.35em] text-[#f1e8ca]/65">
             Personal Brand
           </p>
 
-          <h1 className="mb-8 text-6xl leading-[1.05] font-medium md:text-8xl">
+          <h1 className="text-6xl font-light leading-[0.95] text-[#f1e8ca] md:text-[7rem]">
             Elegant digital experiences for modern businesses.
           </h1>
 
-          <p className="max-w-xl text-lg leading-8 text-[#f1e8ca]/80">
+          <p className="mt-10 max-w-lg text-lg leading-[1.9] text-[#f1e8ca]/85">
             Creating refined and thoughtful websites that communicate your brand
             with clarity and confidence.
           </p>
 
-          <motion.button
-            whileHover={{
-              scale: 1.03,
-            }}
-            whileTap={{
-              scale: 0.98,
-            }}
-            className="mt-10 rounded-full border border-[#f1e8ca]/30 px-8 py-3 transition hover:bg-[#f1e8ca] hover:text-[#5f785f]"
-          >
+          <button className="mt-12 rounded-full border border-[#f1e8ca]/30 px-8 py-4 text-sm uppercase tracking-[0.2em] text-[#f1e8ca] transition hover:bg-[#f1e8ca] hover:text-[#6f876f]">
             Learn More
-          </motion.button>
+          </button>
         </motion.div>
 
+        {/* Right Image */}
         <motion.div
-          initial={{ opacity: 0, scale: 0.92 }}
+          initial={{ opacity: 0, scale: 0.96 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{
             duration: 1.4,
             delay: 0.2,
             ease: [0.22, 1, 0.36, 1],
           }}
-          className="aspect-[4/5] overflow-hidden rounded-[2rem] bg-[#6f876f]/30 backdrop-blur-sm"
-        />
+          className="relative aspect-[4/5] overflow-hidden rounded-[2rem]"
+        >
+          <img
+            src={heroImage}
+            alt="Atmospheric portrait"
+            className="h-full w-full object-cover"
+          />
+
+          {/* Atmospheric overlay */}
+          <div className="absolute inset-0 bg-black/10" />
+
+          {/* Soft gradient */}
+          <div className="absolute inset-0 bg-gradient-to-t from-black/20 via-transparent to-white/5" />
+        </motion.div>
       </div>
     </section>
   );
