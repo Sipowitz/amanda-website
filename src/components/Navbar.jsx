@@ -1,10 +1,15 @@
 import { useState } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+
 import { motion, AnimatePresence } from "framer-motion";
 
 export default function Navbar() {
   const [menuOpen, setMenuOpen] = useState(false);
+
+  const [logoClicks, setLogoClicks] = useState(0);
+
   const location = useLocation();
+  const navigate = useNavigate();
 
   const links = [
     { name: "About", path: "/about" },
@@ -12,6 +17,24 @@ export default function Navbar() {
     { name: "Events", path: "/events" },
     { name: "Shop", path: "/shop" },
   ];
+
+  function handleLogoClick(event) {
+    event.preventDefault();
+
+    const nextClicks = logoClicks + 1;
+
+    setLogoClicks(nextClicks);
+
+    if (nextClicks >= 3) {
+      setLogoClicks(0);
+      navigate("/admin");
+      return;
+    }
+
+    setTimeout(() => {
+      setLogoClicks(0);
+    }, 1200);
+  }
 
   return (
     <>
@@ -21,12 +44,12 @@ export default function Navbar() {
 
         <div className="relative mx-auto flex max-w-7xl items-center justify-between px-6 py-8">
           {/* Logo */}
-          <Link
-            to="/"
-            className="text-5xl font-medium tracking-[0.28em] text-[#f1e8ca]"
+          <button
+            onClick={handleLogoClick}
+            className="cursor-pointer text-5xl font-medium tracking-[0.28em] text-[#f1e8ca]"
           >
             Amanda
-          </Link>
+          </button>
 
           {/* Desktop Navigation */}
           <nav className="hidden items-center gap-12 md:flex">
