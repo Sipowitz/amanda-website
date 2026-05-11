@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useMemo, useState } from "react";
+
+import { useLocation, useNavigate } from "react-router-dom";
 
 import SlotGenerator from "../components/admin/SlotGenerator";
 import SlotList from "../components/admin/SlotList";
@@ -13,20 +14,32 @@ import {
 
 export default function Admin() {
   const [password, setPassword] = useState("");
+
   const [authenticated, setAuthenticated] = useState(null);
 
   const [slots, setSlots] = useState([]);
 
   const [generating, setGenerating] = useState(false);
+
   const [loadingSlots, setLoadingSlots] = useState(true);
 
+  const [viewMode, setViewMode] = useState("all");
+
   const navigate = useNavigate();
+
+  const location = useLocation();
 
   useEffect(() => {
     const storedAuth = sessionStorage.getItem("admin-auth");
 
     setAuthenticated(storedAuth === "true");
   }, []);
+
+  useEffect(() => {
+    return () => {
+      sessionStorage.removeItem("admin-auth");
+    };
+  }, [location.pathname]);
 
   useEffect(() => {
     if (!authenticated) {
@@ -124,6 +137,14 @@ export default function Admin() {
     navigate("/");
   }
 
+  const filteredSlots = useMemo(() => {
+    if (viewMode === "bookings") {
+      return slots.filter((slot) => slot.bookings && slot.bookings.length > 0);
+    }
+
+    return slots;
+  }, [slots, viewMode]);
+
   if (authenticated === null) {
     return null;
   }
@@ -184,12 +205,38 @@ export default function Admin() {
         <SlotGenerator onGenerate={handleGenerateSlots} loading={generating} />
 
         <section className="flex flex-col gap-8">
-          <div>
-            <p className="mb-3 text-sm uppercase tracking-[0.3em] text-[#f1e8ca]/45">
-              Upcoming Availability
-            </p>
+          <div className="flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
+            <div>
+              <p className="mb-3 text-sm uppercase tracking-[0.3em] text-[#f1e8ca]/45">
+                Upcoming Availability
+              </p>
 
-            <h2 className="text-4xl text-[#f1e8ca]">Schedule</h2>
+              <h2 className="text-4xl text-[#f1e8ca]">Schedule</h2>
+            </div>
+
+            <div className="flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.03] p-1">
+              <button
+                onClick={() => setViewMode("all")}
+                className={`rounded-full px-5 py-2 text-xs uppercase tracking-[0.18em] transition ${
+                  viewMode === "all"
+                    ? "bg-[#f1e8ca]/12 text-[#f1e8ca]"
+                    : "text-[#f1e8ca]/45 hover:text-[#f1e8ca]"
+                }`}
+              >
+                All Slots
+              </button>
+
+              <button
+                onClick={() => setViewMode("bookings")}
+                className={`rounded-full px-5 py-2 text-xs uppercase tracking-[0.18em] transition ${
+                  viewMode === "bookings"
+                    ? "bg-[#f1e8ca]/12 text-[#f1e8ca]"
+                    : "text-[#f1e8ca]/45 hover:text-[#f1e8ca]"
+                }`}
+              >
+                Bookings Only
+              </button>
+            </div>
           </div>
 
           {loadingSlots ? (
@@ -198,7 +245,7 @@ export default function Admin() {
             </div>
           ) : (
             <SlotList
-              slots={slots}
+              slots={filteredSlots}
               onDelete={handleDeleteSlot}
               onDeleteBooking={handleDeleteBooking}
             />
