@@ -1,50 +1,46 @@
 import { motion } from "framer-motion";
 
-import MainLayout from "../layouts/MainLayout";
-
 export default function About() {
   return (
-    <MainLayout>
-      <section className="flex min-h-[75vh] items-center px-6 py-24 md:py-32">
-        <div className="mx-auto grid w-full max-w-7xl gap-16 md:grid-cols-12">
-          {/* Left spacing column */}
-          <div className="hidden md:col-span-2 md:block" />
+    <section className="flex min-h-[75vh] items-center px-6 pb-24">
+      <div className="mx-auto grid w-full max-w-7xl gap-16 md:grid-cols-12">
+        {/* Left spacing column */}
+        <div className="hidden md:col-span-2 md:block" />
 
-          {/* Content */}
-          <motion.div
-            initial={{ opacity: 0, y: 30 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{
-              duration: 1,
-              ease: [0.22, 1, 0.36, 1],
-            }}
-            className="md:col-span-7"
-          >
-            <p className="mb-8 text-sm font-medium uppercase tracking-[0.35em] text-[#f1e8ca]/65">
-              About Amanda Beach
+        {/* Content */}
+        <motion.div
+          initial={{ opacity: 0, y: 30 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{
+            duration: 1,
+            ease: [0.22, 1, 0.36, 1],
+          }}
+          className="md:col-span-7"
+        >
+          <p className="mb-8 text-sm font-medium uppercase tracking-[0.35em] text-[#f1e8ca]/65">
+            About Amanda Beach
+          </p>
+
+          <h1 className="max-w-5xl text-5xl font-light leading-[1.05] text-[#f1e8ca] md:text-7xl">
+            A thoughtful and personal approach.
+          </h1>
+
+          <div className="mt-12 max-w-3xl space-y-8 text-xl leading-[2] text-[#f1e8ca]/88 md:text-2xl">
+            <p>
+              For more than twenty years, I’ve worked at the intersection of
+              intuition and strategy — helping people see what’s actually
+              happening beneath the surface and make decisions that create real
+              momentum.
             </p>
 
-            <h1 className="max-w-5xl text-5xl font-light leading-[1.05] text-[#f1e8ca] md:text-7xl">
-              A thoughtful and personal approach.
-            </h1>
-
-            <div className="mt-12 max-w-3xl space-y-8 text-xl leading-[2] text-[#f1e8ca]/88 md:text-2xl">
-              <p>
-                For more than twenty years, I’ve worked at the intersection of
-                intuition and strategy — helping people see what’s actually
-                happening beneath the surface and make decisions that create
-                real momentum.
-              </p>
-
-              <p>
-                My work isn’t just mystical. It’s tarot, pattern recognition,
-                emotional intelligence, and lived experience distilled into
-                clarity you can act on.
-              </p>
-            </div>
-          </motion.div>
-        </div>
-      </section>
-    </MainLayout>
+            <p>
+              My work isn’t just mystical. It’s tarot, pattern recognition,
+              emotional intelligence, and lived experience distilled into
+              clarity you can act on.
+            </p>
+          </div>
+        </motion.div>
+      </div>
+    </section>
   );
 }

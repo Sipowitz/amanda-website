@@ -78,19 +78,21 @@ export default function Booking() {
   }
 
   return (
-    <section className="px-6 pb-24 pt-10 text-[#f1e8ca]">
+    <section className="px-6 pb-24 text-[#f1e8ca]">
       <div className="mx-auto flex max-w-6xl flex-col gap-16">
         <BookingHero />
 
         <section className="flex flex-col gap-10">
-          <div>
-            {loading && (
-              <div className="mb-5 flex justify-end">
-                <p className="text-xs uppercase tracking-[0.18em] text-[#f1e8ca]/35">
-                  Loading availability...
-                </p>
-              </div>
-            )}
+          <div className="min-h-[520px]">
+            <div className="mb-5 flex h-5 justify-end">
+              <p
+                className={`text-xs uppercase tracking-[0.18em] text-[#f1e8ca]/35 transition-opacity duration-300 ${
+                  loading ? "opacity-100" : "opacity-0"
+                }`}
+              >
+                Loading availability...
+              </p>
+            </div>
 
             <DateSelector
               availableDates={uniqueDates}

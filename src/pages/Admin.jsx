@@ -151,7 +151,7 @@ export default function Admin() {
 
   if (!authenticated) {
     return (
-      <section className="px-6 py-24 text-[#f1e8ca]">
+      <section className="px-6 pb-24 text-[#f1e8ca]">
         <div className="mx-auto max-w-xl">
           <div className="rounded-[2.5rem] border border-white/10 bg-black/10 p-10 backdrop-blur-xl">
             <p className="mb-4 text-sm uppercase tracking-[0.3em] text-[#f1e8ca]/45">
@@ -183,7 +183,7 @@ export default function Admin() {
   }
 
   return (
-    <section className="px-6 py-24 text-[#f1e8ca]">
+    <section className="px-6 pb-24 text-[#f1e8ca]">
       <div className="mx-auto flex max-w-6xl flex-col gap-16">
         <div className="flex items-center justify-between">
           <div>

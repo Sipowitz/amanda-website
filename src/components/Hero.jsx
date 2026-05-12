@@ -4,7 +4,7 @@ import heroImage from "../assets/hero-image.jpg";
 
 export default function Hero() {
   return (
-    <section className="relative px-6 pb-24 pt-10">
+    <section className="relative px-6 pb-24">
       <div className="mx-auto grid w-full max-w-7xl gap-10 md:grid-cols-2 md:items-center">
         {/* Left Content */}
         <motion.div
