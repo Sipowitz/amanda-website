@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { motion } from "framer-motion";
+import { format } from "date-fns";
 
 import BookingHero from "../components/booking/BookingHero";
 import DateSelector from "../components/booking/DateSelector";
@@ -24,10 +24,6 @@ export default function Booking() {
         const data = await getAvailableSlots();
 
         setSlots(data);
-
-        if (data.length > 0) {
-          setSelectedDate(data[0].slot_date);
-        }
       } catch (error) {
         console.error("Failed to load booking slots:", error);
       } finally {
@@ -45,6 +41,14 @@ export default function Booking() {
   const filteredSlots = useMemo(() => {
     return slots.filter((slot) => slot.slot_date === selectedDate);
   }, [slots, selectedDate]);
+
+  const formattedSelectedDate = useMemo(() => {
+    if (!selectedDate) {
+      return "";
+    }
+
+    return format(new Date(selectedDate), "EEEE, MMMM d");
+  }, [selectedDate]);
 
   async function handleBookingSubmit(formData) {
     if (!selectedSlot) {
@@ -78,61 +82,59 @@ export default function Booking() {
       <div className="mx-auto flex max-w-6xl flex-col gap-16">
         <BookingHero />
 
-        {loading ? (
-          <div className="py-20">
-            <p className="text-[#f1e8ca]/70">Loading availability...</p>
-          </div>
-        ) : (
-          <>
-            <section className="flex flex-col gap-10">
-              <div>
-                <p className="mb-5 text-sm uppercase tracking-[0.24em] text-[#f1e8ca]/50">
-                  Select Date
+        <section className="flex flex-col gap-10">
+          <div>
+            {loading && (
+              <div className="mb-5 flex justify-end">
+                <p className="text-xs uppercase tracking-[0.18em] text-[#f1e8ca]/35">
+                  Loading availability...
                 </p>
+              </div>
+            )}
 
-                <DateSelector
-                  availableDates={uniqueDates}
-                  selectedDate={selectedDate}
-                  onSelectDate={(date) => {
-                    setSelectedDate(date);
-                    setSelectedSlot(null);
-                    setSuccess(false);
-                  }}
+            <DateSelector
+              availableDates={uniqueDates}
+              selectedDate={selectedDate}
+              onSelectDate={(date) => {
+                setSelectedDate(date);
+                setSelectedSlot(null);
+                setSuccess(false);
+              }}
+            />
+          </div>
+
+          {!loading && selectedDate && (
+            <div className="flex flex-col gap-8">
+              <div>
+                <div className="mb-6">
+                  <h3 className="text-xl font-light leading-tight text-[#f3efe7] sm:text-3xl">
+                    Availability for {formattedSelectedDate}
+                  </h3>
+                </div>
+
+                <TimeSlotPicker
+                  slots={filteredSlots}
+                  selectedSlot={selectedSlot}
+                  onSelectSlot={setSelectedSlot}
                 />
               </div>
 
-              {selectedDate && (
-                <motion.div layout className="flex flex-col gap-8">
-                  <div>
-                    <p className="mb-4 text-sm uppercase tracking-[0.24em] text-[#f1e8ca]/50">
-                      Available Times
-                    </p>
-
-                    <TimeSlotPicker
-                      slots={filteredSlots}
-                      selectedSlot={selectedSlot}
-                      onSelectSlot={setSelectedSlot}
-                    />
-                  </div>
-
-                  {selectedSlot && !success && (
-                    <BookingForm
-                      selectedSlot={selectedSlot}
-                      onSubmit={handleBookingSubmit}
-                      onCancel={() => {
-                        setSelectedSlot(null);
-                        setSuccess(false);
-                      }}
-                      loading={submitting}
-                    />
-                  )}
-
-                  {success && <BookingSuccess />}
-                </motion.div>
+              {selectedSlot && !success && (
+                <BookingForm
+                  selectedSlot={selectedSlot}
+                  onSubmit={handleBookingSubmit}
+                  onCancel={() => {
+                    setSelectedSlot(null);
+                    setSuccess(false);
+                  }}
+                  loading={submitting}
+                />
               )}
-            </section>
-          </>
-        )}
+
+              {success && <BookingSuccess />}
+            </div>
+          )}
+        </section>
       </div>
     </section>
   );

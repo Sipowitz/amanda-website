@@ -1,19 +1,23 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { Link, useLocation, useNavigate } from "react-router-dom";
 
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 
 export default function Navbar() {
   const [menuOpen, setMenuOpen] = useState(false);
 
-  const [logoClicks, setLogoClicks] = useState(0);
+  const [menuClicks, setMenuClicks] = useState(0);
 
   const location = useLocation();
 
   const navigate = useNavigate();
 
   const links = [
+    {
+      name: "Home",
+      path: "/",
+    },
     {
       name: "About",
       path: "/about",
@@ -32,39 +36,55 @@ export default function Navbar() {
     },
   ];
 
-  function handleLogoClick() {
-    const nextClicks = logoClicks + 1;
+  useEffect(() => {
+    if (menuOpen) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
 
-    setLogoClicks(nextClicks);
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [menuOpen]);
+
+  function handleSecretAdminAccess() {
+    const nextClicks = menuClicks + 1;
+
+    setMenuClicks(nextClicks);
 
     if (nextClicks >= 3) {
-      setLogoClicks(0);
+      setMenuClicks(0);
 
       navigate("/admin");
 
-      return;
+      return true;
     }
 
     setTimeout(() => {
-      setLogoClicks(0);
+      setMenuClicks(0);
     }, 1200);
 
-    navigate("/");
+    return false;
+  }
+
+  function handleMenuButtonClick() {
+    const openedAdmin = handleSecretAdminAccess();
+
+    if (openedAdmin) {
+      return;
+    }
+
+    setMenuOpen((prev) => !prev);
   }
 
   return (
     <>
       <header className="fixed top-0 z-50 w-full">
-        <div className="absolute inset-0 bg-gradient-to-b from-black/10 to-transparent backdrop-blur-[2px]" />
+        <div className="absolute inset-0 bg-gradient-to-b from-black/10 to-transparent" />
 
-        <div className="relative mx-auto flex max-w-7xl items-center justify-between px-6 py-8">
-          <button
-            onClick={handleLogoClick}
-            className="cursor-pointer text-5xl font-medium tracking-[0.28em] text-[#f1e8ca]"
-          >
-            Amanda
-          </button>
-
+        <div className="relative mx-auto flex max-w-7xl items-center justify-end px-6 py-8">
+          {/* Desktop Nav */}
           <nav className="hidden items-center gap-12 md:flex">
             {links.map((link) => {
               const active = location.pathname === link.path;
@@ -73,7 +93,18 @@ export default function Navbar() {
                 <Link
                   key={link.path}
                   to={link.path}
-                  className={`relative text-[0.95rem] font-medium uppercase tracking-[0.18em] transition duration-300 ${
+                  onClick={
+                    link.path === "/"
+                      ? (event) => {
+                          const openedAdmin = handleSecretAdminAccess();
+
+                          if (openedAdmin) {
+                            event.preventDefault();
+                          }
+                        }
+                      : undefined
+                  }
+                  className={`relative text-[0.95rem] font-medium uppercase tracking-[0.18em] transition-colors duration-300 ${
                     active
                       ? "text-[#f1e8ca]"
                       : "text-[#f1e8ca]/78 hover:text-[#f1e8ca]"
@@ -91,103 +122,83 @@ export default function Navbar() {
             })}
           </nav>
 
+          {/* Mobile Menu Button */}
           <button
-            onClick={() => setMenuOpen(!menuOpen)}
-            className="relative z-50 flex flex-col gap-1.5 md:hidden"
+            onClick={handleMenuButtonClick}
+            className="relative z-50 flex h-8 w-8 items-center justify-center md:hidden"
             aria-label="Toggle Menu"
           >
             <motion.span
               animate={{
                 rotate: menuOpen ? 45 : 0,
-                y: menuOpen ? 7 : 0,
+                y: menuOpen ? 0 : -7,
               }}
               transition={{
-                duration: 0.3,
+                duration: 0.28,
               }}
-              className="h-[2px] w-6 origin-center bg-[#f1e8ca]"
+              className="absolute h-[2px] w-6 origin-center rounded-full bg-[#f1e8ca]"
             />
 
             <motion.span
               animate={{
                 opacity: menuOpen ? 0 : 1,
+                scaleX: menuOpen ? 0 : 1,
               }}
               transition={{
-                duration: 0.2,
+                duration: 0.18,
               }}
-              className="h-[2px] w-6 bg-[#f1e8ca]"
+              className="absolute h-[2px] w-6 rounded-full bg-[#f1e8ca]"
             />
 
             <motion.span
               animate={{
                 rotate: menuOpen ? -45 : 0,
-                y: menuOpen ? -7 : 0,
+                y: menuOpen ? 0 : 7,
               }}
               transition={{
-                duration: 0.3,
+                duration: 0.28,
               }}
-              className="h-[2px] w-6 origin-center bg-[#f1e8ca]"
+              className="absolute h-[2px] w-6 origin-center rounded-full bg-[#f1e8ca]"
             />
           </button>
         </div>
       </header>
 
-      <AnimatePresence>
-        {menuOpen && (
-          <motion.div
-            initial={{
-              opacity: 0,
-            }}
-            animate={{
-              opacity: 1,
-            }}
-            exit={{
-              opacity: 0,
-            }}
-            transition={{
-              duration: 0.35,
-            }}
-            className="fixed inset-0 z-40 bg-[#7f9b7f]/52 backdrop-blur-sm md:hidden"
-          >
-            <div className="flex min-h-screen flex-col justify-center px-10">
-              <nav className="flex flex-col gap-8">
-                {links.map((link) => {
-                  const active = location.pathname === link.path;
+      {/* Mobile Menu */}
+      <motion.div
+        initial={false}
+        animate={{
+          opacity: menuOpen ? 1 : 0,
+          pointerEvents: menuOpen ? "auto" : "none",
+        }}
+        transition={{
+          duration: 0.2,
+        }}
+        className="fixed inset-0 z-40 bg-[#6f876f]/88 md:hidden"
+      >
+        <div className="flex min-h-screen flex-col justify-center px-10">
+          <nav className="flex flex-col gap-8">
+            {links.map((link) => {
+              const active = location.pathname === link.path;
 
-                  return (
-                    <motion.div
-                      key={link.path}
-                      initial={{
-                        opacity: 0,
-                        y: 12,
-                      }}
-                      animate={{
-                        opacity: 1,
-                        y: 0,
-                      }}
-                      transition={{
-                        duration: 0.45,
-                        ease: [0.22, 1, 0.36, 1],
-                      }}
-                    >
-                      <Link
-                        to={link.path}
-                        onClick={() => setMenuOpen(false)}
-                        className={`text-3xl uppercase tracking-[0.18em] transition ${
-                          active
-                            ? "text-[#f1e8ca]"
-                            : "text-[#f1e8ca]/75 hover:text-[#f1e8ca]"
-                        }`}
-                      >
-                        {link.name}
-                      </Link>
-                    </motion.div>
-                  );
-                })}
-              </nav>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+              return (
+                <Link
+                  key={link.path}
+                  to={link.path}
+                  onClick={() => setMenuOpen(false)}
+                  className={`text-3xl uppercase tracking-[0.18em] transition-colors duration-300 ${
+                    active
+                      ? "text-[#f1e8ca]"
+                      : "text-[#f1e8ca]/75 hover:text-[#f1e8ca]"
+                  }`}
+                >
+                  {link.name}
+                </Link>
+              );
+            })}
+          </nav>
+        </div>
+      </motion.div>
     </>
   );
 }

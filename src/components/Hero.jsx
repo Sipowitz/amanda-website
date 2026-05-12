@@ -4,8 +4,8 @@ import heroImage from "../assets/hero-image.jpg";
 
 export default function Hero() {
   return (
-    <section className="relative flex min-h-screen items-center px-6 pb-20 pt-32">
-      <div className="mx-auto grid w-full max-w-7xl gap-16 md:grid-cols-2 md:items-center">
+    <section className="relative px-6 pb-24 pt-10">
+      <div className="mx-auto grid w-full max-w-7xl gap-10 md:grid-cols-2 md:items-center">
         {/* Left Content */}
         <motion.div
           initial={{ opacity: 0, y: 40 }}
@@ -16,20 +16,20 @@ export default function Hero() {
           }}
           className="max-w-2xl"
         >
-          <p className="mb-8 text-sm font-medium uppercase tracking-[0.35em] text-[#f1e8ca]/65">
+          <p className="mb-4 text-sm font-medium uppercase tracking-[0.35em] text-[#f1e8ca]/65">
             Personal Brand
           </p>
 
-          <h1 className="text-6xl font-light leading-[0.95] text-[#f1e8ca] md:text-[7rem]">
+          <h1 className="text-5xl font-light leading-[0.95] text-[#f1e8ca] sm:text-6xl md:text-[6rem]">
             Elegant digital experiences for modern businesses.
           </h1>
 
-          <p className="mt-10 max-w-lg text-lg leading-[1.9] text-[#f1e8ca]/85">
+          <p className="mt-6 max-w-lg text-lg leading-[1.9] text-[#f1e8ca]/85">
             Creating refined and thoughtful websites that communicate your brand
             with clarity and confidence.
           </p>
 
-          <button className="mt-12 rounded-full border border-[#f1e8ca]/30 px-8 py-4 text-sm uppercase tracking-[0.2em] text-[#f1e8ca] transition hover:bg-[#f1e8ca] hover:text-[#6f876f]">
+          <button className="mt-8 rounded-full border border-[#f1e8ca]/30 px-8 py-4 text-sm uppercase tracking-[0.2em] text-[#f1e8ca] transition hover:bg-[#f1e8ca] hover:text-[#6f876f]">
             Learn More
           </button>
         </motion.div>

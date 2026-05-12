@@ -4,7 +4,7 @@ import Navbar from "../components/Navbar";
 
 export default function MainLayout({ children }) {
   return (
-    <div className="relative flex min-h-screen flex-col overflow-hidden bg-[#9ebd9e] text-[#f1e8ca]">
+    <div className="relative flex min-h-dvh flex-col overflow-hidden bg-[#9ebd9e] text-[#f1e8ca]">
       {/* Atmospheric Background */}
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
         {/* Main light beam */}
@@ -70,10 +70,10 @@ export default function MainLayout({ children }) {
       />
 
       {/* Content */}
-      <div className="relative z-10 flex min-h-screen flex-col">
+      <div className="relative z-10 flex min-h-dvh flex-col">
         <Navbar />
 
-        <main className="flex-1 pt-24">{children}</main>
+        <main className="flex-1 pt-10">{children}</main>
       </div>
     </div>
   );

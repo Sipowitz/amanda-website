@@ -1,5 +1,4 @@
 import { useMemo, useState } from "react";
-import { motion } from "framer-motion";
 import {
   addMonths,
   eachDayOfInterval,
@@ -54,40 +53,36 @@ export default function DateSelector({
 
   return (
     <div className="mx-auto max-w-5xl">
-      <div className="rounded-[2.8rem] border border-[#f1e8ca]/10 bg-black/10 p-6 shadow-[0_20px_80px_rgba(0,0,0,0.25)] backdrop-blur-xl md:p-8">
+      <div className="rounded-[2rem] border border-[#f1e8ca]/16 bg-white/[0.06] p-4 shadow-[0_20px_80px_rgba(0,0,0,0.18)] backdrop-blur-xl sm:rounded-[2.8rem] sm:p-6 md:p-8">
         {/* Header */}
-        <div className="mb-8 flex items-center justify-between">
+        <div className="mb-6 flex items-center justify-between sm:mb-8">
           <button
             onClick={() => setCurrentMonth((prev) => subMonths(prev, 1))}
-            className="flex h-14 w-14 items-center justify-center rounded-full border border-[#f1e8ca]/12 bg-white/[0.03] text-3xl text-[#f1e8ca]/70 transition duration-300 hover:border-[#f1e8ca]/30 hover:bg-white/[0.06] hover:text-[#f1e8ca]"
+            className="flex h-11 w-11 items-center justify-center rounded-full border border-[#f1e8ca]/16 bg-white/[0.05] text-2xl text-[#f1e8ca]/75 transition-colors duration-300 hover:border-[#f1e8ca]/35 hover:bg-white/[0.08] hover:text-[#f1e8ca] sm:h-14 sm:w-14 sm:text-3xl"
           >
             ←
           </button>
 
           <div className="text-center">
-            <p className="mb-2 text-xs uppercase tracking-[0.35em] text-[#f1e8ca]/45">
-              Select Date
-            </p>
-
-            <h3 className="text-4xl text-[#f1e8ca] md:text-5xl">
+            <h3 className="text-2xl text-[#f1e8ca] sm:text-4xl md:text-5xl">
               {monthLabel}
             </h3>
           </div>
 
           <button
             onClick={() => setCurrentMonth((prev) => addMonths(prev, 1))}
-            className="flex h-14 w-14 items-center justify-center rounded-full border border-[#f1e8ca]/12 bg-white/[0.03] text-3xl text-[#f1e8ca]/70 transition duration-300 hover:border-[#f1e8ca]/30 hover:bg-white/[0.06] hover:text-[#f1e8ca]"
+            className="flex h-11 w-11 items-center justify-center rounded-full border border-[#f1e8ca]/16 bg-white/[0.05] text-2xl text-[#f1e8ca]/75 transition-colors duration-300 hover:border-[#f1e8ca]/35 hover:bg-white/[0.08] hover:text-[#f1e8ca] sm:h-14 sm:w-14 sm:text-3xl"
           >
             →
           </button>
         </div>
 
         {/* Weekdays */}
-        <div className="mb-4 grid grid-cols-7 gap-3">
+        <div className="mb-3 grid grid-cols-7 gap-1.5 sm:mb-4 sm:gap-3">
           {weekdayLabels.map((day) => (
             <div
               key={day}
-              className="text-center text-[0.7rem] uppercase tracking-[0.25em] text-[#f1e8ca]/42"
+              className="text-center text-[0.55rem] uppercase tracking-[0.15em] text-[#f1e8ca]/45 sm:text-[0.7rem] sm:tracking-[0.25em]"
             >
               {day}
             </div>
@@ -95,8 +90,8 @@ export default function DateSelector({
         </div>
 
         {/* Calendar Grid */}
-        <div className="grid grid-cols-7 gap-3">
-          {calendarCells.map((day, index) => {
+        <div className="grid grid-cols-7 gap-1.5 sm:gap-3">
+          {calendarCells.map((day) => {
             if (day.empty) {
               return <div key={day.id} className="aspect-square" />;
             }
@@ -109,10 +104,8 @@ export default function DateSelector({
               selectedDate && isSameDay(new Date(selectedDate), day);
 
             return (
-              <motion.button
-                key={`${formattedDate}-${index}`}
-                whileHover={available ? { y: -3 } : undefined}
-                whileTap={available ? { scale: 0.97 } : undefined}
+              <button
+                key={formattedDate}
                 onClick={() => {
                   if (!available) {
                     return;
@@ -121,27 +114,22 @@ export default function DateSelector({
                   onSelectDate(formattedDate);
                 }}
                 disabled={!available}
-                className={`group relative aspect-square overflow-hidden rounded-[1.8rem] border transition-all duration-500 ${
+                className={`relative aspect-square overflow-hidden rounded-[1rem] border transition-all duration-200 sm:rounded-[1.8rem] ${
                   active
-                    ? "border-[#f1e8ca]/55 bg-[#f1e8ca]/18 shadow-[0_0_45px_rgba(241,232,202,0.22)]"
+                    ? "border-[#f1e8ca]/55 bg-[#f1e8ca]/18 shadow-[0_0_24px_rgba(241,232,202,0.10)]"
                     : available
-                      ? "border-[#f1e8ca]/12 bg-white/[0.04] shadow-[0_0_25px_rgba(241,232,202,0.05)] hover:border-[#f1e8ca]/35 hover:bg-[#f1e8ca]/08 hover:shadow-[0_0_45px_rgba(241,232,202,0.12)]"
-                      : "border-white/[0.025] bg-black/10"
+                      ? "border-[#f1e8ca]/16 bg-white/[0.05] shadow-[0_0_18px_rgba(0,0,0,0.08)] hover:border-[#f1e8ca]/30 hover:bg-[#f1e8ca]/08"
+                      : "border-white/[0.04] bg-black/10"
                 }`}
               >
-                {/* Glow Layer */}
-                {available && (
-                  <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(241,232,202,0.10),transparent_70%)] opacity-0 transition duration-500 group-hover:opacity-100" />
-                )}
-
                 <div className="relative flex h-full flex-col items-center justify-center">
                   <span
-                    className={`transition-all duration-300 ${
+                    className={`transition-colors duration-200 ${
                       active
-                        ? "text-5xl font-medium text-[#fff7df]"
+                        ? "text-2xl font-medium text-[#fff7df] sm:text-5xl"
                         : available
-                          ? "text-4xl font-medium text-[#f1e8ca]"
-                          : "text-3xl font-light text-[#f1e8ca]/18"
+                          ? "text-xl font-medium text-[#f1e8ca] sm:text-4xl"
+                          : "text-lg font-light text-[#f1e8ca]/18 sm:text-3xl"
                     }`}
                   >
                     {format(day, "d")}
@@ -149,44 +137,17 @@ export default function DateSelector({
 
                   {available && (
                     <span
-                      className={`mt-3 h-2 w-2 rounded-full transition-all duration-300 ${
+                      className={`mt-1.5 h-1.5 w-1.5 rounded-full sm:mt-3 sm:h-2 sm:w-2 ${
                         active
-                          ? "bg-[#fff7df] shadow-[0_0_14px_rgba(255,247,223,0.9)]"
-                          : "bg-[#f1e8ca]/75 shadow-[0_0_10px_rgba(241,232,202,0.45)]"
+                          ? "bg-[#fff7df] shadow-[0_0_10px_rgba(255,247,223,0.8)]"
+                          : "bg-[#f1e8ca]/75 shadow-[0_0_6px_rgba(241,232,202,0.35)]"
                       }`}
                     />
                   )}
                 </div>
-              </motion.button>
+              </button>
             );
           })}
-        </div>
-
-        {/* Legend */}
-        <div className="mt-8 flex items-center justify-center gap-10">
-          <div className="flex items-center gap-3">
-            <span className="h-2 w-2 rounded-full bg-[#f1e8ca] shadow-[0_0_12px_rgba(241,232,202,0.8)]" />
-
-            <span className="text-xs uppercase tracking-[0.25em] text-[#f1e8ca]/65">
-              Available
-            </span>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <span className="h-2 w-2 rounded-full border border-[#f1e8ca]/35" />
-
-            <span className="text-xs uppercase tracking-[0.25em] text-[#f1e8ca]/40">
-              Unavailable
-            </span>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <span className="h-2 w-2 rounded-full bg-[#fff7df] shadow-[0_0_14px_rgba(255,247,223,1)]" />
-
-            <span className="text-xs uppercase tracking-[0.25em] text-[#f1e8ca]/75">
-              Selected
-            </span>
-          </div>
         </div>
       </div>
     </div>
