@@ -1,6 +1,8 @@
+import { Outlet } from "react-router-dom";
+
 import Navbar from "../components/Navbar";
 
-export default function MainLayout({ children }) {
+export default function MainLayout() {
   return (
     <div className="relative flex min-h-screen flex-col overflow-hidden bg-[#9ebd9e] text-[#f1e8ca] [transform:translateZ(0)] [backface-visibility:hidden]">
       {/* Atmospheric Background */}
@@ -31,7 +33,9 @@ export default function MainLayout({ children }) {
       <div className="relative z-10 flex min-h-screen flex-col [transform:translateZ(0)]">
         <Navbar />
 
-        <main className="flex-1 pt-24">{children}</main>
+        <main className="flex-1 pt-24">
+          <Outlet />
+        </main>
       </div>
     </div>
   );

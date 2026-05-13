@@ -2,18 +2,20 @@ import { useEffect, useMemo, useState } from "react";
 
 import { useNavigate } from "react-router-dom";
 
-import SlotGenerator from "../components/admin/SlotGenerator";
-import SlotList from "../components/admin/SlotList";
-import AdminHeader from "../components/admin/AdminHeader";
+import SlotGenerator from "../../components/admin/SlotGenerator";
+import SlotList from "../../components/admin/SlotList";
+import AdminHeader from "../../components/admin/AdminHeader";
+
+import { useAdminAuth } from "../../contexts/AdminAuthContext";
 
 import {
   deleteBooking,
   deleteSlot,
   generateSlots,
   getAdminSlots,
-} from "../services/adminService";
+} from "../../services/adminService";
 
-export default function Admin() {
+export default function AdminSlots() {
   const [slots, setSlots] = useState([]);
 
   const [generating, setGenerating] = useState(false);
@@ -24,13 +26,7 @@ export default function Admin() {
 
   const navigate = useNavigate();
 
-  useEffect(() => {
-    const storedAuth = sessionStorage.getItem("admin-auth");
-
-    if (storedAuth !== "true") {
-      navigate("/admin/login");
-    }
-  }, [navigate]);
+  const { logout } = useAdminAuth();
 
   useEffect(() => {
     loadSlots();
@@ -106,10 +102,16 @@ export default function Admin() {
     }
   }
 
-  function handleLogout() {
-    sessionStorage.removeItem("admin-auth");
+  async function handleLogout() {
+    try {
+      await logout();
 
-    navigate("/admin/login");
+      navigate("/");
+    } catch (error) {
+      console.error(error);
+
+      alert("Failed to logout");
+    }
   }
 
   const filteredSlots = useMemo(() => {
@@ -123,7 +125,7 @@ export default function Admin() {
   return (
     <div className="flex flex-col gap-16">
       <AdminHeader
-        title="Admin Dashboard"
+        title="Slot Management"
         subtitle="Booking Management"
         onLogout={handleLogout}
       />
