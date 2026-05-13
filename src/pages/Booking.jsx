@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+
 import { format } from "date-fns";
 
 import BookingHero from "../components/booking/BookingHero";
@@ -11,11 +12,15 @@ import { getAvailableSlots, createBooking } from "../services/bookingService";
 
 export default function Booking() {
   const [slots, setSlots] = useState([]);
+
   const [selectedDate, setSelectedDate] = useState(null);
+
   const [selectedSlot, setSelectedSlot] = useState(null);
 
   const [loading, setLoading] = useState(true);
+
   const [submitting, setSubmitting] = useState(false);
+
   const [success, setSuccess] = useState(false);
 
   useEffect(() => {
@@ -71,6 +76,7 @@ export default function Booking() {
       setSlots((prev) => prev.filter((slot) => slot.id !== selectedSlot.id));
     } catch (error) {
       console.error("Booking failed:", error);
+
       alert("Something went wrong while creating the booking.");
     } finally {
       setSubmitting(false);
@@ -79,12 +85,12 @@ export default function Booking() {
 
   return (
     <section className="px-6 pb-24 text-[#f1e8ca]">
-      <div className="mx-auto flex max-w-6xl flex-col gap-16">
+      <div className="mx-auto flex max-w-5xl flex-col gap-12">
         <BookingHero />
 
-        <section className="flex flex-col gap-10">
-          <div className="min-h-[520px]">
-            <div className="mb-5 flex h-5 justify-end">
+        <section className="flex flex-col gap-8">
+          <div>
+            <div className="mb-4 flex h-5 justify-end">
               <p
                 className={`text-xs uppercase tracking-[0.18em] text-[#f1e8ca]/35 transition-opacity duration-300 ${
                   loading ? "opacity-100" : "opacity-0"
@@ -99,27 +105,31 @@ export default function Booking() {
               selectedDate={selectedDate}
               onSelectDate={(date) => {
                 setSelectedDate(date);
+
                 setSelectedSlot(null);
+
                 setSuccess(false);
               }}
             />
           </div>
 
           {!loading && selectedDate && (
-            <div className="flex flex-col gap-8">
-              <div>
-                <div className="mb-6">
-                  <h3 className="text-xl font-light leading-tight text-[#f3efe7] sm:text-3xl">
-                    Availability for {formattedSelectedDate}
-                  </h3>
-                </div>
+            <div className="mx-auto flex w-full max-w-4xl flex-col gap-8">
+              <div className="text-center">
+                <p className="mb-3 text-xs uppercase tracking-[0.28em] text-[#f1e8ca]/40">
+                  Selected Date
+                </p>
 
-                <TimeSlotPicker
-                  slots={filteredSlots}
-                  selectedSlot={selectedSlot}
-                  onSelectSlot={setSelectedSlot}
-                />
+                <h3 className="text-2xl font-light leading-tight text-[#f3efe7] sm:text-3xl">
+                  {formattedSelectedDate}
+                </h3>
               </div>
+
+              <TimeSlotPicker
+                slots={filteredSlots}
+                selectedSlot={selectedSlot}
+                onSelectSlot={setSelectedSlot}
+              />
 
               {selectedSlot && !success && (
                 <BookingForm
@@ -127,6 +137,7 @@ export default function Booking() {
                   onSubmit={handleBookingSubmit}
                   onCancel={() => {
                     setSelectedSlot(null);
+
                     setSuccess(false);
                   }}
                   loading={submitting}

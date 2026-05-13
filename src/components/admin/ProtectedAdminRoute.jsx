@@ -3,9 +3,9 @@ import { Navigate, Outlet } from "react-router-dom";
 import { useAdminAuth } from "../../contexts/AdminAuthContext";
 
 export default function ProtectedAdminRoute() {
-  const { authenticated, loading } = useAdminAuth();
+  const { authenticated, loading, loggingOut } = useAdminAuth();
 
-  if (loading) {
+  if (loading || loggingOut) {
     return null;
   }
 

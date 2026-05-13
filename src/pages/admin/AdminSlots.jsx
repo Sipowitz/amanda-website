@@ -1,12 +1,20 @@
 import { useEffect, useMemo, useState } from "react";
 
+import { format } from "date-fns";
+
 import { useNavigate } from "react-router-dom";
 
 import SlotGenerator from "../../components/admin/SlotGenerator";
-import SlotList from "../../components/admin/SlotList";
+import SlotItem from "../../components/admin/SlotItem";
+
 import AdminHeader from "../../components/admin/AdminHeader";
+import AdminCard from "../../components/admin/AdminCard";
 
 import { useAdminAuth } from "../../contexts/AdminAuthContext";
+
+import { useToast } from "../../contexts/ToastContext";
+
+import { useConfirm } from "../../contexts/ConfirmContext";
 
 import {
   deleteBooking,
@@ -24,9 +32,15 @@ export default function AdminSlots() {
 
   const [viewMode, setViewMode] = useState("all");
 
+  const [selectedDate, setSelectedDate] = useState(null);
+
   const navigate = useNavigate();
 
   const { logout } = useAdminAuth();
+
+  const toast = useToast();
+
+  const confirm = useConfirm();
 
   useEffect(() => {
     loadSlots();
@@ -39,10 +53,14 @@ export default function AdminSlots() {
       const data = await getAdminSlots();
 
       setSlots(data);
+
+      if (data.length > 0 && !selectedDate) {
+        setSelectedDate(data[0].slot_date);
+      }
     } catch (error) {
       console.error(error);
 
-      alert("Failed to load slots");
+      toast.error("Failed to load slots");
     } finally {
       setLoadingSlots(false);
     }
@@ -56,18 +74,23 @@ export default function AdminSlots() {
 
       await loadSlots();
 
-      alert("Slots generated successfully");
+      toast.success("Slots generated successfully");
     } catch (error) {
       console.error(error);
 
-      alert("Failed to generate slots");
+      toast.error("Failed to generate slots");
     } finally {
       setGenerating(false);
     }
   }
 
   async function handleDeleteSlot(slotId) {
-    const confirmed = confirm("Delete this slot?");
+    const confirmed = await confirm({
+      title: "Delete Slot",
+      message:
+        "Are you sure you want to delete this slot? This action cannot be undone.",
+      confirmText: "Delete Slot",
+    });
 
     if (!confirmed) {
       return;
@@ -77,15 +100,21 @@ export default function AdminSlots() {
       await deleteSlot(slotId);
 
       setSlots((prev) => prev.filter((slot) => slot.id !== slotId));
+
+      toast.success("Slot deleted successfully");
     } catch (error) {
       console.error(error);
 
-      alert("Failed to delete slot");
+      toast.error("Failed to delete slot");
     }
   }
 
   async function handleDeleteBooking(bookingId, slotId) {
-    const confirmed = confirm("Cancel this booking?");
+    const confirmed = await confirm({
+      title: "Cancel Booking",
+      message: "Are you sure you want to cancel this booking?",
+      confirmText: "Cancel Booking",
+    });
 
     if (!confirmed) {
       return;
@@ -95,37 +124,77 @@ export default function AdminSlots() {
       await deleteBooking(bookingId, slotId);
 
       await loadSlots();
+
+      toast.success("Booking cancelled successfully");
     } catch (error) {
       console.error(error);
 
-      alert("Failed to cancel booking");
+      toast.error("Failed to cancel booking");
     }
   }
 
   async function handleLogout() {
+    const confirmed = await confirm({
+      title: "Logout",
+      message: "Are you sure you want to logout?",
+      confirmText: "Logout",
+    });
+
+    if (!confirmed) {
+      return;
+    }
+
     try {
       await logout();
 
-      navigate("/");
+      toast.success("Logged out successfully");
     } catch (error) {
       console.error(error);
 
-      alert("Failed to logout");
+      toast.error("Failed to logout");
     }
   }
 
   const filteredSlots = useMemo(() => {
+    let result = [...slots];
+
     if (viewMode === "bookings") {
-      return slots.filter((slot) => slot.bookings && slot.bookings.length > 0);
+      result = result.filter(
+        (slot) => slot.bookings && slot.bookings.length > 0,
+      );
     }
 
-    return slots;
-  }, [slots, viewMode]);
+    if (selectedDate) {
+      result = result.filter((slot) => slot.slot_date === selectedDate);
+    }
+
+    return result.sort((a, b) => a.slot_time.localeCompare(b.slot_time));
+  }, [slots, viewMode, selectedDate]);
+
+  const availableDates = useMemo(() => {
+    return [...new Set(slots.map((slot) => slot.slot_date))];
+  }, [slots]);
+
+  const selectedDateStats = useMemo(() => {
+    const total = filteredSlots.length;
+
+    const booked = filteredSlots.filter(
+      (slot) => slot.bookings && slot.bookings.length > 0,
+    ).length;
+
+    const available = total - booked;
+
+    return {
+      total,
+      booked,
+      available,
+    };
+  }, [filteredSlots]);
 
   return (
     <div className="flex flex-col gap-16">
       <AdminHeader
-        title="Slot Management"
+        title="Availability"
         subtitle="Booking Management"
         onLogout={handleLogout}
       />
@@ -133,50 +202,147 @@ export default function AdminSlots() {
       <SlotGenerator onGenerate={handleGenerateSlots} loading={generating} />
 
       <section className="flex flex-col gap-8">
-        <div className="flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
+        {/* Header */}
+        <div className="flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
           <div>
             <p className="mb-3 text-sm uppercase tracking-[0.3em] text-[#f1e8ca]/45">
-              Upcoming Availability
+              Schedule Overview
             </p>
 
-            <h2 className="text-4xl text-[#f1e8ca]">Schedule</h2>
+            <h2 className="text-4xl text-[#f1e8ca]">Availability</h2>
           </div>
 
-          <div className="flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.03] p-1">
-            <button
-              onClick={() => setViewMode("all")}
-              className={`rounded-full px-5 py-2 text-xs uppercase tracking-[0.18em] transition ${
-                viewMode === "all"
-                  ? "bg-[#f1e8ca]/12 text-[#f1e8ca]"
-                  : "text-[#f1e8ca]/45 hover:text-[#f1e8ca]"
-              }`}
-            >
-              All Slots
-            </button>
+          <AdminCard className="p-1">
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setViewMode("all")}
+                className={`rounded-full px-5 py-2 text-xs uppercase tracking-[0.18em] transition ${
+                  viewMode === "all"
+                    ? "bg-[#f1e8ca]/12 text-[#f1e8ca]"
+                    : "text-[#f1e8ca]/45 hover:text-[#f1e8ca]"
+                }`}
+              >
+                All Slots
+              </button>
 
-            <button
-              onClick={() => setViewMode("bookings")}
-              className={`rounded-full px-5 py-2 text-xs uppercase tracking-[0.18em] transition ${
-                viewMode === "bookings"
-                  ? "bg-[#f1e8ca]/12 text-[#f1e8ca]"
-                  : "text-[#f1e8ca]/45 hover:text-[#f1e8ca]"
-              }`}
-            >
-              Bookings Only
-            </button>
-          </div>
+              <button
+                onClick={() => setViewMode("bookings")}
+                className={`rounded-full px-5 py-2 text-xs uppercase tracking-[0.18em] transition ${
+                  viewMode === "bookings"
+                    ? "bg-[#f1e8ca]/12 text-[#f1e8ca]"
+                    : "text-[#f1e8ca]/45 hover:text-[#f1e8ca]"
+                }`}
+              >
+                Bookings Only
+              </button>
+            </div>
+          </AdminCard>
         </div>
 
-        {loadingSlots ? (
-          <div className="rounded-[2rem] border border-white/10 bg-black/10 p-10 backdrop-blur-xl">
-            <p className="text-[#f1e8ca]/60">Loading schedule...</p>
+        {/* Date Selector */}
+        <AdminCard className="p-5">
+          <div className="mb-5">
+            <p className="mb-2 text-xs uppercase tracking-[0.24em] text-[#f1e8ca]/40">
+              Schedule Navigation
+            </p>
+
+            <h3 className="text-2xl text-[#f1e8ca]">Select Day</h3>
           </div>
+
+          <div className="flex gap-3 overflow-x-auto pb-2">
+            {availableDates.map((date) => {
+              const active = selectedDate === date;
+
+              return (
+                <button
+                  key={date}
+                  onClick={() => setSelectedDate(date)}
+                  className={`min-w-[140px] rounded-2xl border px-4 py-4 text-left transition ${
+                    active
+                      ? "border-[#f1e8ca]/25 bg-[#f1e8ca]/10"
+                      : "border-white/10 bg-white/[0.03] hover:border-[#f1e8ca]/15 hover:bg-white/[0.05]"
+                  }`}
+                >
+                  <p className="mb-1 text-xs uppercase tracking-[0.18em] text-[#f1e8ca]/40">
+                    {format(new Date(date), "EEE")}
+                  </p>
+
+                  <p className="text-lg text-[#f1e8ca]">
+                    {format(new Date(date), "MMM d")}
+                  </p>
+                </button>
+              );
+            })}
+          </div>
+        </AdminCard>
+
+        {/* Day Overview */}
+        {selectedDate && (
+          <div className="grid gap-4 sm:grid-cols-3">
+            <AdminCard className="p-5">
+              <p className="mb-2 text-xs uppercase tracking-[0.24em] text-[#f1e8ca]/40">
+                Total
+              </p>
+
+              <h3 className="text-3xl text-[#f1e8ca]">
+                {selectedDateStats.total}
+              </h3>
+            </AdminCard>
+
+            <AdminCard className="p-5">
+              <p className="mb-2 text-xs uppercase tracking-[0.24em] text-[#f1e8ca]/40">
+                Available
+              </p>
+
+              <h3 className="text-3xl text-[#f1e8ca]">
+                {selectedDateStats.available}
+              </h3>
+            </AdminCard>
+
+            <AdminCard className="p-5">
+              <p className="mb-2 text-xs uppercase tracking-[0.24em] text-[#f1e8ca]/40">
+                Booked
+              </p>
+
+              <h3 className="text-3xl text-[#f1e8ca]">
+                {selectedDateStats.booked}
+              </h3>
+            </AdminCard>
+          </div>
+        )}
+
+        {/* Schedule */}
+        {loadingSlots ? (
+          <AdminCard className="p-10">
+            <p className="text-[#f1e8ca]/60">Loading schedule...</p>
+          </AdminCard>
+        ) : filteredSlots.length === 0 ? (
+          <AdminCard className="p-10">
+            <p className="text-[#f1e8ca]/60">No slots found for this day.</p>
+          </AdminCard>
         ) : (
-          <SlotList
-            slots={filteredSlots}
-            onDelete={handleDeleteSlot}
-            onDeleteBooking={handleDeleteBooking}
-          />
+          <div className="flex flex-col gap-5">
+            <div>
+              <p className="mb-3 text-sm uppercase tracking-[0.3em] text-[#f1e8ca]/45">
+                Daily Schedule
+              </p>
+
+              <h2 className="text-4xl text-[#f1e8ca]">
+                {format(new Date(selectedDate), "EEEE, MMMM d")}
+              </h2>
+            </div>
+
+            <div className="flex flex-col gap-4">
+              {filteredSlots.map((slot) => (
+                <SlotItem
+                  key={slot.id}
+                  slot={slot}
+                  onDelete={handleDeleteSlot}
+                  onDeleteBooking={handleDeleteBooking}
+                />
+              ))}
+            </div>
+          </div>
         )}
       </section>
     </div>

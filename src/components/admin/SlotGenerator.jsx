@@ -1,5 +1,7 @@
 import { useState } from "react";
 
+import AdminCard from "./AdminCard";
+
 const days = [
   { label: "Sun", value: 0 },
   { label: "Mon", value: 1 },
@@ -50,7 +52,7 @@ export default function SlotGenerator({ onGenerate, loading }) {
   }
 
   return (
-    <div className="rounded-[2.5rem] border border-white/10 bg-black/10 p-8 backdrop-blur-xl">
+    <AdminCard className="p-8">
       <div className="mb-8">
         <p className="mb-3 text-sm uppercase tracking-[0.3em] text-[#f1e8ca]/45">
           Bulk Creation
@@ -73,7 +75,7 @@ export default function SlotGenerator({ onGenerate, loading }) {
               required
               value={formData.startDate}
               onChange={handleChange}
-              className="rounded-2xl border border-white/10 bg-white/[0.04] px-5 py-4 text-[#f1e8ca] outline-none transition focus:border-[#f1e8ca]/35"
+              className="rounded-2xl border border-white/10 bg-white/[0.05] px-5 py-4 text-[#f1e8ca] outline-none backdrop-blur-xl transition focus:border-[#f1e8ca]/35 focus:bg-white/[0.07]"
             />
           </div>
 
@@ -88,7 +90,7 @@ export default function SlotGenerator({ onGenerate, loading }) {
               required
               value={formData.endDate}
               onChange={handleChange}
-              className="rounded-2xl border border-white/10 bg-white/[0.04] px-5 py-4 text-[#f1e8ca] outline-none transition focus:border-[#f1e8ca]/35"
+              className="rounded-2xl border border-white/10 bg-white/[0.05] px-5 py-4 text-[#f1e8ca] outline-none backdrop-blur-xl transition focus:border-[#f1e8ca]/35 focus:bg-white/[0.07]"
             />
           </div>
         </div>
@@ -108,10 +110,10 @@ export default function SlotGenerator({ onGenerate, loading }) {
                   key={day.value}
                   type="button"
                   onClick={() => toggleDay(day.value)}
-                  className={`rounded-full px-5 py-3 text-sm uppercase tracking-[0.18em] transition ${
+                  className={`rounded-full border px-5 py-3 text-sm uppercase tracking-[0.18em] backdrop-blur-xl transition ${
                     active
-                      ? "border border-[#f1e8ca]/35 bg-[#f1e8ca]/14 text-[#f1e8ca]"
-                      : "border border-white/10 bg-white/[0.04] text-[#f1e8ca]/55 hover:text-[#f1e8ca]"
+                      ? "border-[#f1e8ca]/30 bg-[#f1e8ca]/14 text-[#f1e8ca]"
+                      : "border-white/10 bg-white/[0.04] text-[#f1e8ca]/55 hover:bg-white/[0.06] hover:text-[#f1e8ca]"
                   }`}
                 >
                   {day.label}
@@ -133,7 +135,7 @@ export default function SlotGenerator({ onGenerate, loading }) {
               name="startTime"
               value={formData.startTime}
               onChange={handleChange}
-              className="rounded-2xl border border-white/10 bg-white/[0.04] px-5 py-4 text-[#f1e8ca] outline-none transition focus:border-[#f1e8ca]/35"
+              className="rounded-2xl border border-white/10 bg-white/[0.05] px-5 py-4 text-[#f1e8ca] outline-none backdrop-blur-xl transition focus:border-[#f1e8ca]/35 focus:bg-white/[0.07]"
             />
           </div>
 
@@ -147,7 +149,7 @@ export default function SlotGenerator({ onGenerate, loading }) {
               name="endTime"
               value={formData.endTime}
               onChange={handleChange}
-              className="rounded-2xl border border-white/10 bg-white/[0.04] px-5 py-4 text-[#f1e8ca] outline-none transition focus:border-[#f1e8ca]/35"
+              className="rounded-2xl border border-white/10 bg-white/[0.05] px-5 py-4 text-[#f1e8ca] outline-none backdrop-blur-xl transition focus:border-[#f1e8ca]/35 focus:bg-white/[0.07]"
             />
           </div>
 
@@ -160,11 +162,14 @@ export default function SlotGenerator({ onGenerate, loading }) {
               name="interval"
               value={formData.interval}
               onChange={handleChange}
-              className="rounded-2xl border border-white/10 bg-white/[0.04] px-5 py-4 text-[#f1e8ca] outline-none transition focus:border-[#f1e8ca]/35"
+              className="rounded-2xl border border-white/10 bg-white/[0.05] px-5 py-4 text-[#f1e8ca] outline-none backdrop-blur-xl transition focus:border-[#f1e8ca]/35 focus:bg-white/[0.07]"
             >
               <option value="15">15 mins</option>
+
               <option value="30">30 mins</option>
+
               <option value="45">45 mins</option>
+
               <option value="60">60 mins</option>
             </select>
           </div>
@@ -173,11 +178,11 @@ export default function SlotGenerator({ onGenerate, loading }) {
         <button
           type="submit"
           disabled={loading}
-          className="rounded-2xl border border-[#f1e8ca]/15 bg-[#f1e8ca]/10 px-8 py-5 text-[#f1e8ca] transition duration-300 hover:bg-[#f1e8ca]/16 disabled:opacity-50"
+          className="rounded-2xl border border-[#f1e8ca]/15 bg-[#f1e8ca]/10 px-8 py-5 text-[#f1e8ca] backdrop-blur-xl transition duration-300 hover:bg-[#f1e8ca]/16 disabled:opacity-50"
         >
           {loading ? "Generating..." : "Generate Booking Slots"}
         </button>
       </form>
-    </div>
+    </AdminCard>
   );
 }

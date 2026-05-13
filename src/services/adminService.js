@@ -11,6 +11,7 @@ export async function generateSlots({
   const slots = [];
 
   const currentDate = new Date(startDate);
+
   const finalDate = new Date(endDate);
 
   while (currentDate <= finalDate) {
@@ -93,6 +94,88 @@ export async function getAdminSlots() {
   }
 
   return data;
+}
+
+export async function getAdminBookings() {
+  const { data, error } = await supabase
+    .from("bookings")
+    .select(
+      `
+        *,
+        availability_slots (
+          id,
+          slot_date,
+          slot_time,
+          is_available
+        )
+      `,
+    )
+    .order("created_at", {
+      ascending: false,
+    });
+
+  if (error) {
+    throw error;
+  }
+
+  return data;
+}
+
+export async function getAvailableAdminSlots() {
+  const today = new Date().toISOString().split("T")[0];
+
+  const { data, error } = await supabase
+    .from("availability_slots")
+    .select("*")
+    .eq("is_available", true)
+    .gte("slot_date", today)
+    .order("slot_date", {
+      ascending: true,
+    })
+    .order("slot_time", {
+      ascending: true,
+    });
+
+  if (error) {
+    throw error;
+  }
+
+  return data;
+}
+
+export async function createAdminBooking({
+  slotId,
+  name,
+  email,
+  phone,
+  message,
+}) {
+  const { error: bookingError } = await supabase.from("bookings").insert([
+    {
+      slot_id: slotId,
+      customer_name: name,
+      customer_email: email,
+      customer_phone: phone,
+      customer_message: message,
+    },
+  ]);
+
+  if (bookingError) {
+    throw bookingError;
+  }
+
+  const { error: slotError } = await supabase
+    .from("availability_slots")
+    .update({
+      is_available: false,
+    })
+    .eq("id", slotId);
+
+  if (slotError) {
+    throw slotError;
+  }
+
+  return true;
 }
 
 export async function deleteSlot(slotId) {

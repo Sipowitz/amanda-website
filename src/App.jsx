@@ -14,6 +14,8 @@ import ProtectedAdminRoute from "./components/admin/ProtectedAdminRoute";
 import AdminLogin from "./pages/admin/AdminLogin";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import AdminSlots from "./pages/admin/AdminSlots";
+import AdminBookings from "./pages/admin/AdminBookings";
+import AdminSettings from "./pages/admin/AdminSettings";
 
 export default function App() {
   return (
@@ -36,7 +38,11 @@ export default function App() {
         <Route element={<AdminLayout />}>
           <Route path="/admin/dashboard" element={<AdminDashboard />} />
 
-          <Route path="/admin/slots" element={<AdminSlots />} />
+          <Route path="/admin/bookings" element={<AdminBookings />} />
+
+          <Route path="/admin/availability" element={<AdminSlots />} />
+
+          <Route path="/admin/settings" element={<AdminSettings />} />
         </Route>
       </Route>
     </Routes>

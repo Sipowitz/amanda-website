@@ -9,6 +9,8 @@ export function AdminAuthProvider({ children }) {
 
   const [loading, setLoading] = useState(true);
 
+  const [loggingOut, setLoggingOut] = useState(false);
+
   useEffect(() => {
     async function loadSession() {
       const {
@@ -47,10 +49,16 @@ export function AdminAuthProvider({ children }) {
   }
 
   async function logout() {
-    const { error } = await supabase.auth.signOut();
+    try {
+      setLoggingOut(true);
 
-    if (error) {
-      throw error;
+      const { error } = await supabase.auth.signOut();
+
+      if (error) {
+        throw error;
+      }
+    } finally {
+      window.location.replace("/");
     }
   }
 
@@ -60,6 +68,7 @@ export function AdminAuthProvider({ children }) {
         session,
         user: session?.user ?? null,
         loading,
+        loggingOut,
         login,
         logout,
         authenticated: !!session,

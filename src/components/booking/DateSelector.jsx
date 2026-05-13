@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+
 import {
   addMonths,
   eachDayOfInterval,
@@ -20,6 +21,7 @@ export default function DateSelector({
   const [currentMonth, setCurrentMonth] = useState(new Date());
 
   const monthStart = startOfMonth(currentMonth);
+
   const monthEnd = endOfMonth(currentMonth);
 
   const days = eachDayOfInterval({
@@ -52,48 +54,44 @@ export default function DateSelector({
   }, [currentMonth]);
 
   return (
-    <div className="mx-auto max-w-5xl">
-      <div className="rounded-[2rem] border border-[#f1e8ca]/16 bg-white/[0.06] p-4 shadow-[0_20px_80px_rgba(0,0,0,0.18)] backdrop-blur-xl sm:rounded-[2.8rem] sm:p-6 md:p-8">
+    <div className="mx-auto max-w-4xl">
+      <div className="rounded-[2rem] border border-[#f1e8ca]/14 bg-white/[0.05] p-4 shadow-[0_20px_60px_rgba(0,0,0,0.14)] backdrop-blur-xl sm:p-5">
         {/* Header */}
-        <div className="mb-6 flex items-center justify-between sm:mb-8">
+        <div className="mb-5 flex items-center justify-between">
           <button
             onClick={() => setCurrentMonth((prev) => subMonths(prev, 1))}
-            className="flex h-11 w-11 items-center justify-center rounded-full border border-[#f1e8ca]/16 bg-white/[0.05] text-2xl text-[#f1e8ca]/75 transition-colors duration-300 hover:border-[#f1e8ca]/35 hover:bg-white/[0.08] hover:text-[#f1e8ca] sm:h-14 sm:w-14 sm:text-3xl"
+            className="flex h-10 w-10 items-center justify-center rounded-full border border-[#f1e8ca]/14 bg-white/[0.04] text-lg text-[#f1e8ca]/70 transition duration-300 hover:border-[#f1e8ca]/30 hover:bg-white/[0.06] hover:text-[#f1e8ca]"
           >
             ←
           </button>
 
-          <div className="text-center">
-            <h3 className="text-2xl text-[#f1e8ca] sm:text-4xl md:text-5xl">
-              {monthLabel}
-            </h3>
-          </div>
+          <h3 className="text-2xl text-[#f1e8ca] sm:text-3xl">{monthLabel}</h3>
 
           <button
             onClick={() => setCurrentMonth((prev) => addMonths(prev, 1))}
-            className="flex h-11 w-11 items-center justify-center rounded-full border border-[#f1e8ca]/16 bg-white/[0.05] text-2xl text-[#f1e8ca]/75 transition-colors duration-300 hover:border-[#f1e8ca]/35 hover:bg-white/[0.08] hover:text-[#f1e8ca] sm:h-14 sm:w-14 sm:text-3xl"
+            className="flex h-10 w-10 items-center justify-center rounded-full border border-[#f1e8ca]/14 bg-white/[0.04] text-lg text-[#f1e8ca]/70 transition duration-300 hover:border-[#f1e8ca]/30 hover:bg-white/[0.06] hover:text-[#f1e8ca]"
           >
             →
           </button>
         </div>
 
         {/* Weekdays */}
-        <div className="mb-3 grid grid-cols-7 gap-1.5 sm:mb-4 sm:gap-3">
+        <div className="mb-3 grid grid-cols-7 gap-1.5">
           {weekdayLabels.map((day) => (
             <div
               key={day}
-              className="text-center text-[0.55rem] uppercase tracking-[0.15em] text-[#f1e8ca]/45 sm:text-[0.7rem] sm:tracking-[0.25em]"
+              className="text-center text-[11px] uppercase tracking-[0.22em] text-[#f1e8ca]/72"
             >
               {day}
             </div>
           ))}
         </div>
 
-        {/* Calendar Grid */}
-        <div className="grid grid-cols-7 gap-1.5 sm:gap-3">
+        {/* Grid */}
+        <div className="grid grid-cols-7 gap-1.5">
           {calendarCells.map((day) => {
             if (day.empty) {
-              return <div key={day.id} className="aspect-square" />;
+              return <div key={day.id} className="h-[64px]" />;
             }
 
             const formattedDate = format(day, "yyyy-MM-dd");
@@ -114,22 +112,22 @@ export default function DateSelector({
                   onSelectDate(formattedDate);
                 }}
                 disabled={!available}
-                className={`relative aspect-square overflow-hidden rounded-[1rem] border transition-all duration-200 sm:rounded-[1.8rem] ${
+                className={`h-[64px] rounded-[1rem] border transition-all duration-200 ${
                   active
-                    ? "border-[#f1e8ca]/55 bg-[#f1e8ca]/18 shadow-[0_0_24px_rgba(241,232,202,0.10)]"
+                    ? "border-[#f1e8ca]/70 bg-[#f1e8ca]/22 shadow-[0_0_28px_rgba(241,232,202,0.16)]"
                     : available
-                      ? "border-[#f1e8ca]/16 bg-white/[0.05] shadow-[0_0_18px_rgba(0,0,0,0.08)] hover:border-[#f1e8ca]/30 hover:bg-[#f1e8ca]/08"
-                      : "border-white/[0.04] bg-black/10"
+                      ? "border-[#f1e8ca]/18 bg-white/[0.065] hover:border-[#f1e8ca]/28 hover:bg-[#f1e8ca]/08"
+                      : "border-white/[0.03] bg-black/[0.12]"
                 }`}
               >
-                <div className="relative flex h-full flex-col items-center justify-center">
+                <div className="flex h-full flex-col items-center justify-center">
                   <span
                     className={`transition-colors duration-200 ${
                       active
-                        ? "text-2xl font-medium text-[#fff7df] sm:text-5xl"
+                        ? "text-lg font-semibold text-[#fffdf5] sm:text-xl"
                         : available
-                          ? "text-xl font-medium text-[#f1e8ca] sm:text-4xl"
-                          : "text-lg font-light text-[#f1e8ca]/18 sm:text-3xl"
+                          ? "text-base font-medium text-[#f1e8ca] sm:text-lg"
+                          : "text-sm font-light text-[#f1e8ca]/18 sm:text-base"
                     }`}
                   >
                     {format(day, "d")}
@@ -137,10 +135,10 @@ export default function DateSelector({
 
                   {available && (
                     <span
-                      className={`mt-1.5 h-1.5 w-1.5 rounded-full sm:mt-3 sm:h-2 sm:w-2 ${
+                      className={`mt-1 h-1 w-1 rounded-full ${
                         active
-                          ? "bg-[#fff7df] shadow-[0_0_10px_rgba(255,247,223,0.8)]"
-                          : "bg-[#f1e8ca]/75 shadow-[0_0_6px_rgba(241,232,202,0.35)]"
+                          ? "bg-[#fffdf5] shadow-[0_0_10px_rgba(255,253,245,0.9)]"
+                          : "bg-[#f1e8ca]/70"
                       }`}
                     />
                   )}
