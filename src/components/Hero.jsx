@@ -16,12 +16,10 @@ export default function Hero() {
           }}
           className="max-w-2xl"
         >
-          <p className="mb-4 text-sm font-medium uppercase tracking-[0.35em] text-[#f1e8ca]/65">
-            Personal Brand
-          </p>
+          <p className="mb-4 text-sm font-medium uppercase tracking-[0.35em] text-[#f1e8ca]/65"></p>
 
           <h1 className="text-5xl font-light leading-[0.95] text-[#f1e8ca] sm:text-6xl md:text-[6rem]">
-            Elegant digital experiences for modern businesses.
+            Amanda Beach
           </h1>
 
           <p className="mt-6 max-w-lg text-lg leading-[1.9] text-[#f1e8ca]/85">
