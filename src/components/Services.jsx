@@ -20,7 +20,7 @@ export default function Services() {
   ];
 
   return (
-    <section id="services" className="px-6 py-32">
+    <section id="services" className="px-6 pt-8 pb-32">
       <div className="mx-auto max-w-7xl">
         <motion.div
           initial={{ opacity: 0, y: 40 }}
@@ -30,7 +30,7 @@ export default function Services() {
             duration: 1,
             ease: [0.22, 1, 0.36, 1],
           }}
-          className="mb-16"
+          className="mb-8"
         >
           <p className="mb-4 text-sm uppercase tracking-[0.3em] text-[#f1e8ca]/60">
             Services
