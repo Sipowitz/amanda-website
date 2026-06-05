@@ -5,7 +5,7 @@ import heroImage from "../assets/hero-image.jpg";
 export default function Hero() {
   return (
     <section className="relative px-6 pb-24">
-      <div className="mx-auto grid w-full max-w-7xl gap-10 md:grid-cols-2 md:items-center">
+      <div className="mx-auto grid w-full max-w-7xl gap-10 md:grid-cols-2 md:items-start">
         {/* Left Content */}
         <motion.div
           initial={{ opacity: 0, y: 40 }}
@@ -23,8 +23,11 @@ export default function Hero() {
           </h1>
 
           <p className="mt-6 max-w-lg text-lg leading-[1.9] text-[#f1e8ca]/85">
-            Creating refined and thoughtful websites that communicate your brand
-            with clarity and confidence.
+            With two decades of intuitive expertise, Amanda Beach brings a
+            polished, glamorous edge to the world of spiritual guidance. Her
+            readings are engaging, entertaining, and impeccably accurate - the
+            kind of insight sought by leaders, creators, and anyone who moves
+            through life like a main character.
           </p>
 
           <button className="mt-8 rounded-full border border-[#f1e8ca]/30 px-8 py-4 text-sm uppercase tracking-[0.2em] text-[#f1e8ca] transition hover:bg-[#f1e8ca] hover:text-[#6f876f]">
