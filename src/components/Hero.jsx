@@ -19,14 +19,14 @@ export default function Hero() {
         >
           <p className="mb-4 text-sm font-medium uppercase tracking-[0.35em] text-[#f1e8ca]/65"></p>
 
-          <h1 className="text-5xl font-light leading-[1.05] text-[#f1e8ca] md:text-7xl">
+          <h1 className="text-5xl font-light leading-[0.95] text-[#f1e8ca] sm:text-6xl md:text-[5.5rem]">
             Amanda Beach
           </h1>
 
           <p className="mt-6 max-w-lg text-lg leading-[1.9] text-[#f1e8ca]/85">
             With two decades of intuitive expertise, Amanda Beach brings a
             polished, glamorous edge to the world of spiritual guidance. Her
-            readings are engaging, entertaining, and impeccably accurate - the
+            readings are engaging, entertaining, and impeccably accurate – the
             kind of insight sought by leaders, creators, and anyone who moves
             through life like a main character.
           </p>
@@ -41,12 +41,12 @@ export default function Hero() {
             delay: 0.2,
             ease: [0.22, 1, 0.36, 1],
           }}
-          className="relative h-[360px] overflow-hidden rounded-[2rem]"
+          className="relative mx-auto h-[500px] max-w-[520px] overflow-hidden rounded-[2rem]"
         >
           <img
             src={heroImage}
-            alt="Atmospheric portrait"
-            className="h-full w-full object-cover"
+            alt="Amanda Beach"
+            className="h-full w-full object-cover object-center saturate-50"
           />
 
           {/* Atmospheric overlay */}
