@@ -26,6 +26,10 @@ export default function Navbar() {
       name: "Events",
       path: "/events",
     },
+    {
+      name: "Contact",
+      path: "/contact",
+    },
   ];
 
   useEffect(() => {

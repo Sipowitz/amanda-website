@@ -7,6 +7,7 @@ import About from "./pages/About";
 import Booking from "./pages/Booking";
 import Events from "./pages/Events";
 import Shop from "./pages/Shop";
+import Contact from "./pages/Contact";
 
 import AdminLayout from "./components/admin/AdminLayout";
 import ProtectedAdminRoute from "./components/admin/ProtectedAdminRoute";
@@ -27,6 +28,7 @@ export default function App() {
         <Route path="/booking" element={<Booking />} />
         <Route path="/events" element={<Events />} />
         <Route path="/shop" element={<Shop />} />
+        <Route path="/contact" element={<Contact />} />
       </Route>
 
       {/* Admin */}
