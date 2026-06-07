@@ -23,16 +23,8 @@ export default function Navbar() {
       path: "/about",
     },
     {
-      name: "Booking",
-      path: "/booking",
-    },
-    {
       name: "Events",
       path: "/events",
-    },
-    {
-      name: "Shop",
-      path: "/shop",
     },
   ];
 
