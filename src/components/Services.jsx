@@ -3,19 +3,19 @@ import { motion } from "framer-motion";
 export default function Services() {
   const services = [
     {
-      title: "Brand Identity",
+      title: "Individual Readings",
       description:
-        "Thoughtful visual direction and online presence tailored to your business.",
+        "Personal tarot and intuitive guidance sessions designed to provide clarity, insight, and confidence in your next steps.",
     },
     {
-      title: "Web Design",
+      title: "Private Parties",
       description:
-        "Elegant responsive websites designed with simplicity and usability in mind.",
+        "Elegant and engaging readings for birthdays, celebrations, and intimate gatherings, creating memorable experiences for your guests.",
     },
     {
-      title: "Creative Strategy",
+      title: "Public & Corporate Events",
       description:
-        "Helping businesses communicate clearly through modern digital experiences.",
+        "Professional event readings for festivals, corporate functions, and public gatherings, bringing insight, entertainment, and connection to every occasion.",
     },
   ];
 
