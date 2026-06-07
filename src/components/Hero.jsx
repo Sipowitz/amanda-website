@@ -19,7 +19,7 @@ export default function Hero() {
         >
           <p className="mb-4 text-sm font-medium uppercase tracking-[0.35em] text-[#f1e8ca]/65"></p>
 
-          <h1 className="text-5xl font-light leading-[0.95] text-[#f1e8ca] sm:text-6xl md:text-[6rem]">
+          <h1 className="text-5xl font-light leading-[1.05] text-[#f1e8ca] md:text-7xl">
             Amanda Beach
           </h1>
 
