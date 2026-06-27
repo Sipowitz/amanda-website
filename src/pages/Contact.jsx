@@ -48,7 +48,7 @@ export default function Contact() {
                   href="tel:+18314406599"
                   className="transition-colors duration-300 hover:text-[#f8f1d7]"
                 >
-                  8314406599
+                  (831) 440-6599
                 </a>
               </p>
 
