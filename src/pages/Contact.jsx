@@ -34,20 +34,19 @@ export default function Contact() {
             <div className="space-y-4 text-lg">
               <p className="text-[#f1e8ca]/80">
                 <span className="font-medium text-[#f1e8ca]">Email:</span>{" "}
-                hello@example.com
+                reach.amanda.beach@gmail.com
               </p>
 
               <p className="text-[#f1e8ca]/80">
                 <span className="font-medium text-[#f1e8ca]">Phone:</span> (555)
-                123-4567
+                8314406599
               </p>
 
               <p className="text-[#f1e8ca]/80">
                 <span className="font-medium text-[#f1e8ca]">
                   Service Area:
                 </span>{" "}
-                Available for private sessions, parties, public events, and
-                corporate bookings.
+                Available for private sessions, parties, and public events.
               </p>
             </div>
           </div>
