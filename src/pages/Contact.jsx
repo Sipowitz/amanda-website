@@ -34,12 +34,22 @@ export default function Contact() {
             <div className="space-y-4 text-lg">
               <p className="text-[#f1e8ca]/80">
                 <span className="font-medium text-[#f1e8ca]">Email:</span>{" "}
-                reach.amanda.beach@gmail.com
+                <a
+                  href="mailto:reach.amanda.beach@gmail.com"
+                  className="transition-colors duration-300 hover:text-[#f8f1d7]"
+                >
+                  reach.amanda.beach@gmail.com
+                </a>
               </p>
 
               <p className="text-[#f1e8ca]/80">
-                <span className="font-medium text-[#f1e8ca]">Phone:</span>
-                8314406599
+                <span className="font-medium text-[#f1e8ca]">Phone:</span>{" "}
+                <a
+                  href="tel:+18314406599"
+                  className="transition-colors duration-300 hover:text-[#f8f1d7]"
+                >
+                  8314406599
+                </a>
               </p>
 
               <p className="text-[#f1e8ca]/80">
