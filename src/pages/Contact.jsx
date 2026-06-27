@@ -38,7 +38,7 @@ export default function Contact() {
               </p>
 
               <p className="text-[#f1e8ca]/80">
-                <span className="font-medium text-[#f1e8ca]">Phone:</span> (555)
+                <span className="font-medium text-[#f1e8ca]">Phone:</span>
                 8314406599
               </p>
 
