@@ -8,8 +8,6 @@ import { useToast } from "../../contexts/ToastContext";
 
 import { supabase } from "../../lib/supabase";
 
-import AdminCard from "../../components/admin/AdminCard";
-
 export default function AdminLogin() {
   const [email, setEmail] = useState("");
 
@@ -86,86 +84,89 @@ export default function AdminLogin() {
   }
 
   return (
-    <section className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[#9ebd9e] px-6 py-16 text-[#f1e8ca]">
+    <section className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[#9ebd9e] px-5 py-12 sm:px-6 sm:py-16">
+      {/* Background atmosphere */}
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
-        <div className="absolute left-[-120px] top-[10%] h-[320px] w-[320px] rounded-full bg-[#f1e8ca]/[0.04] blur-3xl" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.16),transparent_36%),radial-gradient(circle_at_bottom_right,rgba(44,72,49,0.18),transparent_44%)]" />
 
-        <div className="absolute bottom-[-120px] right-[-80px] h-[320px] w-[320px] rounded-full bg-black/[0.08] blur-3xl" />
+        <div className="absolute left-[-120px] top-[8%] h-[360px] w-[360px] rounded-full bg-white/[0.08] blur-[90px]" />
 
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.05),transparent_55%)]" />
+        <div className="absolute bottom-[-140px] right-[-100px] h-[380px] w-[380px] rounded-full bg-[#35533a]/15 blur-[100px]" />
+
+        <div className="absolute inset-0 bg-gradient-to-b from-white/[0.035] via-transparent to-black/[0.07]" />
       </div>
 
-      <div className="relative z-10 w-full max-w-md">
-        <AdminCard className="p-8">
-          <div className="mb-8">
-            <p className="mb-4 text-xs uppercase tracking-[0.35em] text-[#f1e8ca]/45">
-              Admin Access
-            </p>
+      <div className="relative z-10 w-full max-w-[460px]">
+        <div className="overflow-hidden rounded-[2rem] border border-[#dfe2d8] bg-[#fbfaf6] shadow-[0_28px_80px_rgba(45,65,48,0.22)]">
+          <div className="px-7 py-8 sm:px-10 sm:py-10">
+            <div className="mb-8">
+              <p className="mb-4 text-[11px] font-semibold uppercase tracking-[0.32em] text-[#637267]">
+                Admin Access
+              </p>
 
-            <h1 className="text-4xl leading-none text-[#f1e8ca]">
-              {resetMode ? "Reset Password" : "Admin Login"}
-            </h1>
+              <h1 className="font-serif text-4xl font-normal leading-tight text-[#253126] sm:text-[2.75rem]">
+                {resetMode ? "Reset Password" : "Admin Login"}
+              </h1>
 
-            <p className="mt-4 max-w-sm text-sm leading-relaxed text-[#f1e8ca]/60">
-              {resetMode
-                ? "Enter your admin email address and a secure recovery link will be sent to you."
-                : "Secure access to the booking management dashboard."}
-            </p>
-          </div>
-
-          <form
-            onSubmit={resetMode ? handlePasswordReset : handleLogin}
-            className="flex flex-col gap-4"
-          >
-            <div className="flex flex-col gap-2">
-              <label
-                htmlFor="admin-email"
-                className="text-[11px] uppercase tracking-[0.22em] text-[#f1e8ca]/45"
-              >
-                Email
-              </label>
-
-              <input
-                id="admin-email"
-                type="email"
-                autoComplete="email"
-                required
-                disabled={submitting}
-                value={email}
-                onChange={(event) => setEmail(event.target.value)}
-                className="h-14 rounded-2xl border border-white/10 bg-black/[0.08] px-5 text-sm text-[#f1e8ca] outline-none backdrop-blur-xl transition duration-300 placeholder:text-[#f1e8ca]/30 hover:border-white/15 focus:border-[#f1e8ca]/35 focus:bg-black/[0.12] disabled:opacity-50"
-                placeholder="Enter admin email"
-              />
+              <p className="mt-4 max-w-sm text-sm leading-7 text-[#667068]">
+                {resetMode
+                  ? "Enter your admin email address and a secure recovery link will be sent to you."
+                  : "Secure access to the booking management dashboard."}
+              </p>
             </div>
 
-            {!resetMode && (
+            <form
+              onSubmit={resetMode ? handlePasswordReset : handleLogin}
+              className="flex flex-col gap-5"
+            >
               <div className="flex flex-col gap-2">
                 <label
-                  htmlFor="admin-password"
-                  className="text-[11px] uppercase tracking-[0.22em] text-[#f1e8ca]/45"
+                  htmlFor="admin-email"
+                  className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[#647067]"
                 >
-                  Password
+                  Email
                 </label>
 
                 <input
-                  id="admin-password"
-                  type="password"
-                  autoComplete="current-password"
+                  id="admin-email"
+                  type="email"
+                  autoComplete="email"
                   required
                   disabled={submitting}
-                  value={password}
-                  onChange={(event) => setPassword(event.target.value)}
-                  className="h-14 rounded-2xl border border-white/10 bg-black/[0.08] px-5 text-sm text-[#f1e8ca] outline-none backdrop-blur-xl transition duration-300 placeholder:text-[#f1e8ca]/30 hover:border-white/15 focus:border-[#f1e8ca]/35 focus:bg-black/[0.12] disabled:opacity-50"
-                  placeholder="Enter password"
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
+                  className="h-14 rounded-xl border border-[#d8ddd4] bg-white px-4 text-sm text-[#253126] outline-none transition duration-200 placeholder:text-[#9ca39c] hover:border-[#bdc8bc] focus:border-[#55735b] focus:ring-4 focus:ring-[#55735b]/10 disabled:cursor-not-allowed disabled:opacity-55"
+                  placeholder="Enter admin email"
                 />
               </div>
-            )}
 
-            <div className="mt-3 flex flex-col gap-3">
+              {!resetMode && (
+                <div className="flex flex-col gap-2">
+                  <label
+                    htmlFor="admin-password"
+                    className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[#647067]"
+                  >
+                    Password
+                  </label>
+
+                  <input
+                    id="admin-password"
+                    type="password"
+                    autoComplete="current-password"
+                    required
+                    disabled={submitting}
+                    value={password}
+                    onChange={(event) => setPassword(event.target.value)}
+                    className="h-14 rounded-xl border border-[#d8ddd4] bg-white px-4 text-sm text-[#253126] outline-none transition duration-200 placeholder:text-[#9ca39c] hover:border-[#bdc8bc] focus:border-[#55735b] focus:ring-4 focus:ring-[#55735b]/10 disabled:cursor-not-allowed disabled:opacity-55"
+                    placeholder="Enter password"
+                  />
+                </div>
+              )}
+
               <button
                 type="submit"
                 disabled={submitting}
-                className="h-14 rounded-2xl border border-[#f1e8ca]/15 bg-[#f1e8ca]/10 px-8 text-sm text-[#f1e8ca] backdrop-blur-xl transition duration-300 hover:border-[#f1e8ca]/25 hover:bg-[#f1e8ca]/14 disabled:opacity-50"
+                className="mt-2 h-14 rounded-xl border border-[#426047] bg-[#496a50] px-8 text-sm font-semibold text-white shadow-[0_10px_25px_rgba(45,82,52,0.16)] transition duration-200 hover:border-[#36513b] hover:bg-[#3f5f46] focus:outline-none focus:ring-4 focus:ring-[#496a50]/20 disabled:cursor-not-allowed disabled:opacity-55"
               >
                 {submitting
                   ? resetMode
@@ -176,31 +177,39 @@ export default function AdminLogin() {
                     : "Enter Admin"}
               </button>
 
-              <button
-                type="button"
-                disabled={submitting}
-                onClick={() => {
-                  setResetMode((current) => !current);
-                  setPassword("");
-                }}
-                className="h-12 rounded-2xl border border-white/10 bg-white/[0.03] px-8 text-sm text-[#f1e8ca]/65 transition duration-300 hover:border-white/15 hover:bg-white/[0.05] hover:text-[#f1e8ca] disabled:opacity-50"
-              >
-                {resetMode ? "Return to Login" : "Forgot Password?"}
-              </button>
-
-              {!resetMode && (
+              <div className="flex flex-col items-center gap-4 pt-2">
                 <button
                   type="button"
                   disabled={submitting}
-                  onClick={() => navigate("/")}
-                  className="h-12 rounded-2xl border border-white/10 bg-white/[0.03] px-8 text-sm text-[#f1e8ca]/65 transition duration-300 hover:border-white/15 hover:bg-white/[0.05] hover:text-[#f1e8ca] disabled:opacity-50"
+                  onClick={() => {
+                    setResetMode((current) => !current);
+                    setPassword("");
+                  }}
+                  className="text-sm font-medium text-[#5e6d61] transition hover:text-[#35543b] disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  Return to Website
+                  {resetMode ? "Return to Login" : "Forgot Password?"}
                 </button>
-              )}
-            </div>
-          </form>
-        </AdminCard>
+
+                {!resetMode && (
+                  <button
+                    type="button"
+                    disabled={submitting}
+                    onClick={() => navigate("/")}
+                    className="text-sm font-medium text-[#5e6d61] transition hover:text-[#35543b] disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    Return to Website
+                  </button>
+                )}
+              </div>
+            </form>
+          </div>
+
+          <div className="border-t border-[#e2e4de] bg-[#f4f3ee] px-7 py-4 text-center sm:px-10">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[#879087]">
+              Amanda Beach · Booking Management
+            </p>
+          </div>
+        </div>
       </div>
     </section>
   );
