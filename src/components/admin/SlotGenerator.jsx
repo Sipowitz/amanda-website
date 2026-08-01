@@ -54,18 +54,18 @@ export default function SlotGenerator({ onGenerate, loading }) {
   return (
     <AdminCard className="p-8">
       <div className="mb-8">
-        <p className="mb-3 text-sm uppercase tracking-[0.3em] text-[#f1e8ca]/45">
+        <p className="mb-3 text-sm uppercase tracking-[0.3em] text-[#202620]/45">
           Bulk Creation
         </p>
 
-        <h2 className="text-4xl text-[#f1e8ca]">Generate Slots</h2>
+        <h2 className="text-4xl text-[#202620]">Generate Slots</h2>
       </div>
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-8">
         {/* Dates */}
         <div className="grid gap-5 md:grid-cols-2">
           <div className="flex flex-col gap-3">
-            <label className="text-sm uppercase tracking-[0.18em] text-[#f1e8ca]/55">
+            <label className="text-sm uppercase tracking-[0.18em] text-[#202620]/55">
               Start Date
             </label>
 
@@ -75,12 +75,12 @@ export default function SlotGenerator({ onGenerate, loading }) {
               required
               value={formData.startDate}
               onChange={handleChange}
-              className="rounded-2xl border border-white/10 bg-white/[0.05] px-5 py-4 text-[#f1e8ca] outline-none backdrop-blur-xl transition focus:border-[#f1e8ca]/35 focus:bg-white/[0.07]"
+              className="rounded-2xl border border-[#d9dfd6] bg-white px-5 py-4 text-[#202620] outline-none backdrop-blur-xl transition focus:border-[#6f8b70] focus:bg-white/[0.07]"
             />
           </div>
 
           <div className="flex flex-col gap-3">
-            <label className="text-sm uppercase tracking-[0.18em] text-[#f1e8ca]/55">
+            <label className="text-sm uppercase tracking-[0.18em] text-[#202620]/55">
               End Date
             </label>
 
@@ -90,14 +90,14 @@ export default function SlotGenerator({ onGenerate, loading }) {
               required
               value={formData.endDate}
               onChange={handleChange}
-              className="rounded-2xl border border-white/10 bg-white/[0.05] px-5 py-4 text-[#f1e8ca] outline-none backdrop-blur-xl transition focus:border-[#f1e8ca]/35 focus:bg-white/[0.07]"
+              className="rounded-2xl border border-[#d9dfd6] bg-white px-5 py-4 text-[#202620] outline-none backdrop-blur-xl transition focus:border-[#6f8b70] focus:bg-white/[0.07]"
             />
           </div>
         </div>
 
         {/* Days */}
         <div className="flex flex-col gap-4">
-          <label className="text-sm uppercase tracking-[0.18em] text-[#f1e8ca]/55">
+          <label className="text-sm uppercase tracking-[0.18em] text-[#202620]/55">
             Available Days
           </label>
 
@@ -112,8 +112,8 @@ export default function SlotGenerator({ onGenerate, loading }) {
                   onClick={() => toggleDay(day.value)}
                   className={`rounded-full border px-5 py-3 text-sm uppercase tracking-[0.18em] backdrop-blur-xl transition ${
                     active
-                      ? "border-[#f1e8ca]/30 bg-[#f1e8ca]/14 text-[#f1e8ca]"
-                      : "border-white/10 bg-white/[0.04] text-[#f1e8ca]/55 hover:bg-white/[0.06] hover:text-[#f1e8ca]"
+                      ? "border-[#789478] bg-[#f1e8ca]/14 text-[#202620]"
+                      : "border-[#d9dfd6] bg-[#f6f8f4] text-[#202620]/55 hover:bg-white/[0.06] hover:text-[#202620]"
                   }`}
                 >
                   {day.label}
@@ -126,7 +126,7 @@ export default function SlotGenerator({ onGenerate, loading }) {
         {/* Times */}
         <div className="grid gap-5 md:grid-cols-3">
           <div className="flex flex-col gap-3">
-            <label className="text-sm uppercase tracking-[0.18em] text-[#f1e8ca]/55">
+            <label className="text-sm uppercase tracking-[0.18em] text-[#202620]/55">
               Start Time
             </label>
 
@@ -135,12 +135,12 @@ export default function SlotGenerator({ onGenerate, loading }) {
               name="startTime"
               value={formData.startTime}
               onChange={handleChange}
-              className="rounded-2xl border border-white/10 bg-white/[0.05] px-5 py-4 text-[#f1e8ca] outline-none backdrop-blur-xl transition focus:border-[#f1e8ca]/35 focus:bg-white/[0.07]"
+              className="rounded-2xl border border-[#d9dfd6] bg-white px-5 py-4 text-[#202620] outline-none backdrop-blur-xl transition focus:border-[#6f8b70] focus:bg-white/[0.07]"
             />
           </div>
 
           <div className="flex flex-col gap-3">
-            <label className="text-sm uppercase tracking-[0.18em] text-[#f1e8ca]/55">
+            <label className="text-sm uppercase tracking-[0.18em] text-[#202620]/55">
               End Time
             </label>
 
@@ -149,12 +149,12 @@ export default function SlotGenerator({ onGenerate, loading }) {
               name="endTime"
               value={formData.endTime}
               onChange={handleChange}
-              className="rounded-2xl border border-white/10 bg-white/[0.05] px-5 py-4 text-[#f1e8ca] outline-none backdrop-blur-xl transition focus:border-[#f1e8ca]/35 focus:bg-white/[0.07]"
+              className="rounded-2xl border border-[#d9dfd6] bg-white px-5 py-4 text-[#202620] outline-none backdrop-blur-xl transition focus:border-[#6f8b70] focus:bg-white/[0.07]"
             />
           </div>
 
           <div className="flex flex-col gap-3">
-            <label className="text-sm uppercase tracking-[0.18em] text-[#f1e8ca]/55">
+            <label className="text-sm uppercase tracking-[0.18em] text-[#202620]/55">
               Interval
             </label>
 
@@ -162,7 +162,7 @@ export default function SlotGenerator({ onGenerate, loading }) {
               name="interval"
               value={formData.interval}
               onChange={handleChange}
-              className="rounded-2xl border border-white/10 bg-white/[0.05] px-5 py-4 text-[#f1e8ca] outline-none backdrop-blur-xl transition focus:border-[#f1e8ca]/35 focus:bg-white/[0.07]"
+              className="rounded-2xl border border-[#d9dfd6] bg-white px-5 py-4 text-[#202620] outline-none backdrop-blur-xl transition focus:border-[#6f8b70] focus:bg-white/[0.07]"
             >
               <option value="15">15 mins</option>
 
@@ -178,7 +178,7 @@ export default function SlotGenerator({ onGenerate, loading }) {
         <button
           type="submit"
           disabled={loading}
-          className="rounded-2xl border border-[#f1e8ca]/15 bg-[#f1e8ca]/10 px-8 py-5 text-[#f1e8ca] backdrop-blur-xl transition duration-300 hover:bg-[#f1e8ca]/16 disabled:opacity-50"
+          className="rounded-2xl border border-[#b9c9b7] bg-[#e5eee3] px-8 py-5 text-[#202620] backdrop-blur-xl transition duration-300 hover:bg-[#f1e8ca]/16 disabled:opacity-50"
         >
           {loading ? "Generating..." : "Generate Booking Slots"}
         </button>
