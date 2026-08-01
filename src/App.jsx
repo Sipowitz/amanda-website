@@ -13,6 +13,7 @@ import AdminLayout from "./components/admin/AdminLayout";
 import ProtectedAdminRoute from "./components/admin/ProtectedAdminRoute";
 
 import AdminLogin from "./pages/admin/AdminLogin";
+import ResetPassword from "./pages/admin/ResetPassword";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import AdminSlots from "./pages/admin/AdminSlots";
 import AdminBookings from "./pages/admin/AdminBookings";
@@ -31,19 +32,17 @@ export default function App() {
         <Route path="/contact" element={<Contact />} />
       </Route>
 
-      {/* Admin */}
+      {/* Authentication */}
       <Route path="/admin" element={<Navigate to="/admin/login" replace />} />
-
       <Route path="/admin/login" element={<AdminLogin />} />
+      <Route path="/reset-password" element={<ResetPassword />} />
 
+      {/* Protected Admin Area */}
       <Route element={<ProtectedAdminRoute />}>
         <Route element={<AdminLayout />}>
           <Route path="/admin/dashboard" element={<AdminDashboard />} />
-
           <Route path="/admin/bookings" element={<AdminBookings />} />
-
           <Route path="/admin/availability" element={<AdminSlots />} />
-
           <Route path="/admin/settings" element={<AdminSettings />} />
         </Route>
       </Route>
