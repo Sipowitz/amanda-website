@@ -2,11 +2,17 @@ import { motion } from "framer-motion";
 
 export default function About() {
   return (
-    <section className="flex min-h-[75vh] items-center px-6 pb-24">
+    <section className="min-h-[75vh] px-6 pb-24 pt-3">
       <div className="mx-auto w-full max-w-7xl">
         <motion.div
-          initial={{ opacity: 0, y: 30 }}
-          animate={{ opacity: 1, y: 0 }}
+          initial={{
+            opacity: 0,
+            y: 30,
+          }}
+          animate={{
+            opacity: 1,
+            y: 0,
+          }}
           transition={{
             duration: 1,
             ease: [0.22, 1, 0.36, 1],

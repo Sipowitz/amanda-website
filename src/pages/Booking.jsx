@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 
 import { format } from "date-fns";
 
-import BookingHero from "../components/booking/BookingHero";
+import { motion } from "framer-motion";
+
 import DateSelector from "../components/booking/DateSelector";
 import TimeSlotPicker from "../components/booking/TimeSlotPicker";
 import BookingForm from "../components/booking/BookingForm";
@@ -84,15 +85,49 @@ export default function Booking() {
   }
 
   return (
-    <section className="px-6 pb-24 text-[#f1e8ca]">
-      <div className="mx-auto flex max-w-5xl flex-col gap-12">
-        <BookingHero />
+    <div className="min-h-screen text-[#f1e8ca]">
+      <section className="px-6 pb-12 pt-3">
+        <div className="mx-auto w-full max-w-7xl">
+          <motion.div
+            initial={{
+              opacity: 0,
+              y: 30,
+            }}
+            animate={{
+              opacity: 1,
+              y: 0,
+            }}
+            transition={{
+              duration: 1,
+              ease: [0.22, 1, 0.36, 1],
+            }}
+            className="max-w-5xl"
+          >
+            <p className="mb-8 text-sm font-medium uppercase tracking-[0.35em] text-[#f1e8ca]/65">
+              Reservations
+            </p>
 
-        <section className="flex flex-col gap-8">
+            <h1 className="max-w-5xl text-5xl font-light leading-[1.05] text-[#f1e8ca] md:text-7xl">
+              Book an Experience
+            </h1>
+
+            <div className="mt-12 max-w-4xl text-xl leading-[2] text-[#f1e8ca]/88 md:text-2xl">
+              <p>
+                Select a date and time for your visit. A quiet and considered
+                booking experience designed to feel calm, personal, and
+                effortless.
+              </p>
+            </div>
+          </motion.div>
+        </div>
+      </section>
+
+      <section className="px-6 pb-24">
+        <div className="mx-auto flex w-full max-w-7xl flex-col gap-10">
           <div>
-            <div className="mb-4 flex h-5 justify-end">
+            <div className="mb-5 flex min-h-5 justify-end">
               <p
-                className={`text-xs uppercase tracking-[0.18em] text-[#f1e8ca]/35 transition-opacity duration-300 ${
+                className={`text-xs uppercase tracking-[0.22em] text-[#f1e8ca]/40 transition-opacity duration-300 ${
                   loading ? "opacity-100" : "opacity-0"
                 }`}
               >
@@ -114,15 +149,15 @@ export default function Booking() {
           </div>
 
           {!loading && selectedDate && (
-            <div className="mx-auto flex w-full max-w-4xl flex-col gap-8">
-              <div className="text-center">
-                <p className="mb-3 text-xs uppercase tracking-[0.28em] text-[#f1e8ca]/40">
+            <div className="mx-auto flex w-full max-w-5xl flex-col gap-10">
+              <div className="text-left">
+                <p className="mb-3 text-xs uppercase tracking-[0.28em] text-[#f1e8ca]/45">
                   Selected Date
                 </p>
 
-                <h3 className="text-2xl font-light leading-tight text-[#f3efe7] sm:text-3xl">
+                <h2 className="text-3xl font-light leading-tight text-[#f1e8ca] sm:text-4xl">
                   {formattedSelectedDate}
-                </h3>
+                </h2>
               </div>
 
               <TimeSlotPicker
@@ -147,8 +182,8 @@ export default function Booking() {
               {success && <BookingSuccess />}
             </div>
           )}
-        </section>
-      </div>
-    </section>
+        </div>
+      </section>
+    </div>
   );
 }
