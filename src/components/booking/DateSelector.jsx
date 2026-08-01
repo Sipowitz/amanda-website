@@ -6,19 +6,28 @@ import {
   endOfMonth,
   format,
   getDay,
+  isBefore,
   isSameDay,
+  parseISO,
+  startOfDay,
   startOfMonth,
   subMonths,
 } from "date-fns";
 
 const weekdayLabels = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
+const CALENDAR_CELL_COUNT = 42;
+
 export default function DateSelector({
   availableDates,
   selectedDate,
   onSelectDate,
 }) {
-  const [currentMonth, setCurrentMonth] = useState(new Date());
+  const today = startOfDay(new Date());
+
+  const earliestMonth = startOfMonth(today);
+
+  const [currentMonth, setCurrentMonth] = useState(earliestMonth);
 
   const monthStart = startOfMonth(currentMonth);
 
@@ -31,22 +40,54 @@ export default function DateSelector({
 
   const leadingEmptyDays = getDay(monthStart);
 
+  const populatedCellCount = leadingEmptyDays + days.length;
+
+  const trailingEmptyDays = Math.max(
+    CALENDAR_CELL_COUNT - populatedCellCount,
+    0,
+  );
+
   const calendarCells = [
     ...Array.from({ length: leadingEmptyDays }, (_, index) => ({
       empty: true,
-      id: `empty-${index}`,
+      id: `leading-empty-${index}`,
     })),
+
     ...days,
+
+    ...Array.from({ length: trailingEmptyDays }, (_, index) => ({
+      empty: true,
+      id: `trailing-empty-${index}`,
+    })),
   ];
 
+  const canGoToPreviousMonth =
+    monthStart.getTime() > earliestMonth.getTime();
+
+  function isPastDate(day) {
+    return isBefore(startOfDay(day), today);
+  }
+
   function hasAvailability(day) {
-    if (!day || day.empty) {
+    if (!day || day.empty || isPastDate(day)) {
       return false;
     }
 
-    const formatted = format(day, "yyyy-MM-dd");
+    const formattedDate = format(day, "yyyy-MM-dd");
 
-    return availableDates.includes(formatted);
+    return availableDates.includes(formattedDate);
+  }
+
+  function handlePreviousMonth() {
+    if (!canGoToPreviousMonth) {
+      return;
+    }
+
+    setCurrentMonth((previousMonth) => subMonths(previousMonth, 1));
+  }
+
+  function handleNextMonth() {
+    setCurrentMonth((previousMonth) => addMonths(previousMonth, 1));
   }
 
   const monthLabel = useMemo(() => {
@@ -59,16 +100,27 @@ export default function DateSelector({
         {/* Header */}
         <div className="mb-5 flex items-center justify-between">
           <button
-            onClick={() => setCurrentMonth((prev) => subMonths(prev, 1))}
-            className="flex h-10 w-10 items-center justify-center rounded-full border border-[#f1e8ca]/14 bg-white/[0.04] text-lg text-[#f1e8ca]/70 transition duration-300 hover:border-[#f1e8ca]/30 hover:bg-white/[0.06] hover:text-[#f1e8ca]"
+            type="button"
+            onClick={handlePreviousMonth}
+            disabled={!canGoToPreviousMonth}
+            aria-label="View previous month"
+            className={`flex h-10 w-10 items-center justify-center rounded-full border text-lg transition duration-300 ${
+              canGoToPreviousMonth
+                ? "border-[#f1e8ca]/14 bg-white/[0.04] text-[#f1e8ca]/70 hover:border-[#f1e8ca]/30 hover:bg-white/[0.06] hover:text-[#f1e8ca]"
+                : "cursor-not-allowed border-white/[0.04] bg-black/[0.06] text-[#f1e8ca]/18"
+            }`}
           >
             ←
           </button>
 
-          <h3 className="text-2xl text-[#f1e8ca] sm:text-3xl">{monthLabel}</h3>
+          <h3 className="text-2xl text-[#f1e8ca] sm:text-3xl">
+            {monthLabel}
+          </h3>
 
           <button
-            onClick={() => setCurrentMonth((prev) => addMonths(prev, 1))}
+            type="button"
+            onClick={handleNextMonth}
+            aria-label="View next month"
             className="flex h-10 w-10 items-center justify-center rounded-full border border-[#f1e8ca]/14 bg-white/[0.04] text-lg text-[#f1e8ca]/70 transition duration-300 hover:border-[#f1e8ca]/30 hover:bg-white/[0.06] hover:text-[#f1e8ca]"
           >
             →
@@ -87,7 +139,7 @@ export default function DateSelector({
           ))}
         </div>
 
-        {/* Grid */}
+        {/* Calendar Grid */}
         <div className="grid grid-cols-7 gap-1.5">
           {calendarCells.map((day) => {
             if (day.empty) {
@@ -99,11 +151,13 @@ export default function DateSelector({
             const available = hasAvailability(day);
 
             const active =
-              selectedDate && isSameDay(new Date(selectedDate), day);
+              selectedDate &&
+              isSameDay(parseISO(selectedDate), startOfDay(day));
 
             return (
               <button
                 key={formattedDate}
+                type="button"
                 onClick={() => {
                   if (!available) {
                     return;
@@ -112,12 +166,15 @@ export default function DateSelector({
                   onSelectDate(formattedDate);
                 }}
                 disabled={!available}
+                aria-label={`${format(day, "EEEE, MMMM d, yyyy")}${
+                  available ? ", available" : ", unavailable"
+                }`}
                 className={`h-[64px] rounded-[1rem] border transition-all duration-200 ${
                   active
                     ? "border-[#f1e8ca]/70 bg-[#f1e8ca]/22 shadow-[0_0_28px_rgba(241,232,202,0.16)]"
                     : available
                       ? "border-[#f1e8ca]/18 bg-white/[0.065] hover:border-[#f1e8ca]/28 hover:bg-[#f1e8ca]/08"
-                      : "border-white/[0.03] bg-black/[0.12]"
+                      : "cursor-not-allowed border-white/[0.03] bg-black/[0.12]"
                 }`}
               >
                 <div className="flex h-full flex-col items-center justify-center">
