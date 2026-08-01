@@ -1,12 +1,19 @@
 import { supabase } from "../lib/supabase";
 
 export async function getAvailableSlots() {
+  const today = new Date().toISOString().split("T")[0];
+
   const { data, error } = await supabase
     .from("availability_slots")
     .select("*")
     .eq("is_available", true)
-    .order("slot_date", { ascending: true })
-    .order("slot_time", { ascending: true });
+    .gte("slot_date", today)
+    .order("slot_date", {
+      ascending: true,
+    })
+    .order("slot_time", {
+      ascending: true,
+    });
 
   if (error) {
     throw error;
@@ -15,31 +22,26 @@ export async function getAvailableSlots() {
   return data;
 }
 
-export async function createBooking({ slotId, name, email, phone, message }) {
-  const { error: bookingError } = await supabase.from("bookings").insert([
-    {
-      slot_id: slotId,
-      customer_name: name,
-      customer_email: email,
-      customer_phone: phone,
-      customer_message: message,
-    },
-  ]);
+export async function createBooking({
+  slotId,
+  name,
+  email,
+  phone,
+  message,
+}) {
+  const { data, error } = await supabase.rpc("create_booking_request", {
+    p_slot_id: slotId,
+    p_customer_name: name,
+    p_customer_email: email,
+    p_customer_phone: phone || null,
+    p_customer_message: message || null,
+  });
 
-  if (bookingError) {
-    throw bookingError;
+  if (error) {
+    throw error;
   }
 
-  const { error: slotError } = await supabase
-    .from("availability_slots")
-    .update({
-      is_available: false,
-    })
-    .eq("id", slotId);
-
-  if (slotError) {
-    throw slotError;
-  }
-
-  return true;
+  return {
+    bookingId: data,
+  };
 }

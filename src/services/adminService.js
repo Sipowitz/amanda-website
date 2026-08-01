@@ -78,7 +78,19 @@ export async function getAdminSlots() {
         customer_name,
         customer_email,
         customer_phone,
-        customer_message
+        customer_message,
+        status,
+        payment_status,
+        amount_due,
+        amount_paid,
+        paid_at,
+        payment_method,
+        payment_reference,
+        confirmed_at,
+        cancelled_at,
+        completed_at,
+        created_at,
+        updated_at
       )
     `,
     )
@@ -150,32 +162,70 @@ export async function createAdminBooking({
   phone,
   message,
 }) {
-  const { error: bookingError } = await supabase.from("bookings").insert([
-    {
-      slot_id: slotId,
-      customer_name: name,
-      customer_email: email,
-      customer_phone: phone,
-      customer_message: message,
-    },
-  ]);
+  const { data, error } = await supabase.rpc("create_booking_request", {
+    p_slot_id: slotId,
+    p_customer_name: name,
+    p_customer_email: email,
+    p_customer_phone: phone || null,
+    p_customer_message: message || null,
+  });
 
-  if (bookingError) {
-    throw bookingError;
+  if (error) {
+    throw error;
   }
 
-  const { error: slotError } = await supabase
-    .from("availability_slots")
-    .update({
-      is_available: false,
-    })
-    .eq("id", slotId);
+  return {
+    bookingId: data,
+  };
+}
 
-  if (slotError) {
-    throw slotError;
+export async function updateBookingStatus(bookingId, status) {
+  const { data, error } = await supabase.rpc("update_booking_status", {
+    p_booking_id: bookingId,
+    p_status: status,
+  });
+
+  if (error) {
+    throw error;
   }
 
-  return true;
+  return data;
+}
+
+export async function updateBookingPayment({
+  bookingId,
+  paymentStatus,
+  amountDue,
+  amountPaid,
+  paymentMethod,
+  paymentReference,
+}) {
+  const { data, error } = await supabase.rpc("update_booking_payment", {
+    p_booking_id: bookingId,
+    p_payment_status: paymentStatus,
+    p_amount_due: amountDue,
+    p_amount_paid: amountPaid,
+    p_payment_method: paymentMethod || null,
+    p_payment_reference: paymentReference || null,
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  return data;
+}
+
+export async function cancelBooking(bookingId) {
+  const { data, error } = await supabase.rpc("cancel_booking", {
+    p_booking_id: bookingId,
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  return data;
 }
 
 export async function deleteSlot(slotId) {
@@ -186,27 +236,5 @@ export async function deleteSlot(slotId) {
 
   if (error) {
     throw error;
-  }
-}
-
-export async function deleteBooking(bookingId, slotId) {
-  const { error: bookingError } = await supabase
-    .from("bookings")
-    .delete()
-    .eq("id", bookingId);
-
-  if (bookingError) {
-    throw bookingError;
-  }
-
-  const { error: slotError } = await supabase
-    .from("availability_slots")
-    .update({
-      is_available: true,
-    })
-    .eq("id", slotId);
-
-  if (slotError) {
-    throw slotError;
   }
 }

@@ -17,7 +17,7 @@ import { useToast } from "../../contexts/ToastContext";
 import { useConfirm } from "../../contexts/ConfirmContext";
 
 import {
-  deleteBooking,
+  cancelBooking,
   deleteSlot,
   generateSlots,
   getAdminSlots,
@@ -29,6 +29,8 @@ export default function AdminSlots() {
   const [generating, setGenerating] = useState(false);
 
   const [loadingSlots, setLoadingSlots] = useState(true);
+
+  const [cancellingBookingId, setCancellingBookingId] = useState(null);
 
   const [viewMode, setViewMode] = useState("all");
 
@@ -105,14 +107,15 @@ export default function AdminSlots() {
     } catch (error) {
       console.error(error);
 
-      toast.error("Failed to delete slot");
+      toast.error(error.message || "Failed to delete slot");
     }
   }
 
-  async function handleDeleteBooking(bookingId, slotId) {
+  async function handleCancelBooking(bookingId) {
     const confirmed = await confirm({
       title: "Cancel Booking",
-      message: "Are you sure you want to cancel this booking?",
+      message:
+        "Are you sure you want to cancel this booking? The appointment slot will become available again.",
       confirmText: "Cancel Booking",
     });
 
@@ -121,7 +124,9 @@ export default function AdminSlots() {
     }
 
     try {
-      await deleteBooking(bookingId, slotId);
+      setCancellingBookingId(bookingId);
+
+      await cancelBooking(bookingId);
 
       await loadSlots();
 
@@ -129,7 +134,9 @@ export default function AdminSlots() {
     } catch (error) {
       console.error(error);
 
-      toast.error("Failed to cancel booking");
+      toast.error(error.message || "Failed to cancel booking");
+    } finally {
+      setCancellingBookingId(null);
     }
   }
 
@@ -148,6 +155,10 @@ export default function AdminSlots() {
       await logout();
 
       toast.success("Logged out successfully");
+
+      navigate("/admin/login", {
+        replace: true,
+      });
     } catch (error) {
       console.error(error);
 
@@ -155,13 +166,21 @@ export default function AdminSlots() {
     }
   }
 
+  function getActiveBookings(slot) {
+    if (!slot.bookings) {
+      return [];
+    }
+
+    return slot.bookings.filter(
+      (booking) => booking.status !== "cancelled",
+    );
+  }
+
   const filteredSlots = useMemo(() => {
     let result = [...slots];
 
     if (viewMode === "bookings") {
-      result = result.filter(
-        (slot) => slot.bookings && slot.bookings.length > 0,
-      );
+      result = result.filter((slot) => getActiveBookings(slot).length > 0);
     }
 
     if (selectedDate) {
@@ -179,7 +198,7 @@ export default function AdminSlots() {
     const total = filteredSlots.length;
 
     const booked = filteredSlots.filter(
-      (slot) => slot.bookings && slot.bookings.length > 0,
+      (slot) => getActiveBookings(slot).length > 0,
     ).length;
 
     const available = total - booked;
@@ -215,6 +234,7 @@ export default function AdminSlots() {
           <AdminCard className="p-1">
             <div className="flex items-center gap-2">
               <button
+                type="button"
                 onClick={() => setViewMode("all")}
                 className={`rounded-full px-5 py-2 text-xs uppercase tracking-[0.18em] transition ${
                   viewMode === "all"
@@ -226,6 +246,7 @@ export default function AdminSlots() {
               </button>
 
               <button
+                type="button"
                 onClick={() => setViewMode("bookings")}
                 className={`rounded-full px-5 py-2 text-xs uppercase tracking-[0.18em] transition ${
                   viewMode === "bookings"
@@ -256,6 +277,7 @@ export default function AdminSlots() {
               return (
                 <button
                   key={date}
+                  type="button"
                   onClick={() => setSelectedDate(date)}
                   className={`min-w-[140px] rounded-2xl border px-4 py-4 text-left transition ${
                     active
@@ -333,14 +355,22 @@ export default function AdminSlots() {
             </div>
 
             <div className="flex flex-col gap-4">
-              {filteredSlots.map((slot) => (
-                <SlotItem
-                  key={slot.id}
-                  slot={slot}
-                  onDelete={handleDeleteSlot}
-                  onDeleteBooking={handleDeleteBooking}
-                />
-              ))}
+              {filteredSlots.map((slot) => {
+                const activeBookings = getActiveBookings(slot);
+
+                return (
+                  <SlotItem
+                    key={slot.id}
+                    slot={{
+                      ...slot,
+                      bookings: activeBookings,
+                    }}
+                    onDelete={handleDeleteSlot}
+                    onDeleteBooking={handleCancelBooking}
+                    cancellingBookingId={cancellingBookingId}
+                  />
+                );
+              })}
             </div>
           </div>
         )}
