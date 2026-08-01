@@ -74,7 +74,9 @@ export default function Booking() {
 
       setSuccess(true);
 
-      setSlots((prev) => prev.filter((slot) => slot.id !== selectedSlot.id));
+      setSlots((previousSlots) =>
+        previousSlots.filter((slot) => slot.id !== selectedSlot.id),
+      );
     } catch (error) {
       console.error("Booking failed:", error);
 
@@ -108,14 +110,12 @@ export default function Booking() {
             </p>
 
             <h1 className="max-w-5xl text-5xl font-light leading-[1.05] text-[#f1e8ca] md:text-7xl">
-              Book an Experience
+              Book a Reading
             </h1>
 
             <div className="mt-12 max-w-4xl text-xl leading-[2] text-[#f1e8ca]/88 md:text-2xl">
               <p>
-                Select a date and time for your visit. A quiet and considered
-                booking experience designed to feel calm, personal, and
-                effortless.
+                Select a date and time for your reading.
               </p>
             </div>
           </motion.div>
