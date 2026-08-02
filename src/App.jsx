@@ -18,6 +18,7 @@ import AdminDashboard from "./pages/admin/AdminDashboard";
 import AdminSlots from "./pages/admin/AdminSlots";
 import AdminBookings from "./pages/admin/AdminBookings";
 import AdminSettings from "./pages/admin/AdminSettings";
+import AdminEmailSettings from "./pages/admin/AdminEmailSettings";
 
 export default function App() {
   return (
@@ -33,17 +34,42 @@ export default function App() {
       </Route>
 
       {/* Authentication */}
-      <Route path="/admin" element={<Navigate to="/admin/login" replace />} />
+      <Route
+        path="/admin"
+        element={<Navigate to="/admin/login" replace />}
+      />
+
       <Route path="/admin/login" element={<AdminLogin />} />
+
       <Route path="/reset-password" element={<ResetPassword />} />
 
       {/* Protected Admin Area */}
       <Route element={<ProtectedAdminRoute />}>
         <Route element={<AdminLayout />}>
-          <Route path="/admin/dashboard" element={<AdminDashboard />} />
-          <Route path="/admin/bookings" element={<AdminBookings />} />
-          <Route path="/admin/availability" element={<AdminSlots />} />
-          <Route path="/admin/settings" element={<AdminSettings />} />
+          <Route
+            path="/admin/dashboard"
+            element={<AdminDashboard />}
+          />
+
+          <Route
+            path="/admin/bookings"
+            element={<AdminBookings />}
+          />
+
+          <Route
+            path="/admin/availability"
+            element={<AdminSlots />}
+          />
+
+          <Route
+            path="/admin/settings"
+            element={<AdminSettings />}
+          />
+
+          <Route
+            path="/admin/settings/email"
+            element={<AdminEmailSettings />}
+          />
         </Route>
       </Route>
     </Routes>

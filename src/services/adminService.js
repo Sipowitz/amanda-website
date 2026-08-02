@@ -238,3 +238,45 @@ export async function deleteSlot(slotId) {
     throw error;
   }
 }
+
+export async function getEmailSettings() {
+  const { data, error } = await supabase.rpc("get_email_settings");
+
+  if (error) {
+    throw error;
+  }
+
+  return data;
+}
+
+export async function updateEmailSettings({
+  bookingRemindersEnabled,
+  bookingReminderHoursList,
+  sendAdminReminders,
+  sendWindowStart,
+  sendWindowEnd,
+  timezone,
+  confirmedBookingsOnly,
+  sendForUnpaid,
+  sendForPartPaid,
+  sendForPaid,
+}) {
+  const { data, error } = await supabase.rpc("update_email_settings", {
+    p_booking_reminders_enabled: bookingRemindersEnabled,
+    p_booking_reminder_hours_list: bookingReminderHoursList,
+    p_send_admin_reminders: sendAdminReminders,
+    p_send_window_start: sendWindowStart,
+    p_send_window_end: sendWindowEnd,
+    p_timezone: timezone,
+    p_confirmed_bookings_only: confirmedBookingsOnly,
+    p_send_for_unpaid: sendForUnpaid,
+    p_send_for_part_paid: sendForPartPaid,
+    p_send_for_paid: sendForPaid,
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  return data;
+}

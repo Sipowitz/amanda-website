@@ -1,0 +1,86 @@
+@tailwind components;
+
+@layer components {
+
+  .admin-input {
+    @apply h-14
+      rounded-xl
+      border
+      border-[#d8ddd4]
+      bg-white
+      px-4
+      text-sm
+      text-[#273128]
+      outline-none
+      transition
+      focus:border-[#55735b]
+      focus:ring-4
+      focus:ring-[#55735b]/10
+      disabled:cursor-not-allowed
+      disabled:bg-[#f2f3ef]
+      disabled:text-[#929992];
+  }
+
+  .admin-select {
+    @apply h-14
+      rounded-xl
+      border
+      border-[#d8ddd4]
+      bg-white
+      pl-4
+      pr-12
+      text-sm
+      text-[#273128]
+      outline-none
+      transition
+      focus:border-[#55735b]
+      focus:ring-4
+      focus:ring-[#55735b]/10
+      disabled:cursor-not-allowed
+      disabled:bg-[#f2f3ef]
+      disabled:text-[#929992];
+  }
+
+  .admin-textarea {
+    @apply rounded-xl
+      border
+      border-[#d8ddd4]
+      bg-white
+      px-4
+      py-3
+      text-sm
+      text-[#273128]
+      outline-none
+      transition
+      focus:border-[#55735b]
+      focus:ring-4
+      focus:ring-[#55735b]/10;
+  }
+
+  .admin-checkbox {
+    @apply h-4
+      w-4
+      accent-[#48684f];
+  }
+
+  .admin-button {
+    @apply rounded-xl
+      border
+      border-[#3f5e46]
+      bg-[#496a50]
+      px-7
+      py-3
+      text-sm
+      font-semibold
+      text-white
+      shadow-sm
+      transition
+      hover:bg-[#3f5f46]
+      focus:outline-none
+      focus:ring-4
+      focus:ring-[#496a50]/20
+      disabled:cursor-not-allowed
+      disabled:opacity-55;
+  }
+
+}
