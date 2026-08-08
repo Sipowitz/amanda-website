@@ -59,7 +59,7 @@ export default function Hero() {
           <img
             src={heroImage}
             alt="Amanda Beach"
-            className="h-full w-full object-cover object-center saturate-50"
+            className="h-full w-full object-cover object-[center_12%]"
           />
 
           <div className="absolute inset-0 bg-black/10" />
