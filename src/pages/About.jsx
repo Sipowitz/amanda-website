@@ -22,13 +22,13 @@ export default function About() {
             About Amanda Beach
           </p>
 
-          <div className="grid items-start gap-12 md:grid-cols-[1.05fr_0.95fr] md:gap-20">
+          <div className="grid items-start gap-12 md:grid-cols-[1.1fr_0.9fr] md:gap-20">
             <div>
               <h1 className="text-5xl font-light leading-[1.05] text-[#f1e8ca] md:text-7xl">
                 A thoughtful and personal approach.
               </h1>
 
-              <div className="mt-12 space-y-8 text-xl leading-[2] text-[#f1e8ca]/88 md:text-2xl">
+              <div className="mt-12 max-w-3xl space-y-7 text-lg leading-[1.9] text-[#f1e8ca]/80">
                 <p>
                   For more than twenty years, I’ve worked at the intersection of
                   intuition and strategy — helping people see what’s actually
@@ -58,12 +58,12 @@ export default function About() {
                 delay: 0.2,
                 ease: [0.22, 1, 0.36, 1],
               }}
-              className="w-full md:justify-self-end"
+              className="flex w-full justify-center"
             >
               <img
                 src="/amanda-reading.jpg"
                 alt="Amanda Beach giving a tarot reading"
-                className="h-auto w-full max-w-[500px] object-cover md:ml-auto"
+                className="h-auto w-full max-w-[340px] object-cover"
               />
             </motion.div>
           </div>
