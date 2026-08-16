@@ -26,10 +26,10 @@ export default function Navbar() {
       name: "Book",
       path: "/booking",
     },
-    {
-      name: "Events",
-      path: "/events",
-    },
+  //  {
+  //    name: "Events",
+  //    path: "/events",
+  //  },
     {
       name: "Contact",
       path: "/contact",
