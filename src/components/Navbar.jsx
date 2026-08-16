@@ -14,27 +14,31 @@ export default function Navbar() {
   const navigate = useNavigate();
 
   const links = [
-    {
-      name: "Home",
-      path: "/",
-    },
-    {
-      name: "About",
-      path: "/about",
-    },
-    {
-      name: "Book",
-      path: "/booking",
-    },
-  //  {
-  //    name: "Events",
-  //    path: "/events",
-  //  },
-    {
-      name: "Contact",
-      path: "/contact",
-    },
-  ];
+  {
+    name: "Home",
+    path: "/",
+  },
+  {
+    name: "About",
+    path: "/about",
+  },
+  {
+    name: "Services",
+    path: "/services",
+  },
+  {
+    name: "Book",
+    path: "/booking",
+  },
+  // {
+  //   name: "Events",
+  //   path: "/events",
+  // },
+  {
+    name: "Contact",
+    path: "/contact",
+  },
+];
 
   useEffect(() => {
     if (menuOpen) {

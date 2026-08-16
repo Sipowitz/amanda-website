@@ -4,6 +4,7 @@ import MainLayout from "./layouts/MainLayout";
 
 import Home from "./pages/Home";
 import About from "./pages/About";
+import Services from "./pages/Services";
 import Booking from "./pages/Booking";
 import Events from "./pages/Events";
 import Shop from "./pages/Shop";
@@ -27,6 +28,7 @@ export default function App() {
       <Route element={<MainLayout />}>
         <Route path="/" element={<Home />} />
         <Route path="/about" element={<About />} />
+        <Route path="/services" element={<Services />} />
         <Route path="/booking" element={<Booking />} />
         <Route path="/events" element={<Events />} />
         <Route path="/shop" element={<Shop />} />
