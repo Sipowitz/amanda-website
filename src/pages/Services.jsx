@@ -3,9 +3,12 @@ import { Link } from "react-router-dom";
 
 const services = [
   {
-    title: "Private Readings",
+    title: "Voice Memo Reading",
+    price: "$20",
     description:
-      "One-to-one intuitive sessions offering insight, clarity and a fresh perspective on the questions and situations that matter to you.",
+      "This is a one-topic reading. A voice memo reading allows you to have the insight and clarity you want, with the flexibility to receive the reading in your own time.",
+    details:
+      "Please contact me to arrange a voice memo reading. Be as detailed as you can when forming your request. All requests will be answered within 24 hours.",
   },
   {
     title: "Parties & Gatherings",
@@ -59,13 +62,25 @@ export default function Services() {
                 }}
                 className="rounded-3xl border border-white/10 bg-black/10 p-8 backdrop-blur-md md:p-10"
               >
-                <h2 className="mb-4 text-3xl font-light text-[#f1e8ca]">
+                <h2 className="text-3xl font-light text-[#f1e8ca]">
                   {service.title}
                 </h2>
 
-                <p className="max-w-3xl text-lg leading-[1.8] text-[#f1e8ca]/75">
+                {service.price && (
+                  <p className="mt-3 text-2xl font-light text-[#f1e8ca]">
+                    {service.price}
+                  </p>
+                )}
+
+                <p className="mt-5 max-w-3xl text-lg leading-[1.8] text-[#f1e8ca]/75">
                   {service.description}
                 </p>
+
+                {service.details && (
+                  <p className="mt-5 max-w-3xl text-lg leading-[1.8] text-[#f1e8ca]/75">
+                    {service.details}
+                  </p>
+                )}
               </motion.div>
             ))}
 
