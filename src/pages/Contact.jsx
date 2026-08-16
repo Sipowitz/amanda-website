@@ -26,38 +26,92 @@ export default function Contact() {
             simply have a question, I'd love to hear from you.
           </p>
 
-          <div className="rounded-3xl border border-white/10 bg-black/10 p-8 backdrop-blur-md">
-            <h2 className="mb-6 text-3xl font-light text-[#f1e8ca]">
-              Contact Details
-            </h2>
+          <div className="space-y-6">
+            {/* Contact Details */}
+            <div className="rounded-3xl border border-white/10 bg-black/10 p-8 backdrop-blur-md">
+              <h2 className="mb-6 text-3xl font-light text-[#f1e8ca]">
+                Contact Details
+              </h2>
 
-            <div className="space-y-4 text-lg">
-              <p className="text-[#f1e8ca]/80">
-                <span className="font-medium text-[#f1e8ca]">Email:</span>{" "}
+              <div className="space-y-4 text-lg">
+                <p className="text-[#f1e8ca]/80">
+                  <span className="font-medium text-[#f1e8ca]">Email:</span>{" "}
+                  <a
+                    href="mailto:reach.amanda.beach@gmail.com"
+                    className="transition-colors duration-300 hover:text-[#f8f1d7]"
+                  >
+                    reach.amanda.beach@gmail.com
+                  </a>
+                </p>
+
+                <p className="text-[#f1e8ca]/80">
+                  <span className="font-medium text-[#f1e8ca]">Phone:</span>{" "}
+                  <a
+                    href="tel:+18314406599"
+                    className="transition-colors duration-300 hover:text-[#f8f1d7]"
+                  >
+                    (831) 440-6599
+                  </a>
+                </p>
+
+                <p className="text-[#f1e8ca]/80">
+                  <span className="font-medium text-[#f1e8ca]">
+                    Service Area:
+                  </span>{" "}
+                  Available for private sessions, parties, and public events.
+                </p>
+              </div>
+            </div>
+
+            {/* Socials */}
+            <div className="rounded-3xl border border-white/10 bg-black/10 p-8 backdrop-blur-md">
+              <h2 className="mb-6 text-3xl font-light text-[#f1e8ca]">
+                Socials
+              </h2>
+
+              <div className="grid gap-4 sm:grid-cols-2">
                 <a
-                  href="mailto:reach.amanda.beach@gmail.com"
-                  className="transition-colors duration-300 hover:text-[#f8f1d7]"
+                  href="https://www.tiktok.com/@amandabeachintuitive?_r=1&_t=ZT-98vbapFjf37"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="group flex items-center justify-between rounded-2xl border border-white/10 bg-white/5 px-5 py-4 transition-all duration-300 hover:border-white/20 hover:bg-white/10"
                 >
-                  reach.amanda.beach@gmail.com
-                </a>
-              </p>
+                  <div>
+                    <p className="text-sm uppercase tracking-[0.2em] text-[#f1e8ca]/60">
+                      TikTok
+                    </p>
 
-              <p className="text-[#f1e8ca]/80">
-                <span className="font-medium text-[#f1e8ca]">Phone:</span>{" "}
+                    <p className="mt-1 text-lg text-[#f1e8ca]">
+                      @amandabeachintuitive
+                    </p>
+                  </div>
+
+                  <span className="ml-4 text-xl text-[#f1e8ca]/60 transition-all duration-300 group-hover:translate-x-1 group-hover:text-[#f1e8ca]">
+                    →
+                  </span>
+                </a>
+
                 <a
-                  href="tel:+18314406599"
-                  className="transition-colors duration-300 hover:text-[#f8f1d7]"
+                  href="https://www.instagram.com/herbeachness?igsh=cGRqN255Z2FhY3Nn&utm_source=qr"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="group flex items-center justify-between rounded-2xl border border-white/10 bg-white/5 px-5 py-4 transition-all duration-300 hover:border-white/20 hover:bg-white/10"
                 >
-                  (831) 440-6599
-                </a>
-              </p>
+                  <div>
+                    <p className="text-sm uppercase tracking-[0.2em] text-[#f1e8ca]/60">
+                      Instagram
+                    </p>
 
-              <p className="text-[#f1e8ca]/80">
-                <span className="font-medium text-[#f1e8ca]">
-                  Service Area:
-                </span>{" "}
-                Available for private sessions, parties, and public events.
-              </p>
+                    <p className="mt-1 text-lg text-[#f1e8ca]">
+                      @herbeachness
+                    </p>
+                  </div>
+
+                  <span className="ml-4 text-xl text-[#f1e8ca]/60 transition-all duration-300 group-hover:translate-x-1 group-hover:text-[#f1e8ca]">
+                    →
+                  </span>
+                </a>
+              </div>
             </div>
           </div>
         </motion.div>
