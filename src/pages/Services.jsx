@@ -11,6 +11,15 @@ const services = [
       "Please contact me to arrange a voice memo reading. Be as detailed as you can when forming your request. All requests will be answered within 24 hours.",
   },
   {
+    title: "Private Readings",
+    price: "$85",
+    description:
+      "A full hour to dive into your quandary and get to the heart of the matter.",
+    details:
+      "In order to limit distractions, readings will take place via a phone call. Clients are welcome to record their readings.",
+    bookingLink: true,
+  },
+  {
     title: "Parties & Gatherings",
     description:
       "Intuitive readings for private parties, celebrations and gatherings, creating a memorable and engaging experience for your guests.",
@@ -81,30 +90,18 @@ export default function Services() {
                     {service.details}
                   </p>
                 )}
+
+                {service.bookingLink && (
+                  <Link
+                    to="/booking"
+                    className="mt-10 inline-flex items-center gap-3 rounded-full border border-[#f1e8ca]/30 px-6 py-3 text-sm font-medium uppercase tracking-[0.18em] text-[#f1e8ca] transition-all duration-300 hover:border-[#f1e8ca]/60 hover:bg-white/10"
+                  >
+                    Book a Reading
+                    <span aria-hidden="true">→</span>
+                  </Link>
+                )}
               </motion.div>
             ))}
-
-            <div className="rounded-3xl border border-white/10 bg-black/10 p-8 backdrop-blur-md md:p-10">
-              <p className="mb-3 text-sm uppercase tracking-[0.28em] text-[#f1e8ca]/55">
-                Private Readings
-              </p>
-
-              <h2 className="mb-4 text-3xl font-light text-[#f1e8ca]">
-                Ready to Book?
-              </h2>
-
-              <p className="mb-7 max-w-3xl text-lg leading-[1.8] text-[#f1e8ca]/75">
-                View available dates and request a private reading with Amanda.
-              </p>
-
-              <Link
-                to="/booking"
-                className="inline-flex items-center gap-3 rounded-full border border-[#f1e8ca]/30 px-6 py-3 text-sm font-medium uppercase tracking-[0.18em] text-[#f1e8ca] transition-all duration-300 hover:border-[#f1e8ca]/60 hover:bg-white/10"
-              >
-                Book a Reading
-                <span aria-hidden="true">→</span>
-              </Link>
-            </div>
           </div>
         </motion.div>
       </div>
