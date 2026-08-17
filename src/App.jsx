@@ -20,6 +20,7 @@ import AdminSlots from "./pages/admin/AdminSlots";
 import AdminBookings from "./pages/admin/AdminBookings";
 import AdminSettings from "./pages/admin/AdminSettings";
 import AdminEmailSettings from "./pages/admin/AdminEmailSettings";
+import AdminPaymentSettings from "./pages/admin/AdminPaymentSettings";
 
 export default function App() {
   return (
@@ -29,7 +30,15 @@ export default function App() {
         <Route path="/" element={<Home />} />
         <Route path="/about" element={<About />} />
         <Route path="/services" element={<Services />} />
-        <Route path="/booking" element={<Booking />} />
+        <Route path="/booking" element={<Navigate to="/services" replace />} />
+        <Route
+          path="/services/:serviceSlug/book"
+          element={<Booking expectedMode="timed" />}
+        />
+        <Route
+          path="/services/:serviceSlug/request"
+          element={<Booking expectedMode="untimed" />}
+        />
         <Route path="/events" element={<Events />} />
         <Route path="/shop" element={<Shop />} />
         <Route path="/contact" element={<Contact />} />
@@ -71,6 +80,11 @@ export default function App() {
           <Route
             path="/admin/settings/email"
             element={<AdminEmailSettings />}
+          />
+
+          <Route
+            path="/admin/settings/payments"
+            element={<AdminPaymentSettings />}
           />
         </Route>
       </Route>

@@ -63,13 +63,24 @@ export default function BookingCard({
         className="grid w-full gap-4 px-5 py-5 text-left transition hover:bg-[#faf8f2] md:grid-cols-[190px_minmax(0,1.3fr)_170px_150px_130px] md:items-center md:px-6"
       >
         <div className="border-[#e4e0d7] md:border-r md:pr-5">
-          <p className="text-sm text-[#525d54]">
-            {formatBookingDate(slot.slot_date)}
+          <p className="text-sm font-medium text-[#525d54]">
+            {booking.service_name_snapshot}
           </p>
 
-          <p className="mt-2 text-2xl font-semibold tracking-tight text-[#1f2922]">
-            {slot.slot_time}
-          </p>
+          {slot ? (
+            <>
+              <p className="mt-2 text-sm text-[#525d54]">
+                {formatBookingDate(slot.slot_date)}
+              </p>
+              <p className="mt-1 text-2xl font-semibold tracking-tight text-[#1f2922]">
+                {slot.slot_time}
+              </p>
+            </>
+          ) : (
+            <p className="mt-2 text-sm font-semibold text-[#1f2922]">
+              Untimed request
+            </p>
+          )}
         </div>
 
         <div className="min-w-0 md:px-1">
@@ -245,7 +256,7 @@ export default function BookingCard({
 
                     <button
                       disabled={isUpdating}
-                      onClick={() => onCancel(booking.id)}
+                      onClick={() => onCancel(booking)}
                       className="rounded-xl border border-[#efcccc] bg-[#f8e7e7] px-4 py-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#9a3a3a] disabled:opacity-40"
                     >
                       {isUpdating ? "Updating..." : "Cancel"}

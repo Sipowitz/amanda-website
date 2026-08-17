@@ -43,12 +43,19 @@ Deno.serve(async (request) => {
     const queueMessages = (messages || []) as QueueMessage[];
 
     if (queueMessages.length === 0) {
+      const summary = {
+        messagesRead: 0,
+        sent: 0,
+        retrying: 0,
+        permanentlyFailed: 0,
+      };
+
+      console.log("Booking email queue summary", summary);
+
       return new Response(
         JSON.stringify({
           message: "No booking emails are waiting",
-          processed: 0,
-          succeeded: 0,
-          failed: 0,
+          ...summary,
         }),
         {
           status: 200,
@@ -59,25 +66,53 @@ Deno.serve(async (request) => {
       );
     }
 
-    const results = [];
+    const settledResults = await Promise.allSettled(
+      queueMessages.map((queueMessage) => processQueueMessage(queueMessage)),
+    );
 
-    for (const queueMessage of queueMessages) {
-      results.push(await processQueueMessage(queueMessage));
-    }
+    const results = settledResults.map((result, index) => {
+      if (result.status === "fulfilled") {
+        return result.value;
+      }
 
-    const succeeded = results.filter((result) => result.success).length;
-    const failed = results.length - succeeded;
+      const queueMessage = queueMessages[index];
+      const error = result.reason instanceof Error
+        ? result.reason.message
+        : "Unexpected queue processing error";
+
+      console.error(
+        `Unexpected failure processing queue message ${queueMessage.msg_id}:`,
+        result.reason,
+      );
+
+      return {
+        messageId: queueMessage.msg_id,
+        status: "retrying" as const,
+        attemptCount: Math.max(Number(queueMessage.read_ct) || 0, 1),
+        error,
+      };
+    });
+
+    const summary = {
+      messagesRead: queueMessages.length,
+      sent: results.filter((result) => result.status === "sent").length,
+      retrying: results.filter((result) => result.status === "retrying").length,
+      permanentlyFailed: results.filter(
+        (result) => result.status === "permanently_failed",
+      ).length,
+    };
+
+    console.log("Booking email queue summary", summary);
 
     return new Response(
       JSON.stringify({
         message: "Booking email queue processed",
-        processed: results.length,
-        succeeded,
-        failed,
+        ...summary,
         results,
       }),
       {
-        status: failed > 0 ? 207 : 200,
+        status:
+          summary.retrying > 0 || summary.permanentlyFailed > 0 ? 207 : 200,
         headers: {
           "Content-Type": "application/json",
         },

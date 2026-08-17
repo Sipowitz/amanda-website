@@ -9,7 +9,7 @@ import { useAdminAuth } from "../../contexts/AdminAuthContext";
 import { useToast } from "../../contexts/ToastContext";
 import { useConfirm } from "../../contexts/ConfirmContext";
 
-import { getAdminSlots } from "../../services/adminService";
+import { getAdminBookings, getAdminSlots } from "../../services/adminService";
 
 function getLocalDateString(date = new Date()) {
   const year = date.getFullYear();
@@ -36,9 +36,9 @@ function getGreeting() {
 }
 
 function formatCurrency(value) {
-  return new Intl.NumberFormat("en-GB", {
+  return new Intl.NumberFormat("en-US", {
     style: "currency",
-    currency: "GBP",
+    currency: "USD",
   }).format(Number(value || 0));
 }
 
@@ -133,6 +133,7 @@ function getPaymentStyles(status) {
 
 export default function AdminDashboard() {
   const [slots, setSlots] = useState([]);
+  const [bookingRecords, setBookingRecords] = useState([]);
 
   const [loading, setLoading] = useState(true);
 
@@ -152,9 +153,13 @@ export default function AdminDashboard() {
     try {
       setLoading(true);
 
-      const data = await getAdminSlots();
+      const [slotsData, bookingsData] = await Promise.all([
+        getAdminSlots(),
+        getAdminBookings(),
+      ]);
 
-      setSlots(data);
+      setSlots(slotsData);
+      setBookingRecords(bookingsData);
     } catch (error) {
       console.error(error);
 
@@ -201,21 +206,17 @@ export default function AdminDashboard() {
   }, []);
 
   const bookings = useMemo(() => {
-    return slots.flatMap((slot) => {
-      const activeBookings = (slot.bookings || []).filter(
-        (booking) => booking.status !== "cancelled",
-      );
-
-      return activeBookings.map((booking) => ({
+    return bookingRecords
+      .filter((booking) => booking.status !== "cancelled")
+      .map((booking) => ({
         ...booking,
-        slot,
+        slot: booking.availability_slots || null,
       }));
-    });
-  }, [slots]);
+  }, [bookingRecords]);
 
   const upcomingBookings = useMemo(() => {
     return bookings
-      .filter((booking) => booking.slot.slot_date >= today)
+      .filter((booking) => booking.slot?.slot_date >= today)
       .sort((first, second) => {
         const firstDate = `${first.slot.slot_date}T${first.slot.slot_time}`;
 
@@ -238,19 +239,17 @@ export default function AdminDashboard() {
   }, [upcomingBookings, endOfWeek]);
 
   const pendingBookings = useMemo(() => {
-    return upcomingBookings.filter(
-      (booking) => booking.status === "pending",
-    );
-  }, [upcomingBookings]);
+    return bookings.filter((booking) => booking.status === "pending");
+  }, [bookings]);
 
   const paymentDueBookings = useMemo(() => {
-    return upcomingBookings.filter(
+    return bookings.filter(
       (booking) =>
         ["unpaid", "part_paid"].includes(booking.payment_status) &&
         Number(booking.amount_due || 0) >
           Number(booking.amount_paid || 0),
     );
-  }, [upcomingBookings]);
+  }, [bookings]);
 
   const outstandingAmount = useMemo(() => {
     return paymentDueBookings.reduce((total, booking) => {
@@ -278,9 +277,9 @@ export default function AdminDashboard() {
         booking,
         type: "confirmation",
         eyebrow: "Awaiting confirmation",
-        detail: `${formatDate(booking.slot.slot_date)} · ${
-          booking.slot.slot_time
-        }`,
+        detail: booking.slot
+          ? `${formatDate(booking.slot.slot_date)} · ${booking.slot.slot_time}`
+          : `${booking.service_name_snapshot} · Untimed request`,
         priority: 1,
       });
     });

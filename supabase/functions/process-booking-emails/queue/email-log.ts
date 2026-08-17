@@ -118,7 +118,8 @@ export async function markEmailAsSent({
 export async function markEmailAsFailed(
   emailLogId: string,
   error: unknown,
-): Promise<void> {
+  permanentlyFailed: boolean,
+): Promise<boolean> {
   const message =
     error instanceof Error ? error.message : "Unknown email processing error";
 
@@ -127,8 +128,8 @@ export async function markEmailAsFailed(
   const { error: updateError } = await supabase
     .from("booking_email_log")
     .update({
-      status: "failed",
-      failed_at: failedAt,
+      status: permanentlyFailed ? "failed" : "queued",
+      failed_at: permanentlyFailed ? failedAt : null,
       error_message: message.slice(0, 2000),
       updated_at: failedAt,
     })
@@ -139,5 +140,9 @@ export async function markEmailAsFailed(
       `Failed to record error for email log ${emailLogId}:`,
       updateError,
     );
+
+    return false;
   }
+
+  return true;
 }

@@ -23,8 +23,9 @@ const settingsSections = [
   {
     title: "Payments",
     description:
-      "Payment methods, default pricing and receipt behaviour.",
-    available: false,
+      "Manage the Stripe Payment Link used by each booking service.",
+    available: true,
+    path: "/admin/settings/payments",
   },
   {
     title: "Email settings",

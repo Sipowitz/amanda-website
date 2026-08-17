@@ -95,16 +95,16 @@ export default function DateSelector({
   }, [currentMonth]);
 
   return (
-    <div className="mx-auto max-w-4xl">
-      <div className="rounded-[2rem] border border-[#f1e8ca]/14 bg-white/[0.05] p-4 shadow-[0_20px_60px_rgba(0,0,0,0.14)] backdrop-blur-xl sm:p-5">
+    <div className="mx-auto w-full max-w-[940px]">
+      <div className="rounded-[1.5rem] border border-[#f1e8ca]/14 bg-white/[0.05] p-3 shadow-[0_20px_60px_rgba(0,0,0,0.14)] backdrop-blur-xl sm:rounded-[2rem] sm:p-6 md:p-8">
         {/* Header */}
-        <div className="mb-5 flex items-center justify-between">
+        <div className="mb-5 grid grid-cols-[2.5rem_minmax(0,1fr)_2.5rem] items-center gap-3 sm:mb-7 sm:grid-cols-[2.75rem_minmax(0,1fr)_2.75rem] sm:gap-5">
           <button
             type="button"
             onClick={handlePreviousMonth}
             disabled={!canGoToPreviousMonth}
             aria-label="View previous month"
-            className={`flex h-10 w-10 items-center justify-center rounded-full border text-lg transition duration-300 ${
+            className={`flex h-10 w-10 items-center justify-center rounded-full border text-lg transition duration-300 sm:h-11 sm:w-11 ${
               canGoToPreviousMonth
                 ? "border-[#f1e8ca]/14 bg-white/[0.04] text-[#f1e8ca]/70 hover:border-[#f1e8ca]/30 hover:bg-white/[0.06] hover:text-[#f1e8ca]"
                 : "cursor-not-allowed border-white/[0.04] bg-black/[0.06] text-[#f1e8ca]/18"
@@ -113,7 +113,7 @@ export default function DateSelector({
             ←
           </button>
 
-          <h3 className="text-2xl text-[#f1e8ca] sm:text-3xl">
+          <h3 className="truncate text-center text-xl text-[#f1e8ca] sm:text-3xl">
             {monthLabel}
           </h3>
 
@@ -121,18 +121,18 @@ export default function DateSelector({
             type="button"
             onClick={handleNextMonth}
             aria-label="View next month"
-            className="flex h-10 w-10 items-center justify-center rounded-full border border-[#f1e8ca]/14 bg-white/[0.04] text-lg text-[#f1e8ca]/70 transition duration-300 hover:border-[#f1e8ca]/30 hover:bg-white/[0.06] hover:text-[#f1e8ca]"
+            className="flex h-10 w-10 items-center justify-center rounded-full border border-[#f1e8ca]/14 bg-white/[0.04] text-lg text-[#f1e8ca]/70 transition duration-300 hover:border-[#f1e8ca]/30 hover:bg-white/[0.06] hover:text-[#f1e8ca] sm:h-11 sm:w-11"
           >
             →
           </button>
         </div>
 
         {/* Weekdays */}
-        <div className="mb-3 grid grid-cols-7 gap-1.5">
+        <div className="mb-2 grid grid-cols-7 gap-1 sm:mb-3 sm:gap-2 md:gap-3">
           {weekdayLabels.map((day) => (
             <div
               key={day}
-              className="text-center text-[11px] uppercase tracking-[0.22em] text-[#f1e8ca]/72"
+              className="min-w-0 text-center text-[9px] uppercase tracking-[0.08em] text-[#f1e8ca]/72 sm:text-[11px] sm:tracking-[0.18em]"
             >
               {day}
             </div>
@@ -140,10 +140,15 @@ export default function DateSelector({
         </div>
 
         {/* Calendar Grid */}
-        <div className="grid grid-cols-7 gap-1.5">
+        <div className="grid grid-cols-7 gap-1 sm:gap-2 md:gap-3">
           {calendarCells.map((day) => {
             if (day.empty) {
-              return <div key={day.id} className="h-[64px]" />;
+              return (
+                <div
+                  key={day.id}
+                  className="h-12 sm:h-[60px] md:h-[68px]"
+                />
+              );
             }
 
             const formattedDate = format(day, "yyyy-MM-dd");
@@ -169,7 +174,7 @@ export default function DateSelector({
                 aria-label={`${format(day, "EEEE, MMMM d, yyyy")}${
                   available ? ", available" : ", unavailable"
                 }`}
-                className={`h-[64px] rounded-[1rem] border transition-all duration-200 ${
+                className={`min-w-0 h-12 rounded-lg border transition-all duration-200 sm:h-[60px] sm:rounded-xl md:h-[68px] md:rounded-[1rem] ${
                   active
                     ? "border-[#f1e8ca]/70 bg-[#f1e8ca]/22 shadow-[0_0_28px_rgba(241,232,202,0.16)]"
                     : available

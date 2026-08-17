@@ -3,7 +3,8 @@ import { motion } from "framer-motion";
 import { format } from "date-fns";
 
 export default function BookingForm({
-  selectedSlot,
+  service,
+  selectedSlot = null,
   onSubmit,
   onCancel,
   loading,
@@ -15,26 +16,25 @@ export default function BookingForm({
     message: "",
   });
 
-  if (!selectedSlot) {
+  const isTimed = service.booking_mode === "timed";
+
+  if (isTimed && !selectedSlot) {
     return null;
   }
 
   function handleChange(event) {
     const { name, value } = event.target;
-
-    setFormData((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
+    setFormData((previous) => ({ ...previous, [name]: value }));
   }
 
   function handleSubmit(event) {
     event.preventDefault();
-
     onSubmit(formData);
   }
 
-  const readableDate = format(new Date(selectedSlot.slot_date), "EEEE, MMMM d");
+  const readableDate = selectedSlot
+    ? format(new Date(selectedSlot.slot_date), "EEEE, MMMM d")
+    : null;
 
   return (
     <motion.form
@@ -46,23 +46,37 @@ export default function BookingForm({
       <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div>
           <p className="text-sm uppercase tracking-[0.2em] text-[#f1e8ca]/55">
-            Confirm Booking
+            {isTimed ? "Confirm Booking" : "Send Request"}
           </p>
 
-          <h3 className="mt-2 text-2xl text-[#f1e8ca]">{readableDate}</h3>
+          <h3 className="mt-2 text-2xl text-[#f1e8ca]">{service.name}</h3>
 
           <p className="mt-2 text-lg text-[#f1e8ca]/70">
-            {selectedSlot.slot_time}
+            {(service.price_amount / 100).toLocaleString("en-US", {
+              style: "currency",
+              currency: "USD",
+            })}
+            {service.duration_minutes
+              ? ` - ${service.duration_minutes} minutes`
+              : ""}
           </p>
+
+          {selectedSlot && (
+            <p className="mt-3 text-[#f1e8ca]/70">
+              {readableDate} - {selectedSlot.slot_time}
+            </p>
+          )}
         </div>
 
-        <button
-          type="button"
-          onClick={onCancel}
-          className="text-sm uppercase tracking-[0.18em] text-[#f1e8ca]/55 transition hover:text-[#f1e8ca]"
-        >
-          Change Selection
-        </button>
+        {isTimed && (
+          <button
+            type="button"
+            onClick={onCancel}
+            className="text-sm uppercase tracking-[0.18em] text-[#f1e8ca]/55 transition hover:text-[#f1e8ca]"
+          >
+            Change Selection
+          </button>
+        )}
       </div>
 
       <div className="grid gap-5 md:grid-cols-2">
@@ -95,14 +109,17 @@ export default function BookingForm({
           onChange={handleChange}
           className="rounded-2xl border border-white/10 bg-black/10 px-5 py-4 text-[#f1e8ca] placeholder:text-[#f1e8ca]/35 outline-none transition focus:border-[#f1e8ca]/40"
         />
-
-        <div />
       </div>
 
       <textarea
         name="message"
-        placeholder="Optional message"
+        placeholder={
+          isTimed
+            ? "Optional message"
+            : "Tell Amanda the topic or question for your voice memo reading"
+        }
         rows="5"
+        required={!isTimed}
         value={formData.message}
         onChange={handleChange}
         className="rounded-2xl border border-white/10 bg-black/10 px-5 py-4 text-[#f1e8ca] placeholder:text-[#f1e8ca]/35 outline-none transition focus:border-[#f1e8ca]/40"
@@ -113,7 +130,11 @@ export default function BookingForm({
         disabled={loading}
         className="rounded-2xl border border-[#f1e8ca]/20 bg-[#f1e8ca]/10 px-8 py-4 text-[#f1e8ca] transition duration-300 hover:bg-[#f1e8ca]/18 disabled:opacity-50"
       >
-        {loading ? "Confirming..." : "Confirm Booking"}
+        {loading
+          ? "Sending..."
+          : isTimed
+            ? "Confirm Booking"
+            : "Request Voice Memo Reading"}
       </button>
     </motion.form>
   );

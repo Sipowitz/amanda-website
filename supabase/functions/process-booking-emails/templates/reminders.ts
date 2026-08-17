@@ -15,10 +15,12 @@ import { getEmailLayout } from "../lib/layout.ts";
 function getReminderDetails(payload: Record<string, unknown>) {
   const customerName = String(payload.customer_name ?? "");
   const reminderHours = Number(payload.reminder_hours ?? 24);
+  const serviceName = String(payload.service_name ?? "Booking");
 
   return {
     customerName,
     firstName: getCustomerFirstName(customerName),
+    serviceName,
     slotDate: formatBookingDate(payload.slot_date),
     slotTime: String(payload.slot_time ?? "Time to be confirmed"),
     reminderHours,
@@ -31,6 +33,7 @@ export function buildCustomerReminderEmail(
 ): EmailContent {
   const {
     firstName,
+    serviceName,
     slotDate,
     slotTime,
     reminderHours,
@@ -47,6 +50,7 @@ export function buildCustomerReminderEmail(
     "",
     `This is a reminder ${timingDescription} for your booking with Amanda Beach.`,
     "",
+    `Service: ${serviceName}`,
     `Date: ${slotDate}`,
     `Time: ${slotTime}`,
     "",
@@ -66,22 +70,13 @@ export function buildCustomerReminderEmail(
       </p>
     `,
     details: [
-      {
-        label: "Date",
-        value: slotDate,
-      },
-      {
-        label: "Time",
-        value: slotTime,
-      },
+      { label: "Service", value: serviceName },
+      { label: "Date", value: slotDate },
+      { label: "Time", value: slotTime },
     ],
   });
 
-  return {
-    subject,
-    html,
-    text,
-  };
+  return { subject, html, text };
 }
 
 export function buildAdminReminderEmail(
@@ -90,6 +85,7 @@ export function buildAdminReminderEmail(
 ): EmailContent {
   const {
     customerName,
+    serviceName,
     slotDate,
     slotTime,
     timingDescription,
@@ -99,7 +95,8 @@ export function buildAdminReminderEmail(
   const customerPhone = String(payload.customer_phone ?? "");
   const bookingStatus = String(payload.booking_status ?? "");
   const paymentStatus = String(payload.payment_status ?? "");
-  const amountRemaining = formatCurrency(payload.amount_remaining);
+  const currency = String(payload.service_currency ?? "USD");
+  const amountRemaining = formatCurrency(payload.amount_remaining, currency);
 
   const subject = `Booking reminder: ${customerName || "customer"}`;
 
@@ -109,6 +106,7 @@ export function buildAdminReminderEmail(
     `Customer: ${customerName}`,
     `Email: ${customerEmail || "Not provided"}`,
     `Phone: ${customerPhone || "Not provided"}`,
+    `Service: ${serviceName}`,
     `Date: ${slotDate}`,
     `Time: ${slotTime}`,
     bookingStatus ? `Booking status: ${bookingStatus}` : "",
@@ -116,9 +114,7 @@ export function buildAdminReminderEmail(
     `Balance remaining: ${amountRemaining}`,
     "",
     `Admin: ${context.siteUrl}/admin/bookings`,
-  ]
-    .filter(Boolean)
-    .join("\n");
+  ].filter(Boolean).join("\n");
 
   const html = getEmailLayout({
     eyebrow: "Admin Booking Reminder",
@@ -129,46 +125,19 @@ export function buildAdminReminderEmail(
       </p>
     `,
     details: [
-      {
-        label: "Customer",
-        value: customerName || "Not provided",
-      },
-      {
-        label: "Email",
-        value: customerEmail || "Not provided",
-      },
-      {
-        label: "Telephone",
-        value: customerPhone || "Not provided",
-      },
-      {
-        label: "Date",
-        value: slotDate,
-      },
-      {
-        label: "Time",
-        value: slotTime,
-      },
-      {
-        label: "Booking",
-        value: bookingStatus || "Not recorded",
-      },
-      {
-        label: "Payment",
-        value: paymentStatus || "Not recorded",
-      },
-      {
-        label: "Balance",
-        value: amountRemaining,
-      },
+      { label: "Customer", value: customerName || "Not provided" },
+      { label: "Email", value: customerEmail || "Not provided" },
+      { label: "Telephone", value: customerPhone || "Not provided" },
+      { label: "Service", value: serviceName },
+      { label: "Date", value: slotDate },
+      { label: "Time", value: slotTime },
+      { label: "Booking", value: bookingStatus || "Not recorded" },
+      { label: "Payment", value: paymentStatus || "Not recorded" },
+      { label: "Balance", value: amountRemaining },
     ],
     buttonLabel: "Open Bookings",
     buttonUrl: `${context.siteUrl}/admin/bookings`,
   });
 
-  return {
-    subject,
-    html,
-    text,
-  };
+  return { subject, html, text };
 }

@@ -10,7 +10,8 @@ function requireEnvironmentVariable(name: string): string {
 
 export const QUEUE_NAME = "booking_emails";
 export const QUEUE_VISIBILITY_TIMEOUT_SECONDS = 60;
-export const MAX_MESSAGES_PER_RUN = 1;
+export const MAX_MESSAGES_PER_RUN = 10;
+export const MAX_DELIVERY_ATTEMPTS = 3;
 
 export const supabaseUrl = requireEnvironmentVariable("SUPABASE_URL");
 export const supabaseServiceRoleKey = requireEnvironmentVariable(

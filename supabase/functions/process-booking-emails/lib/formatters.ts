@@ -26,12 +26,16 @@ export function formatBookingDate(value: unknown): string {
   }).format(date);
 }
 
-export function formatCurrency(value: unknown): string {
+export function formatCurrency(
+  value: unknown,
+  currency = "USD",
+): string {
   const number = Number(value ?? 0);
+  const safeCurrency = currency === "USD" ? currency : "USD";
 
-  return new Intl.NumberFormat("en-GB", {
+  return new Intl.NumberFormat("en-US", {
     style: "currency",
-    currency: "GBP",
+    currency: safeCurrency,
   }).format(Number.isFinite(number) ? number : 0);
 }
 

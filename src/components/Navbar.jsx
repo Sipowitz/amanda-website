@@ -26,10 +26,6 @@ export default function Navbar() {
     name: "Services",
     path: "/services",
   },
-  {
-    name: "Book",
-    path: "/booking",
-  },
   // {
   //   name: "Events",
   //   path: "/events",

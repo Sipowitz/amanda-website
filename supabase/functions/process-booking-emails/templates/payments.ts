@@ -10,79 +10,82 @@ import { getEmailLayout } from "../lib/layout.ts";
 
 function getPaymentDetails(payload: Record<string, unknown>) {
   const customerName = String(payload.customer_name ?? "");
+  const serviceName = String(payload.service_name ?? "Booking");
+  const bookingMode = String(payload.service_booking_mode ?? "timed");
+  const hasAppointment =
+    bookingMode === "timed" &&
+    Boolean(payload.slot_date) &&
+    Boolean(payload.slot_time);
 
   return {
     firstName: getCustomerFirstName(customerName),
-    slotDate: formatBookingDate(payload.slot_date),
-    slotTime: String(payload.slot_time ?? "Time to be confirmed"),
+    serviceName,
+    currency: String(payload.service_currency ?? "USD"),
+    hasAppointment,
+    slotDate: hasAppointment ? formatBookingDate(payload.slot_date) : "",
+    slotTime: hasAppointment ? String(payload.slot_time) : "",
   };
+}
+
+function getBookingRows(details: ReturnType<typeof getPaymentDetails>) {
+  return [
+    { label: "Service", value: details.serviceName },
+    ...(details.hasAppointment
+      ? [
+        { label: "Date", value: details.slotDate },
+        { label: "Time", value: details.slotTime },
+      ]
+      : []),
+  ];
 }
 
 export function buildPartPaymentReceivedEmail(
   payload: Record<string, unknown>,
 ): EmailContent {
-  const { firstName, slotDate, slotTime } = getPaymentDetails(payload);
-
-  const amountReceived = formatCurrency(payload.amount_received);
-  const amountPaid = formatCurrency(payload.amount_paid);
-  const amountRemaining = formatCurrency(payload.amount_remaining);
+  const details = getPaymentDetails(payload);
+  const amountReceived = formatCurrency(
+    payload.amount_received,
+    details.currency,
+  );
+  const amountPaid = formatCurrency(payload.amount_paid, details.currency);
+  const amountRemaining = formatCurrency(
+    payload.amount_remaining,
+    details.currency,
+  );
   const paymentMethod = String(payload.payment_method ?? "");
   const paymentReference = String(payload.payment_reference ?? "");
 
   const subject = "Part payment received";
 
   const text = [
-    `Hello ${firstName},`,
+    `Hello ${details.firstName},`,
     "",
     `Thank you. We have received your payment of ${amountReceived}.`,
     "",
+    `Service: ${details.serviceName}`,
     `Total paid: ${amountPaid}`,
     `Remaining balance: ${amountRemaining}`,
-    `Date: ${slotDate}`,
-    `Time: ${slotTime}`,
+    details.hasAppointment ? `Date: ${details.slotDate}` : "",
+    details.hasAppointment ? `Time: ${details.slotTime}` : "",
     paymentMethod ? `Payment method: ${paymentMethod}` : "",
     paymentReference ? `Payment reference: ${paymentReference}` : "",
     "",
-    "The remaining balance can be paid before your appointment.",
-  ]
-    .filter(Boolean)
-    .join("\n");
+    "The remaining balance is still due.",
+  ].filter(Boolean).join("\n");
 
-  const details = [
-    {
-      label: "Received",
-      value: amountReceived,
-    },
-    {
-      label: "Total Paid",
-      value: amountPaid,
-    },
-    {
-      label: "Remaining",
-      value: amountRemaining,
-    },
-    {
-      label: "Date",
-      value: slotDate,
-    },
-    {
-      label: "Time",
-      value: slotTime,
-    },
+  const paymentRows = [
+    { label: "Received", value: amountReceived },
+    { label: "Total Paid", value: amountPaid },
+    { label: "Remaining", value: amountRemaining },
+    ...getBookingRows(details),
   ];
 
   if (paymentMethod) {
-    details.push({
-      label: "Method",
-      value: paymentMethod,
-    });
+    paymentRows.push({ label: "Method", value: paymentMethod });
   }
 
   if (paymentReference) {
-    details.push({
-      label: "Reference",
-      value: paymentReference,
-    });
+    paymentRows.push({ label: "Reference", value: paymentReference });
   }
 
   const html = getEmailLayout({
@@ -99,34 +102,30 @@ export function buildPartPaymentReceivedEmail(
         <strong>${escapeHtml(amountRemaining)}</strong>.
       </p>
     `,
-    details,
+    details: paymentRows,
   });
 
-  return {
-    subject,
-    html,
-    text,
-  };
+  return { subject, html, text };
 }
 
 export function buildPaymentReceivedEmail(
   payload: Record<string, unknown>,
 ): EmailContent {
-  const { firstName, slotDate, slotTime } = getPaymentDetails(payload);
-
-  const amountPaid = formatCurrency(payload.amount_paid);
+  const details = getPaymentDetails(payload);
+  const amountPaid = formatCurrency(payload.amount_paid, details.currency);
   const subject = "Payment received";
 
   const text = [
-    `Hello ${firstName},`,
+    `Hello ${details.firstName},`,
     "",
     `We have received your payment of ${amountPaid}.`,
     "",
-    `Date: ${slotDate}`,
-    `Time: ${slotTime}`,
+    `Service: ${details.serviceName}`,
+    details.hasAppointment ? `Date: ${details.slotDate}` : "",
+    details.hasAppointment ? `Time: ${details.slotTime}` : "",
     "",
     "Thank you.",
-  ].join("\n");
+  ].filter(Boolean).join("\n");
 
   const html = getEmailLayout({
     eyebrow: "Payment Received",
@@ -138,24 +137,10 @@ export function buildPaymentReceivedEmail(
       </p>
     `,
     details: [
-      {
-        label: "Amount",
-        value: amountPaid,
-      },
-      {
-        label: "Date",
-        value: slotDate,
-      },
-      {
-        label: "Time",
-        value: slotTime,
-      },
+      { label: "Amount", value: amountPaid },
+      ...getBookingRows(details),
     ],
   });
 
-  return {
-    subject,
-    html,
-    text,
-  };
+  return { subject, html, text };
 }

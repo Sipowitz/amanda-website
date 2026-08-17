@@ -40,10 +40,10 @@ export default function Hero() {
           </p>
 
           <Link
-            to="/booking"
+            to="/services"
             className="mt-10 inline-flex items-center justify-center rounded-md border border-[#f1e8ca]/80 px-8 py-4 text-sm font-medium uppercase tracking-[0.25em] text-[#f1e8ca] transition duration-300 hover:bg-[#f1e8ca] hover:text-[#9ebd9e]"
           >
-            Book a Session
+            Explore Services
           </Link>
         </motion.div>
 

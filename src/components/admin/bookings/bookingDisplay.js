@@ -52,9 +52,9 @@ export function getPaymentStyles(status) {
 }
 
 export function formatCurrency(value) {
-  return new Intl.NumberFormat("en-GB", {
+  return new Intl.NumberFormat("en-US", {
     style: "currency",
-    currency: "GBP",
+    currency: "USD",
   }).format(Number(value || 0));
 }
 

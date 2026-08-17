@@ -9,6 +9,8 @@ import { useAdminAuth } from "../../contexts/AdminAuthContext";
 import { useToast } from "../../contexts/ToastContext";
 import { useConfirm } from "../../contexts/ConfirmContext";
 
+import { getActiveServices } from "../../services/bookingService";
+
 import {
   cancelBooking,
   createAdminBooking,
@@ -21,6 +23,7 @@ import {
 export default function AdminBookings() {
   const [bookings, setBookings] = useState([]);
   const [availableSlots, setAvailableSlots] = useState([]);
+  const [services, setServices] = useState([]);
   const [loading, setLoading] = useState(true);
   const [creatingBooking, setCreatingBooking] = useState(false);
   const [updatingBookingId, setUpdatingBookingId] = useState(null);
@@ -31,7 +34,7 @@ export default function AdminBookings() {
   const [search, setSearch] = useState("");
   const location = useLocation();
   const [filter, setFilter] = useState(location.state?.filter || "upcoming");
-  const [formData, setFormData] = useState({ slotId: "", name: "", email: "", phone: "", message: "" });
+  const [formData, setFormData] = useState({ serviceId: "", slotId: "", name: "", email: "", phone: "", message: "" });
 
   const navigate = useNavigate();
   const { logout } = useAdminAuth();
@@ -52,9 +55,14 @@ export default function AdminBookings() {
   async function loadData() {
     try {
       setLoading(true);
-      const [bookingsData, slotsData] = await Promise.all([getAdminBookings(), getAvailableAdminSlots()]);
+      const [bookingsData, slotsData, servicesData] = await Promise.all([
+        getAdminBookings(),
+        getAvailableAdminSlots(),
+        getActiveServices(),
+      ]);
       setBookings(bookingsData);
       setAvailableSlots(slotsData);
+      setServices(servicesData);
     } catch (error) {
       console.error(error);
       toast.error("Failed to load bookings");
@@ -65,7 +73,11 @@ export default function AdminBookings() {
 
   function handleFormChange(event) {
     const { name, value } = event.target;
-    setFormData((previous) => ({ ...previous, [name]: value }));
+    setFormData((previous) => ({
+      ...previous,
+      [name]: value,
+      ...(name === "serviceId" ? { slotId: "" } : {}),
+    }));
   }
 
   function getInitialPaymentForm(booking) {
@@ -102,6 +114,7 @@ export default function AdminBookings() {
     try {
       setCreatingBooking(true);
       await createAdminBooking({
+        serviceId: formData.serviceId,
         slotId: formData.slotId,
         name: formData.name,
         email: formData.email,
@@ -109,7 +122,7 @@ export default function AdminBookings() {
         message: formData.message,
       });
       await loadData();
-      setFormData({ slotId: "", name: "", email: "", phone: "", message: "" });
+      setFormData({ serviceId: "", slotId: "", name: "", email: "", phone: "", message: "" });
       setShowCreatePanel(false);
       toast.success("Booking created successfully");
     } catch (error) {
@@ -164,8 +177,12 @@ export default function AdminBookings() {
     }
   }
 
-  async function handleCancelBooking(bookingId) {
-    const accepted = await confirm({ title: "Cancel Booking", message: "Are you sure you want to cancel this booking? The appointment slot will become available again.", confirmText: "Cancel Booking" });
+  async function handleCancelBooking(booking) {
+    const bookingId = booking.id;
+    const message = booking.slot_id
+      ? "Are you sure you want to cancel this booking? The appointment slot will become available again."
+      : "Are you sure you want to cancel this request?";
+    const accepted = await confirm({ title: "Cancel Booking", message, confirmText: "Cancel Booking" });
     if (!accepted) return;
     try {
       setUpdatingBookingId(bookingId);
@@ -198,18 +215,30 @@ export default function AdminBookings() {
     return bookings
       .filter((booking) => {
         const slot = booking.availability_slots;
-        if (!slot) return false;
         const term = search.trim().toLowerCase();
-        const matchesSearch = !term || [booking.customer_name, booking.customer_email, booking.customer_phone].filter(Boolean).some((value) => value.toLowerCase().includes(term));
-        const isUpcoming = slot.slot_date >= today;
+        const matchesSearch = !term || [
+          booking.customer_name,
+          booking.customer_email,
+          booking.customer_phone,
+          booking.service_name_snapshot,
+        ].filter(Boolean).some((value) => value.toLowerCase().includes(term));
+        const isUntimed = booking.service_booking_mode_snapshot === "untimed";
+        const isUpcoming = isUntimed || slot?.slot_date >= today;
         if (filter === "upcoming") return matchesSearch && isUpcoming;
-        if (filter === "past") return matchesSearch && !isUpcoming;
+        if (filter === "past") return matchesSearch && !isUntimed && !isUpcoming;
         if (filter === "payment_due") return matchesSearch && ["unpaid", "part_paid"].includes(booking.payment_status);
         if (filter === "paid") return matchesSearch && booking.payment_status === "paid";
         if (["pending", "confirmed", "completed", "no_show", "cancelled"].includes(filter)) return matchesSearch && booking.status === filter;
         return matchesSearch;
       })
-      .sort((a, b) => new Date(`${a.availability_slots.slot_date}T${a.availability_slots.slot_time}`) - new Date(`${b.availability_slots.slot_date}T${b.availability_slots.slot_time}`));
+      .sort((a, b) => {
+        if (!a.availability_slots && !b.availability_slots) {
+          return new Date(b.created_at) - new Date(a.created_at);
+        }
+        if (!a.availability_slots) return -1;
+        if (!b.availability_slots) return 1;
+        return new Date(a.availability_slots.slot_date + "T" + a.availability_slots.slot_time) - new Date(b.availability_slots.slot_date + "T" + b.availability_slots.slot_time);
+      });
   }, [bookings, search, filter]);
 
   return (
@@ -250,6 +279,7 @@ export default function AdminBookings() {
 
       {showCreatePanel && (
         <CreateBookingPanel
+          services={services}
           availableSlots={availableSlots}
           formData={formData}
           onChange={handleFormChange}

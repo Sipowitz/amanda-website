@@ -51,6 +51,7 @@ const timezoneOptions = [
 ];
 
 const initialSettings = {
+  adminNotificationEmail: "",
   bookingRemindersEnabled: false,
   bookingReminderHoursList: [24],
   sendAdminReminders: false,
@@ -129,6 +130,7 @@ export default function AdminEmailSettings() {
       const data = await getEmailSettings();
 
       setSettings({
+        adminNotificationEmail: data.admin_notification_email || "",
         bookingRemindersEnabled: data.booking_reminders_enabled,
         bookingReminderHoursList: sortReminderHours(
           data.booking_reminder_hours_list || [24],
@@ -221,6 +223,7 @@ export default function AdminEmailSettings() {
       setSaving(true);
 
       const data = await updateEmailSettings({
+        adminNotificationEmail: settings.adminNotificationEmail,
         bookingRemindersEnabled: settings.bookingRemindersEnabled,
         bookingReminderHoursList: sortReminderHours(
           settings.bookingReminderHoursList,
@@ -236,6 +239,7 @@ export default function AdminEmailSettings() {
       });
 
       setSettings({
+        adminNotificationEmail: data.admin_notification_email || "",
         bookingRemindersEnabled: data.booking_reminders_enabled,
         bookingReminderHoursList: sortReminderHours(
           data.booking_reminder_hours_list,
@@ -311,6 +315,51 @@ export default function AdminEmailSettings() {
         </AdminCard>
       ) : (
         <form onSubmit={handleSubmit} className="flex flex-col gap-6">
+          <AdminCard className="p-7">
+            <div className="flex flex-col gap-6">
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.26em] text-[#6a766a]">
+                  Admin Notifications
+                </p>
+
+                <h2 className="mt-3 font-serif text-3xl text-[#202620]">
+                  Booking notification recipient
+                </h2>
+
+                <p className="mt-3 max-w-2xl text-sm leading-7 text-[#626b62]">
+                  New booking notifications and enabled admin reminders will
+                  be sent to this address.
+                </p>
+              </div>
+
+              <div className="flex max-w-2xl flex-col gap-2">
+                <label
+                  htmlFor="admin-notification-email"
+                  className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[#667166]"
+                >
+                  Admin notification email
+                </label>
+
+                <input
+                  id="admin-notification-email"
+                  type="email"
+                  name="adminNotificationEmail"
+                  value={settings.adminNotificationEmail}
+                  onChange={handleInputChange}
+                  autoComplete="email"
+                  maxLength="254"
+                  required
+                  className="admin-input w-full"
+                />
+
+                <p className="text-xs leading-5 text-[#7a837b]">
+                  This does not change the sender or reply-to address used by
+                  the email service.
+                </p>
+              </div>
+            </div>
+          </AdminCard>
+
           <AdminCard className="p-7">
             <div className="flex flex-col gap-7">
               <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">

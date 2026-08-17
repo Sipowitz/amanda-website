@@ -75,6 +75,12 @@ export async function getAdminSlots() {
       bookings (
         id,
         slot_id,
+        service_id,
+        service_name_snapshot,
+        service_booking_mode_snapshot,
+        service_duration_minutes_snapshot,
+        service_price_amount_snapshot,
+        service_currency_snapshot,
         customer_name,
         customer_email,
         customer_phone,
@@ -156,6 +162,7 @@ export async function getAvailableAdminSlots() {
 }
 
 export async function createAdminBooking({
+  serviceId,
   slotId,
   name,
   email,
@@ -163,7 +170,8 @@ export async function createAdminBooking({
   message,
 }) {
   const { data, error } = await supabase.rpc("create_booking_request", {
-    p_slot_id: slotId,
+    p_service_id: serviceId,
+    p_slot_id: slotId || null,
     p_customer_name: name,
     p_customer_email: email,
     p_customer_phone: phone || null,
@@ -250,6 +258,7 @@ export async function getEmailSettings() {
 }
 
 export async function updateEmailSettings({
+  adminNotificationEmail,
   bookingRemindersEnabled,
   bookingReminderHoursList,
   sendAdminReminders,
@@ -262,6 +271,7 @@ export async function updateEmailSettings({
   sendForPaid,
 }) {
   const { data, error } = await supabase.rpc("update_email_settings", {
+    p_admin_notification_email: adminNotificationEmail,
     p_booking_reminders_enabled: bookingRemindersEnabled,
     p_booking_reminder_hours_list: bookingReminderHoursList,
     p_send_admin_reminders: sendAdminReminders,
@@ -273,6 +283,32 @@ export async function updateEmailSettings({
     p_send_for_part_paid: sendForPartPaid,
     p_send_for_paid: sendForPaid,
   });
+
+  if (error) {
+    throw error;
+  }
+
+  return data;
+}
+
+export async function getServicePaymentSettings() {
+  const { data, error } = await supabase.rpc("get_service_payment_settings");
+
+  if (error) {
+    throw error;
+  }
+
+  return data || [];
+}
+
+export async function updateServicePaymentSetting({ serviceId, paymentLinkUrl }) {
+  const { data, error } = await supabase.rpc(
+    "update_service_payment_setting",
+    {
+      p_service_id: serviceId,
+      p_stripe_payment_link_url: paymentLinkUrl || null,
+    },
+  );
 
   if (error) {
     throw error;
