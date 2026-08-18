@@ -10,7 +10,7 @@ export default function BookingForm({
   loading,
   disabled = false,
   bookingMode,
-  serviceName,
+  presentation,
   animateOnMount = true,
 }) {
   const [formData, setFormData] = useState({
@@ -21,7 +21,16 @@ export default function BookingForm({
   });
 
   const isTimed = (service?.booking_mode || bookingMode) === "timed";
-  const displayName = service?.name || serviceName;
+  const displayName = service?.name || presentation?.name;
+  const displayPriceAmount = service
+    ? service.price_amount
+    : presentation?.displayPriceAmount;
+  const displayCurrency = service
+    ? service.currency
+    : presentation?.displayCurrency;
+  const displayDurationMinutes = service
+    ? service.duration_minutes
+    : presentation?.displayDurationMinutes;
 
   if (isTimed && !selectedSlot) {
     return null;
@@ -56,23 +65,20 @@ export default function BookingForm({
 
           <h3 className="mt-2 text-2xl text-[#f1e8ca]">{displayName}</h3>
 
-          <p className="mt-2 min-h-7 text-lg text-[#f1e8ca]/70">
-            {service ? (
-              <>
-                {(service.price_amount / 100).toLocaleString("en-US", {
-                  style: "currency",
-                  currency: "USD",
-                })}
-                {service.duration_minutes
-                  ? ` - ${service.duration_minutes} minutes`
-                  : ""}
-              </>
-            ) : (
-              <span
-                aria-hidden="true"
-                className="inline-block h-5 w-32 rounded-full bg-white/[0.07]"
-              />
-            )}
+          <p className="mt-2 flex min-h-7 gap-2 text-lg text-[#f1e8ca]/70">
+            <span>
+              {displayPriceAmount != null && displayCurrency
+                ? (displayPriceAmount / 100).toLocaleString("en-US", {
+                    style: "currency",
+                    currency: displayCurrency,
+                  })
+                : ""}
+            </span>
+            <span>
+              {displayDurationMinutes
+                ? `- ${displayDurationMinutes} minutes`
+                : ""}
+            </span>
           </p>
 
           {selectedSlot && (

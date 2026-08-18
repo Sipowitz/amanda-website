@@ -67,6 +67,8 @@ export async function generateSlots({
 }
 
 export async function getAdminSlots() {
+  const today = new Date().toISOString().split("T")[0];
+
   const { data, error } = await supabase
     .from("availability_slots")
     .select(
@@ -100,12 +102,25 @@ export async function getAdminSlots() {
       )
     `,
     )
+    .gte("slot_date", today)
     .order("slot_date", {
       ascending: true,
     })
     .order("slot_time", {
       ascending: true,
     });
+
+  if (error) {
+    throw error;
+  }
+
+  return data;
+}
+
+export async function deletePastAvailabilitySlots() {
+  const { data, error } = await supabase.rpc(
+    "delete_past_availability_slots",
+  );
 
   if (error) {
     throw error;

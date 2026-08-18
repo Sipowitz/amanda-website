@@ -15,16 +15,31 @@ import {
   getServiceBySlug,
 } from "../services/bookingService";
 
-const serviceTitles = {
-  "private-readings": "Private Readings",
-  "wheel-of-the-year": "Wheel of the Year",
-  "voice-memo-reading": "Voice Memo Reading",
+const servicePresentation = {
+  "private-readings": {
+    name: "Private Readings",
+    displayPriceAmount: 8500,
+    displayCurrency: "USD",
+    displayDurationMinutes: 60,
+  },
+  "wheel-of-the-year": {
+    name: "Wheel of the Year",
+    displayPriceAmount: 6000,
+    displayCurrency: "USD",
+    displayDurationMinutes: 60,
+  },
+  "voice-memo-reading": {
+    name: "Voice Memo Reading",
+    displayPriceAmount: 2000,
+    displayCurrency: "USD",
+    displayDurationMinutes: null,
+  },
 };
 
-function formatServicePrice(service) {
-  return (service.price_amount / 100).toLocaleString("en-US", {
+function formatPrice(amount, currency) {
+  return (amount / 100).toLocaleString("en-US", {
     style: "currency",
-    currency: "USD",
+    currency,
   });
 }
 
@@ -163,7 +178,17 @@ export default function Booking({ expectedMode, modal = false }) {
   const isTimed = service
     ? service.booking_mode === "timed"
     : expectedMode === "timed";
-  const displayTitle = service?.name || serviceTitles[serviceSlug] || "Booking";
+  const presentation = servicePresentation[serviceSlug];
+  const displayTitle = service?.name || presentation?.name || "Booking";
+  const displayPriceAmount = service
+    ? service.price_amount
+    : presentation?.displayPriceAmount;
+  const displayCurrency = service
+    ? service.currency
+    : presentation?.displayCurrency;
+  const displayDurationMinutes = service
+    ? service.duration_minutes
+    : presentation?.displayDurationMinutes;
 
   return (
     <div className={modal ? "min-h-0 text-[#f1e8ca]" : "min-h-screen text-[#f1e8ca]"}>
@@ -187,21 +212,16 @@ export default function Booking({ expectedMode, modal = false }) {
             </h1>
 
             <div className="mt-8 flex min-h-7 flex-wrap items-center gap-4 text-xl text-[#f1e8ca]/80">
-              {service ? (
-                <>
-                  <span>{formatServicePrice(service)}</span>
-                  {service.duration_minutes && (
-                    <span>{service.duration_minutes} minutes</span>
-                  )}
-                </>
-              ) : (
-                <>
-                  <span className="h-6 w-16 rounded-full bg-white/[0.07]" />
-                  {isTimed && (
-                    <span className="h-6 w-28 rounded-full bg-white/[0.07]" />
-                  )}
-                </>
-              )}
+              <span>
+                {displayPriceAmount != null && displayCurrency
+                  ? formatPrice(displayPriceAmount, displayCurrency)
+                  : ""}
+              </span>
+              <span>
+                {displayDurationMinutes
+                  ? `${displayDurationMinutes} minutes`
+                  : ""}
+              </span>
             </div>
 
             <div className={modal ? "mt-8 max-w-4xl text-lg leading-[1.8] text-[#f1e8ca]/88 md:text-xl" : "mt-8 max-w-4xl text-xl leading-[2] text-[#f1e8ca]/88 md:text-2xl"}>
@@ -279,7 +299,7 @@ export default function Booking({ expectedMode, modal = false }) {
                 <BookingForm
                   service={service}
                   bookingMode={expectedMode}
-                  serviceName={displayTitle}
+                  presentation={presentation}
                   onSubmit={handleBookingSubmit}
                   loading={submitting}
                   disabled={loading || !service}

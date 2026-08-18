@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { format } from "date-fns";
 
@@ -18,12 +18,15 @@ import { useConfirm } from "../../contexts/ConfirmContext";
 
 import {
   cancelBooking,
+  deletePastAvailabilitySlots,
   deleteSlot,
   generateSlots,
   getAdminSlots,
 } from "../../services/adminService";
 
 export default function AdminSlots() {
+  const cleanupStartedRef = useRef(false);
+
   const [slots, setSlots] = useState([]);
 
   const [generating, setGenerating] = useState(false);
@@ -45,8 +48,36 @@ export default function AdminSlots() {
   const confirm = useConfirm();
 
   useEffect(() => {
-    loadSlots();
-  }, []);
+    if (cleanupStartedRef.current) {
+      return;
+    }
+
+    cleanupStartedRef.current = true;
+
+    async function cleanUpAndLoadSlots() {
+      try {
+        setLoadingSlots(true);
+
+        await deletePastAvailabilitySlots();
+
+        const data = await getAdminSlots();
+
+        setSlots(data);
+
+        if (data.length > 0) {
+          setSelectedDate(data[0].slot_date);
+        }
+      } catch (error) {
+        console.error(error);
+
+        toast.error("Failed to load slots");
+      } finally {
+        setLoadingSlots(false);
+      }
+    }
+
+    cleanUpAndLoadSlots();
+  }, [toast]);
 
   async function loadSlots() {
     try {
