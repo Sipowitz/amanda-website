@@ -8,6 +8,10 @@ export default function BookingForm({
   onSubmit,
   onCancel,
   loading,
+  disabled = false,
+  bookingMode,
+  serviceName,
+  animateOnMount = true,
 }) {
   const [formData, setFormData] = useState({
     name: "",
@@ -16,7 +20,8 @@ export default function BookingForm({
     message: "",
   });
 
-  const isTimed = service.booking_mode === "timed";
+  const isTimed = (service?.booking_mode || bookingMode) === "timed";
+  const displayName = service?.name || serviceName;
 
   if (isTimed && !selectedSlot) {
     return null;
@@ -38,7 +43,7 @@ export default function BookingForm({
 
   return (
     <motion.form
-      initial={{ opacity: 0, y: 16 }}
+      initial={animateOnMount ? { opacity: 0, y: 16 } : false}
       animate={{ opacity: 1, y: 0 }}
       onSubmit={handleSubmit}
       className="flex flex-col gap-6 rounded-[2rem] border border-white/10 bg-white/[0.04] p-8 backdrop-blur-sm"
@@ -49,16 +54,25 @@ export default function BookingForm({
             {isTimed ? "Confirm Booking" : "Send Request"}
           </p>
 
-          <h3 className="mt-2 text-2xl text-[#f1e8ca]">{service.name}</h3>
+          <h3 className="mt-2 text-2xl text-[#f1e8ca]">{displayName}</h3>
 
-          <p className="mt-2 text-lg text-[#f1e8ca]/70">
-            {(service.price_amount / 100).toLocaleString("en-US", {
-              style: "currency",
-              currency: "USD",
-            })}
-            {service.duration_minutes
-              ? ` - ${service.duration_minutes} minutes`
-              : ""}
+          <p className="mt-2 min-h-7 text-lg text-[#f1e8ca]/70">
+            {service ? (
+              <>
+                {(service.price_amount / 100).toLocaleString("en-US", {
+                  style: "currency",
+                  currency: "USD",
+                })}
+                {service.duration_minutes
+                  ? ` - ${service.duration_minutes} minutes`
+                  : ""}
+              </>
+            ) : (
+              <span
+                aria-hidden="true"
+                className="inline-block h-5 w-32 rounded-full bg-white/[0.07]"
+              />
+            )}
           </p>
 
           {selectedSlot && (
@@ -127,7 +141,7 @@ export default function BookingForm({
 
       <button
         type="submit"
-        disabled={loading}
+        disabled={loading || disabled}
         className="rounded-2xl border border-[#f1e8ca]/20 bg-[#f1e8ca]/10 px-8 py-4 text-[#f1e8ca] transition duration-300 hover:bg-[#f1e8ca]/18 disabled:opacity-50"
       >
         {loading

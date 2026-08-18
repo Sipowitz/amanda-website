@@ -22,6 +22,7 @@ export default function DateSelector({
   availableDates,
   selectedDate,
   onSelectDate,
+  loading = false,
 }) {
   const today = startOfDay(new Date());
 
@@ -95,7 +96,10 @@ export default function DateSelector({
   }, [currentMonth]);
 
   return (
-    <div className="mx-auto w-full max-w-[940px]">
+    <div
+      aria-busy={loading}
+      className="mx-auto w-full max-w-[940px]"
+    >
       <div className="rounded-[1.5rem] border border-[#f1e8ca]/14 bg-white/[0.05] p-3 shadow-[0_20px_60px_rgba(0,0,0,0.14)] backdrop-blur-xl sm:rounded-[2rem] sm:p-6 md:p-8">
         {/* Header */}
         <div className="mb-5 grid grid-cols-[2.5rem_minmax(0,1fr)_2.5rem] items-center gap-3 sm:mb-7 sm:grid-cols-[2.75rem_minmax(0,1fr)_2.75rem] sm:gap-5">

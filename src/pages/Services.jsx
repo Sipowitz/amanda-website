@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { Link } from "react-router-dom";
+import { Link, Outlet, useMatch } from "react-router-dom";
 
 const services = [
   {
@@ -50,9 +50,18 @@ const services = [
 ];
 
 export default function Services() {
+  const modalOpen = Boolean(
+    useMatch("/services/:serviceSlug/:bookingAction"),
+  );
+
   return (
-    <section className="px-6 pb-24">
-      <div className="mx-auto w-full max-w-7xl">
+    <>
+      <section
+        aria-hidden={modalOpen ? "true" : undefined}
+        inert={modalOpen}
+        className="px-6 pb-24"
+      >
+        <div className="mx-auto w-full max-w-7xl">
         <motion.div
           initial={{ opacity: 0, y: 24 }}
           animate={{ opacity: 1, y: 0 }}
@@ -115,6 +124,8 @@ export default function Services() {
                 {service.route && (
                   <Link
                     to={service.route}
+                    state={{ openedFromServices: true }}
+                    data-service-trigger={service.slug}
                     className="mt-10 inline-flex items-center gap-3 rounded-full border border-[#f1e8ca]/30 px-6 py-3 text-sm font-medium uppercase tracking-[0.18em] text-[#f1e8ca] transition-all duration-300 hover:border-[#f1e8ca]/60 hover:bg-white/10"
                   >
                     {service.action}
@@ -125,7 +136,9 @@ export default function Services() {
             ))}
           </div>
         </motion.div>
-      </div>
-    </section>
+        </div>
+      </section>
+      <Outlet />
+    </>
   );
 }

@@ -5,7 +5,7 @@ import MainLayout from "./layouts/MainLayout";
 import Home from "./pages/Home";
 import About from "./pages/About";
 import Services from "./pages/Services";
-import Booking from "./pages/Booking";
+import BookingModal from "./components/booking/BookingModal";
 import Events from "./pages/Events";
 import Shop from "./pages/Shop";
 import Contact from "./pages/Contact";
@@ -29,16 +29,17 @@ export default function App() {
       <Route element={<MainLayout />}>
         <Route path="/" element={<Home />} />
         <Route path="/about" element={<About />} />
-        <Route path="/services" element={<Services />} />
+        <Route path="/services" element={<Services />}>
+          <Route
+            path=":serviceSlug/book"
+            element={<BookingModal expectedMode="timed" />}
+          />
+          <Route
+            path=":serviceSlug/request"
+            element={<BookingModal expectedMode="untimed" />}
+          />
+        </Route>
         <Route path="/booking" element={<Navigate to="/services" replace />} />
-        <Route
-          path="/services/:serviceSlug/book"
-          element={<Booking expectedMode="timed" />}
-        />
-        <Route
-          path="/services/:serviceSlug/request"
-          element={<Booking expectedMode="untimed" />}
-        />
         <Route path="/events" element={<Events />} />
         <Route path="/shop" element={<Shop />} />
         <Route path="/contact" element={<Contact />} />

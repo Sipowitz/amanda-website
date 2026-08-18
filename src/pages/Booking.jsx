@@ -15,6 +15,12 @@ import {
   getServiceBySlug,
 } from "../services/bookingService";
 
+const serviceTitles = {
+  "private-readings": "Private Readings",
+  "wheel-of-the-year": "Wheel of the Year",
+  "voice-memo-reading": "Voice Memo Reading",
+};
+
 function formatServicePrice(service) {
   return (service.price_amount / 100).toLocaleString("en-US", {
     style: "currency",
@@ -22,7 +28,7 @@ function formatServicePrice(service) {
   });
 }
 
-export default function Booking({ expectedMode }) {
+export default function Booking({ expectedMode, modal = false }) {
   const { serviceSlug } = useParams();
   const [service, setService] = useState(null);
   const [slots, setSlots] = useState([]);
@@ -52,12 +58,15 @@ export default function Booking({ expectedMode }) {
           throw new Error("This booking route does not match the selected service.");
         }
 
+        if (active) {
+          setService(resolvedService);
+        }
+
         const availableSlots = expectedMode === "timed"
           ? await getAvailableSlots()
           : [];
 
         if (active) {
-          setService(resolvedService);
           setSlots(availableSlots);
         }
       } catch (loadError) {
@@ -134,9 +143,11 @@ export default function Booking({ expectedMode }) {
 
   if (!loading && !service) {
     return (
-      <section className="px-6 pb-24 pt-8 text-[#f1e8ca]">
+      <section className={modal ? "px-4 pb-10 pt-3 text-[#f1e8ca] sm:px-8" : "px-6 pb-24 pt-8 text-[#f1e8ca]"}>
         <div className="mx-auto max-w-3xl rounded-[2rem] border border-white/10 bg-white/[0.04] p-10">
-          <h1 className="text-4xl font-light">Service unavailable</h1>
+          <h1 id={modal ? "booking-dialog-title" : undefined} className="text-4xl font-light">
+            Service unavailable
+          </h1>
           <p className="mt-4 text-[#f1e8ca]/70">{error}</p>
           <Link
             to="/services"
@@ -149,14 +160,17 @@ export default function Booking({ expectedMode }) {
     );
   }
 
-  const isTimed = service?.booking_mode === "timed";
+  const isTimed = service
+    ? service.booking_mode === "timed"
+    : expectedMode === "timed";
+  const displayTitle = service?.name || serviceTitles[serviceSlug] || "Booking";
 
   return (
-    <div className="min-h-screen text-[#f1e8ca]">
-      <section className="px-6 pb-12 pt-3">
+    <div className={modal ? "min-h-0 text-[#f1e8ca]" : "min-h-screen text-[#f1e8ca]"}>
+      <section className={modal ? "px-4 pb-8 pt-3 sm:px-8" : "px-6 pb-12 pt-3"}>
         <div className="mx-auto w-full max-w-7xl">
           <motion.div
-            initial={{ opacity: 0, y: 30 }}
+            initial={modal ? false : { opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 1, ease: [0.22, 1, 0.36, 1] }}
             className="max-w-5xl"
@@ -165,20 +179,32 @@ export default function Booking({ expectedMode }) {
               {isTimed ? "Reservations" : "Reading Request"}
             </p>
 
-            <h1 className="max-w-5xl text-5xl font-light leading-[1.05] text-[#f1e8ca] md:text-7xl">
-              {service?.name || "Loading service..."}
+            <h1
+              id={modal ? "booking-dialog-title" : undefined}
+              className={modal ? "max-w-5xl pr-14 text-4xl font-light leading-[1.05] text-[#f1e8ca] sm:text-5xl md:text-6xl" : "max-w-5xl text-5xl font-light leading-[1.05] text-[#f1e8ca] md:text-7xl"}
+            >
+              {displayTitle}
             </h1>
 
-            {service && (
-              <div className="mt-8 flex flex-wrap items-center gap-4 text-xl text-[#f1e8ca]/80">
-                <span>{formatServicePrice(service)}</span>
-                {service.duration_minutes && (
-                  <span>{service.duration_minutes} minutes</span>
-                )}
-              </div>
-            )}
+            <div className="mt-8 flex min-h-7 flex-wrap items-center gap-4 text-xl text-[#f1e8ca]/80">
+              {service ? (
+                <>
+                  <span>{formatServicePrice(service)}</span>
+                  {service.duration_minutes && (
+                    <span>{service.duration_minutes} minutes</span>
+                  )}
+                </>
+              ) : (
+                <>
+                  <span className="h-6 w-16 rounded-full bg-white/[0.07]" />
+                  {isTimed && (
+                    <span className="h-6 w-28 rounded-full bg-white/[0.07]" />
+                  )}
+                </>
+              )}
+            </div>
 
-            <div className="mt-8 max-w-4xl text-xl leading-[2] text-[#f1e8ca]/88 md:text-2xl">
+            <div className={modal ? "mt-8 max-w-4xl text-lg leading-[1.8] text-[#f1e8ca]/88 md:text-xl" : "mt-8 max-w-4xl text-xl leading-[2] text-[#f1e8ca]/88 md:text-2xl"}>
               <p>
                 {isTimed
                   ? "Select a date and time from the shared availability calendar."
@@ -189,17 +215,12 @@ export default function Booking({ expectedMode }) {
         </div>
       </section>
 
-      <section className="px-6 pb-24">
+      <section className={modal ? "px-4 pb-10 sm:px-8 sm:pb-12" : "px-6 pb-24"}>
         <div className="mx-auto flex w-full max-w-7xl flex-col gap-10">
-          {loading && (
-            <p className="text-xs uppercase tracking-[0.22em] text-[#f1e8ca]/40">
-              Loading service...
-            </p>
-          )}
-
-          {!loading && service && isTimed && (
+          {isTimed && (
             <>
               <DateSelector
+                loading={loading}
                 availableDates={uniqueDates}
                 selectedDate={selectedDate}
                 onSelectDate={(date) => {
@@ -250,15 +271,19 @@ export default function Booking({ expectedMode }) {
             </>
           )}
 
-          {!loading && service && !isTimed && (
+          {!isTimed && (
             <div className="mx-auto w-full max-w-5xl">
               {success ? (
                 <BookingSuccess service={service} />
               ) : (
                 <BookingForm
                   service={service}
+                  bookingMode={expectedMode}
+                  serviceName={displayTitle}
                   onSubmit={handleBookingSubmit}
                   loading={submitting}
+                  disabled={loading || !service}
+                  animateOnMount={false}
                 />
               )}
             </div>
