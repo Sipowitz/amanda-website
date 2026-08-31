@@ -31,6 +31,7 @@ function getErrorMessage(error: unknown): string {
 
 async function sendEmail(
   queueMessage: QueueMessage,
+  timezone: string,
   onAttemptStarted: (attemptCount: number) => void,
 ): Promise<SendResult> {
   const {
@@ -80,6 +81,7 @@ async function sendEmail(
 
   const emailContent = buildEmail(emailType, payload, {
     siteUrl,
+    timezone,
   });
 
   const resendEmailId = await sendWithResend({
@@ -105,6 +107,7 @@ async function sendEmail(
 
 export async function processQueueMessage(
   queueMessage: QueueMessage,
+  timezone: string,
 ): Promise<QueueMessageResult> {
   const emailLogId = queueMessage.message?.email_log_id;
   let attemptCount = 0;
@@ -113,7 +116,7 @@ export async function processQueueMessage(
   let sendResult: SendResult;
 
   try {
-    sendResult = await sendEmail(queueMessage, (currentAttemptCount) => {
+    sendResult = await sendEmail(queueMessage, timezone, (currentAttemptCount) => {
       durableAttemptCountKnown = true;
       attemptCount = currentAttemptCount;
     });

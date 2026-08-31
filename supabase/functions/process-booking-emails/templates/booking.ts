@@ -5,13 +5,16 @@ import type {
 
 import {
   escapeHtml,
-  formatBookingDate,
+  formatBookingAppointment,
   formatCurrency,
   getCustomerFirstName,
 } from "../lib/formatters.ts";
 import { getEmailLayout } from "../lib/layout.ts";
 
-function getBookingDetails(payload: Record<string, unknown>) {
+function getBookingDetails(
+  payload: Record<string, unknown>,
+  timezone: string,
+) {
   const customerName = String(payload.customer_name ?? "");
   const serviceName = String(payload.service_name ?? "Booking");
   const bookingMode = String(payload.service_booking_mode ?? "timed");
@@ -20,13 +23,21 @@ function getBookingDetails(payload: Record<string, unknown>) {
     Boolean(payload.slot_date) &&
     Boolean(payload.slot_time);
 
+  const appointment = hasAppointment
+    ? formatBookingAppointment(
+      payload.slot_date,
+      payload.slot_time,
+      timezone,
+    )
+    : null;
+
   return {
     customerName,
     firstName: getCustomerFirstName(customerName),
     serviceName,
     hasAppointment,
-    slotDate: hasAppointment ? formatBookingDate(payload.slot_date) : "",
-    slotTime: hasAppointment ? String(payload.slot_time) : "",
+    slotDate: appointment?.date ?? "",
+    slotTime: appointment?.time ?? "",
   };
 }
 
@@ -87,7 +98,7 @@ export function buildBookingRequestCustomerEmail(
   payload: Record<string, unknown>,
   context: EmailTemplateContext,
 ): EmailContent {
-  const details = getBookingDetails(payload);
+  const details = getBookingDetails(payload, context.timezone);
   const subject = "We've received your booking request";
 
   const text = [
@@ -125,7 +136,7 @@ export function buildBookingRequestAdminEmail(
   payload: Record<string, unknown>,
   context: EmailTemplateContext,
 ): EmailContent {
-  const details = getBookingDetails(payload);
+  const details = getBookingDetails(payload, context.timezone);
   const customerEmail = String(payload.customer_email ?? "");
   const customerPhone = String(payload.customer_phone ?? "");
   const customerMessage = String(payload.customer_message ?? "");
@@ -170,8 +181,9 @@ export function buildBookingRequestAdminEmail(
 
 export function buildBookingConfirmedEmail(
   payload: Record<string, unknown>,
+  context: EmailTemplateContext,
 ): EmailContent {
-  const details = getBookingDetails(payload);
+  const details = getBookingDetails(payload, context.timezone);
   const payment = getConfirmationPaymentDetails(payload);
   const subject = "Your booking has been confirmed";
 
@@ -211,8 +223,9 @@ export function buildBookingConfirmedEmail(
 
 export function buildBookingCancelledEmail(
   payload: Record<string, unknown>,
+  context: EmailTemplateContext,
 ): EmailContent {
-  const details = getBookingDetails(payload);
+  const details = getBookingDetails(payload, context.timezone);
   const subject = "Your booking has been cancelled";
 
   const text = [
