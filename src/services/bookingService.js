@@ -68,3 +68,74 @@ export async function createBooking({
     bookingId: data,
   };
 }
+
+export async function createPendingPaymentBooking({
+  serviceId,
+  name,
+  email,
+  phone,
+  message,
+}) {
+  const { data, error } = await supabase.rpc(
+    "create_pending_payment_booking",
+    {
+      p_service_id: serviceId,
+      p_customer_name: name,
+      p_customer_email: email,
+      p_customer_phone: phone || null,
+      p_customer_message: message || null,
+    },
+  );
+
+  if (error) {
+    throw error;
+  }
+
+  return {
+    bookingId: data.booking_id,
+    paymentAccessToken: data.payment_access_token,
+  };
+}
+
+async function invokeCheckoutAction(action, bookingId, paymentAccessToken) {
+  const { data, error } = await supabase.functions.invoke(
+    "create-checkout-session",
+    {
+      body: { action, bookingId, paymentAccessToken },
+    },
+  );
+
+  if (error) {
+    throw error;
+  }
+
+  return data;
+}
+
+export async function createCheckoutSession(bookingId, paymentAccessToken) {
+  const data = await invokeCheckoutAction(
+    "initialize",
+    bookingId,
+    paymentAccessToken,
+  );
+
+  if (!data?.clientSecret && !data?.paid) {
+    throw new Error(data?.error || "Checkout Session was not created.");
+  }
+
+  return data;
+}
+
+export async function getCheckoutPaymentStatus(bookingId, paymentAccessToken) {
+  const data = await invokeCheckoutAction(
+    "status",
+    bookingId,
+    paymentAccessToken,
+  );
+
+  if (!data || typeof data.paid !== "boolean") {
+    throw new Error(data?.error || "Payment status is unavailable.");
+  }
+
+  return data;
+}

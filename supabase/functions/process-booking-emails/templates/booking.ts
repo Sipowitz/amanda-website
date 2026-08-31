@@ -41,10 +41,15 @@ function getConfirmationPaymentDetails(payload: Record<string, unknown>) {
   const customerEmail = String(payload.customer_email ?? "").trim();
   const paymentSettled =
     ["paid", "waived"].includes(paymentStatus) || amountDue <= amountPaid;
-  const amountLabel =
-    amountPaid > 0 || paymentSettled ? "Amount remaining" : "Amount due";
+  const embeddedCheckoutPayment =
+    payload.embedded_checkout_payment === true;
+  const amountLabel = embeddedCheckoutPayment
+    ? "Payment received"
+    : amountPaid > 0 || paymentSettled ? "Amount remaining" : "Amount due";
   const amountValue = formatCurrency(
-    amountPaid > 0 || paymentSettled ? amountRemaining : amountDue,
+    embeddedCheckoutPayment
+      ? amountPaid
+      : amountPaid > 0 || paymentSettled ? amountRemaining : amountDue,
     currency,
   );
 

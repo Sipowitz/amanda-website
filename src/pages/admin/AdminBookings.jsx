@@ -228,7 +228,7 @@ export default function AdminBookings() {
         if (filter === "past") return matchesSearch && !isUntimed && !isUpcoming;
         if (filter === "payment_due") return matchesSearch && ["unpaid", "part_paid"].includes(booking.payment_status);
         if (filter === "paid") return matchesSearch && booking.payment_status === "paid";
-        if (["pending", "confirmed", "completed", "no_show", "cancelled"].includes(filter)) return matchesSearch && booking.status === filter;
+        if (["pending", "pending_payment", "payment_expired", "confirmed", "completed", "no_show", "cancelled"].includes(filter)) return matchesSearch && booking.status === filter;
         return matchesSearch;
       })
       .sort((a, b) => {

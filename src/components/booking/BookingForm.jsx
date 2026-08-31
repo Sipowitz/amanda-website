@@ -12,6 +12,7 @@ export default function BookingForm({
   bookingMode,
   presentation,
   animateOnMount = true,
+  submitLabel,
 }) {
   const [formData, setFormData] = useState({
     name: "",
@@ -154,7 +155,7 @@ export default function BookingForm({
           ? "Sending..."
           : isTimed
             ? "Confirm Booking"
-            : "Request Voice Memo Reading"}
+            : submitLabel || "Request Voice Memo Reading"}
       </button>
     </motion.form>
   );

@@ -1,6 +1,8 @@
 const filters = [
   ["upcoming", "Upcoming"],
   ["pending", "Pending"],
+  ["pending_payment", "Pending Payment"],
+  ["payment_expired", "Payment Expired"],
   ["confirmed", "Confirmed"],
   ["payment_due", "Payment Due"],
   ["paid", "Paid"],
