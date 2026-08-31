@@ -66,8 +66,22 @@ Deno.serve(async (request) => {
       );
     }
 
+    const { data: emailSettings, error: settingsError } = await supabase
+      .from("email_settings")
+      .select("timezone")
+      .eq("id", true)
+      .single();
+
+    if (settingsError || !emailSettings?.timezone) {
+      throw new Error(
+        `Failed to load email timezone: ${settingsError?.message || "timezone is missing"}`,
+      );
+    }
+
     const settledResults = await Promise.allSettled(
-      queueMessages.map((queueMessage) => processQueueMessage(queueMessage)),
+      queueMessages.map((queueMessage) =>
+        processQueueMessage(queueMessage, emailSettings.timezone)
+      ),
     );
 
     const results = settledResults.map((result, index) => {

@@ -1,14 +1,17 @@
-import type { EmailContent } from "../types.ts";
+import type { EmailContent, EmailTemplateContext } from "../types.ts";
 
 import {
   escapeHtml,
-  formatBookingDate,
+  formatBookingAppointment,
   formatCurrency,
   getCustomerFirstName,
 } from "../lib/formatters.ts";
 import { getEmailLayout } from "../lib/layout.ts";
 
-function getPaymentDetails(payload: Record<string, unknown>) {
+function getPaymentDetails(
+  payload: Record<string, unknown>,
+  timezone: string,
+) {
   const customerName = String(payload.customer_name ?? "");
   const serviceName = String(payload.service_name ?? "Booking");
   const bookingMode = String(payload.service_booking_mode ?? "timed");
@@ -17,13 +20,21 @@ function getPaymentDetails(payload: Record<string, unknown>) {
     Boolean(payload.slot_date) &&
     Boolean(payload.slot_time);
 
+  const appointment = hasAppointment
+    ? formatBookingAppointment(
+      payload.slot_date,
+      payload.slot_time,
+      timezone,
+    )
+    : null;
+
   return {
     firstName: getCustomerFirstName(customerName),
     serviceName,
     currency: String(payload.service_currency ?? "USD"),
     hasAppointment,
-    slotDate: hasAppointment ? formatBookingDate(payload.slot_date) : "",
-    slotTime: hasAppointment ? String(payload.slot_time) : "",
+    slotDate: appointment?.date ?? "",
+    slotTime: appointment?.time ?? "",
   };
 }
 
@@ -41,8 +52,9 @@ function getBookingRows(details: ReturnType<typeof getPaymentDetails>) {
 
 export function buildPartPaymentReceivedEmail(
   payload: Record<string, unknown>,
+  context: EmailTemplateContext,
 ): EmailContent {
-  const details = getPaymentDetails(payload);
+  const details = getPaymentDetails(payload, context.timezone);
   const amountReceived = formatCurrency(
     payload.amount_received,
     details.currency,
@@ -110,8 +122,9 @@ export function buildPartPaymentReceivedEmail(
 
 export function buildPaymentReceivedEmail(
   payload: Record<string, unknown>,
+  context: EmailTemplateContext,
 ): EmailContent {
-  const details = getPaymentDetails(payload);
+  const details = getPaymentDetails(payload, context.timezone);
   const amountPaid = formatCurrency(payload.amount_paid, details.currency);
   const subject = "Payment received";
 

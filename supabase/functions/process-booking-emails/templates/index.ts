@@ -31,20 +31,20 @@ export function buildEmail(
       return buildBookingRequestAdminEmail(payload, context);
 
     case "booking_confirmed":
-      return buildBookingConfirmedEmail(payload);
+      return buildBookingConfirmedEmail(payload, context);
 
     case "booking_cancelled":
-      return buildBookingCancelledEmail(payload);
+      return buildBookingCancelledEmail(payload, context);
 
     case "part_payment_received":
-      return buildPartPaymentReceivedEmail(payload);
+      return buildPartPaymentReceivedEmail(payload, context);
 
     case "payment_received":
-      return buildPaymentReceivedEmail(payload);
+      return buildPaymentReceivedEmail(payload, context);
 
     case "booking_reminder_24h":
     case "booking_reminder_customer":
-      return buildCustomerReminderEmail(payload);
+      return buildCustomerReminderEmail(payload, context);
 
     case "booking_reminder_admin":
       return buildAdminReminderEmail(payload, context);

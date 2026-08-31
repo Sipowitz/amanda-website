@@ -5,24 +5,33 @@ import type {
 
 import {
   escapeHtml,
-  formatBookingDate,
+  formatBookingAppointment,
   formatCurrency,
   formatReminderTiming,
   getCustomerFirstName,
 } from "../lib/formatters.ts";
 import { getEmailLayout } from "../lib/layout.ts";
 
-function getReminderDetails(payload: Record<string, unknown>) {
+function getReminderDetails(
+  payload: Record<string, unknown>,
+  timezone: string,
+) {
   const customerName = String(payload.customer_name ?? "");
   const reminderHours = Number(payload.reminder_hours ?? 24);
   const serviceName = String(payload.service_name ?? "Booking");
+
+  const appointment = formatBookingAppointment(
+    payload.slot_date,
+    payload.slot_time,
+    timezone,
+  );
 
   return {
     customerName,
     firstName: getCustomerFirstName(customerName),
     serviceName,
-    slotDate: formatBookingDate(payload.slot_date),
-    slotTime: String(payload.slot_time ?? "Time to be confirmed"),
+    slotDate: appointment.date,
+    slotTime: appointment.time,
     reminderHours,
     timingDescription: formatReminderTiming(reminderHours),
   };
@@ -30,6 +39,7 @@ function getReminderDetails(payload: Record<string, unknown>) {
 
 export function buildCustomerReminderEmail(
   payload: Record<string, unknown>,
+  context: EmailTemplateContext,
 ): EmailContent {
   const {
     firstName,
@@ -38,7 +48,7 @@ export function buildCustomerReminderEmail(
     slotTime,
     reminderHours,
     timingDescription,
-  } = getReminderDetails(payload);
+  } = getReminderDetails(payload, context.timezone);
 
   const subject =
     reminderHours === 24
@@ -89,7 +99,7 @@ export function buildAdminReminderEmail(
     slotDate,
     slotTime,
     timingDescription,
-  } = getReminderDetails(payload);
+  } = getReminderDetails(payload, context.timezone);
 
   const customerEmail = String(payload.customer_email ?? "");
   const customerPhone = String(payload.customer_phone ?? "");

@@ -31,4 +31,5 @@ export interface ResendResponse {
 
 export interface EmailTemplateContext {
   siteUrl: string;
+  timezone: string;
 }
