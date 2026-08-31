@@ -144,7 +144,7 @@ export function buildBookingRequestAdminEmail(
     details.hasAppointment ? `Time: ${details.slotTime}` : "",
     `Message: ${customerMessage || "No message supplied"}`,
     "",
-    `Admin: ${context.siteUrl}/admin`,
+    `Admin: ${context.siteUrl}/admin/bookings`,
   ].filter(Boolean).join("\n");
 
   const html = getEmailLayout({
@@ -162,7 +162,7 @@ export function buildBookingRequestAdminEmail(
       { label: "Message", value: customerMessage || "No message supplied" },
     ],
     buttonLabel: "Open Admin Area",
-    buttonUrl: `${context.siteUrl}/admin`,
+    buttonUrl: `${context.siteUrl}/admin/bookings`,
   });
 
   return { subject, html, text };
