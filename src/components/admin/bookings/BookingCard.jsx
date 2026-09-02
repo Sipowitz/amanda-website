@@ -39,11 +39,11 @@ export default function BookingCard({
 
   const slot = booking.availability_slots;
   const isCancelled = booking.status === "cancelled";
-  const isStripeCheckout =
-    booking.service_payment_flow_snapshot === "embedded_checkout";
-  const isStripeAwaitingPayment = isStripeCheckout &&
+  const isDirectPayment =
+    booking.service_payment_flow_snapshot === "direct_payment";
+  const isDirectPaymentPending = isDirectPayment &&
     ["pending_payment", "payment_expired"].includes(booking.status);
-  const canCancel = !isStripeCheckout || booking.status === "payment_expired";
+  const canCancel = !isDirectPayment || booking.status === "payment_expired";
   const outstanding = Math.max(
     Number(booking.amount_due || 0) - Number(booking.amount_paid || 0),
     0,
@@ -208,9 +208,9 @@ export default function BookingCard({
                     Actions
                   </p>
 
-                  {isStripeCheckout ? (
+                  {isDirectPayment ? (
                     <span className="text-sm text-[#6d746b]">
-                      Stripe-managed payment
+                      Square-managed direct payment
                     </span>
                   ) : (
                     <button
@@ -225,7 +225,7 @@ export default function BookingCard({
 
                 {!isCancelled ? (
                   <div className="flex flex-wrap gap-2.5">
-                    {!isStripeCheckout && booking.status !== "pending" && (
+                    {!isDirectPayment && booking.status !== "pending" && (
                       <button
                         disabled={isUpdating}
                         onClick={() => onStatusChange(booking, "pending")}
@@ -235,7 +235,7 @@ export default function BookingCard({
                       </button>
                     )}
 
-                    {!isStripeCheckout && booking.status !== "confirmed" && (
+                    {!isDirectPayment && booking.status !== "confirmed" && (
                       <button
                         disabled={isUpdating}
                         onClick={() => onStatusChange(booking, "confirmed")}
@@ -275,10 +275,10 @@ export default function BookingCard({
                       </button>
                     )}
 
-                    {isStripeAwaitingPayment && booking.status !== "payment_expired" && (
+                    {isDirectPaymentPending && booking.status !== "payment_expired" && (
                       <p className="w-full text-sm text-[#6d746b]">
                         Confirmation, payment editing and cancellation are locked
-                        while the Stripe Checkout Session is active.
+                        while the Square payment outcome may be active.
                       </p>
                     )}
                   </div>
@@ -289,7 +289,7 @@ export default function BookingCard({
                 )}
               </section>
 
-              {paymentPanelOpen && !isStripeCheckout && (
+              {paymentPanelOpen && !isDirectPayment && (
                 <BookingPaymentEditor
                   booking={booking}
                   form={paymentForm}

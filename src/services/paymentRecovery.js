@@ -3,7 +3,7 @@ const bookingIdPattern =
 const paymentAccessTokenPattern = /^[0-9a-f]{64}$/i;
 
 export function paymentStorageKey(serviceSlug) {
-  return `amanda:embedded-payment:${serviceSlug}`;
+  return `amanda:direct-payment:${serviceSlug}`;
 }
 
 export function readPaymentIdentity(storage, serviceSlug, serviceId) {

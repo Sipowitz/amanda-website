@@ -52,13 +52,12 @@ function getConfirmationPaymentDetails(payload: Record<string, unknown>) {
   const customerEmail = String(payload.customer_email ?? "").trim();
   const paymentSettled =
     ["paid", "waived"].includes(paymentStatus) || amountDue <= amountPaid;
-  const embeddedCheckoutPayment =
-    payload.embedded_checkout_payment === true;
-  const amountLabel = embeddedCheckoutPayment
+  const directPayment = payload.direct_payment === true;
+  const amountLabel = directPayment
     ? "Payment received"
     : amountPaid > 0 || paymentSettled ? "Amount remaining" : "Amount due";
   const amountValue = formatCurrency(
-    embeddedCheckoutPayment
+    directPayment
       ? amountPaid
       : amountPaid > 0 || paymentSettled ? amountRemaining : amountDue,
     currency,

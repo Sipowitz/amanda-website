@@ -8,7 +8,7 @@ import DateSelector from "../components/booking/DateSelector";
 import TimeSlotPicker from "../components/booking/TimeSlotPicker";
 import BookingForm from "../components/booking/BookingForm";
 import BookingSuccess from "../components/booking/BookingSuccess";
-import EmbeddedPayment from "../components/booking/EmbeddedPayment";
+import SquareCardPayment from "../components/booking/SquareCardPayment";
 
 import {
   createBooking,
@@ -84,7 +84,7 @@ export default function Booking({ expectedMode, modal = false }) {
 
         if (active) {
           setService(resolvedService);
-          if (resolvedService.payment_flow === "embedded_checkout") {
+          if (resolvedService.payment_flow === "direct_payment") {
             setPaymentIdentity(
               readPaymentIdentity(
                 window.sessionStorage,
@@ -148,10 +148,9 @@ export default function Booking({ expectedMode, modal = false }) {
     try {
       setSubmitting(true);
 
-      const usesEmbeddedCheckout =
-        service.payment_flow === "embedded_checkout";
+      const usesDirectPayment = service.payment_flow === "direct_payment";
 
-      if (!usesEmbeddedCheckout) {
+      if (!usesDirectPayment) {
         await createBooking({
           serviceId: service.id,
           slotId: selectedSlot?.id || null,
@@ -338,7 +337,7 @@ export default function Booking({ expectedMode, modal = false }) {
           {!isTimed && (
             <div className="mx-auto w-full max-w-5xl">
               {paymentIdentity ? (
-                <EmbeddedPayment
+                <SquareCardPayment
                   bookingId={paymentIdentity.bookingId}
                   paymentAccessToken={paymentIdentity.paymentAccessToken}
                   service={service}
@@ -356,7 +355,7 @@ export default function Booking({ expectedMode, modal = false }) {
                   disabled={loading || !service}
                   animateOnMount={false}
                   submitLabel={
-                    service?.payment_flow === "embedded_checkout"
+                    service?.payment_flow === "direct_payment"
                       ? "Pay now"
                       : undefined
                   }

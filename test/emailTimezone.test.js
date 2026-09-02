@@ -85,3 +85,19 @@ test("untimed Voice Memo email remains free of appointment fields", () => {
   assert.doesNotMatch(email.text, /^Date:/m);
   assert.doesNotMatch(email.text, /^Time:/m);
 });
+
+test("paid Voice Memo confirmation acknowledges direct payment without a payment link", () => {
+  const email = buildEmail("booking_confirmed", {
+    ...timedPayload,
+    service_name: "Voice Memo Reading",
+    service_booking_mode: "untimed",
+    direct_payment: true,
+    amount_due: 20,
+    amount_paid: 20,
+    stripe_payment_link_url: "https://buy.stripe.com/example",
+  }, context);
+
+  assert.match(email.text, /Payment received: \$20\.00/);
+  assert.doesNotMatch(email.text, /Pay now:/);
+  assert.doesNotMatch(email.html, />Pay now</);
+});

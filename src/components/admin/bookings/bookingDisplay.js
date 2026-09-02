@@ -5,6 +5,7 @@ export const paymentMethods = [
   { value: "card", label: "Card" },
   { value: "payment_link", label: "Payment Link" },
   { value: "stripe", label: "Stripe" },
+  { value: "square", label: "Square" },
   { value: "complimentary", label: "Complimentary" },
   { value: "other", label: "Other" },
 ];

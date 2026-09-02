@@ -97,11 +97,11 @@ export async function createPendingPaymentBooking({
   };
 }
 
-async function invokeCheckoutAction(action, bookingId, paymentAccessToken) {
+async function invokePaymentAction(action, bookingId, paymentAccessToken, extra = {}) {
   const { data, error } = await supabase.functions.invoke(
-    "create-checkout-session",
+    "square-payment",
     {
-      body: { action, bookingId, paymentAccessToken },
+      body: { action, bookingId, paymentAccessToken, ...extra },
     },
   );
 
@@ -112,22 +112,22 @@ async function invokeCheckoutAction(action, bookingId, paymentAccessToken) {
   return data;
 }
 
-export async function createCheckoutSession(bookingId, paymentAccessToken) {
-  const data = await invokeCheckoutAction(
+export async function initializeDirectPayment(bookingId, paymentAccessToken) {
+  const data = await invokePaymentAction(
     "initialize",
     bookingId,
     paymentAccessToken,
   );
 
-  if (!data?.clientSecret && !data?.paid) {
-    throw new Error(data?.error || "Checkout Session was not created.");
+  if (!data?.attemptId && !data?.paid) {
+    throw new Error(data?.error || "Payment attempt was not created.");
   }
 
   return data;
 }
 
-export async function getCheckoutPaymentStatus(bookingId, paymentAccessToken) {
-  const data = await invokeCheckoutAction(
+export async function getDirectPaymentStatus(bookingId, paymentAccessToken) {
+  const data = await invokePaymentAction(
     "status",
     bookingId,
     paymentAccessToken,
@@ -138,4 +138,8 @@ export async function getCheckoutPaymentStatus(bookingId, paymentAccessToken) {
   }
 
   return data;
+}
+
+export async function submitSquarePayment({ bookingId, paymentAccessToken, attemptId, sourceToken }) {
+  return invokePaymentAction("submit", bookingId, paymentAccessToken, { attemptId, sourceToken });
 }

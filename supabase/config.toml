@@ -10,14 +10,15 @@ entrypoint = "./functions/process-booking-emails/index.ts"
 # For example, if you want to serve static HTML pages in your function:
 # static_files = [ "./functions/process-booking-emails/*.html" ]
 
-[functions.create-checkout-session]
+[functions.square-payment]
 enabled = true
 verify_jwt = true
-import_map = "./functions/create-checkout-session/deno.json"
-entrypoint = "./functions/create-checkout-session/index.ts"
+import_map = "./functions/square-payment/deno.json"
+entrypoint = "./functions/square-payment/index.ts"
 
-# Stripe authenticates this endpoint with its signature, not a Supabase JWT.
-[functions.stripe-webhook]
+# Square authenticates this endpoint with its signature, not a Supabase JWT.
+[functions.square-webhook]
 enabled = true
 verify_jwt = false
-import_map = "./functions/stripe-webhook/deno.json"
+import_map = "./functions/square-webhook/deno.json"
+entrypoint = "./functions/square-webhook/index.ts"
