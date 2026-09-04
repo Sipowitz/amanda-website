@@ -33,7 +33,7 @@ const squareCardStyle = {
   input: {
     backgroundColor: "#faf8f1",
     color: "#29312b",
-    fontFamily: "Inter, sans-serif",
+    fontFamily: "helvetica neue, sans-serif",
     fontSize: "16px",
     fontWeight: "400",
   },

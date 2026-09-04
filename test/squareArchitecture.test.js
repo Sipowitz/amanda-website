@@ -156,6 +156,8 @@ test("Square charge tokenization uses the authenticated booking contact", async 
 test("Square checkout keeps the authoritative amount visible in its secure UI", async () => {
   const component = await read("../src/components/booking/SquareCardPayment.jsx");
   assert.match(component, /payments\.card\(\{ style: squareCardStyle \}\)/);
+  assert.match(component, /fontFamily: "helvetica neue, sans-serif"/);
+  assert.doesNotMatch(component, /fontFamily: "Inter, sans-serif"/);
   assert.match(component, /Secure checkout/);
   assert.match(component, /service\.name/);
   assert.match(component, /formatPrice\(context\.amountMinor, context\.currency\)/);
