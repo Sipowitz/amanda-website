@@ -249,10 +249,11 @@ export default function Booking({ expectedMode, modal = false }) {
   const displayDurationMinutes = service
     ? service.duration_minutes
     : presentation?.displayDurationMinutes;
+  const compactVoiceMemoModal = modal && !isTimed;
 
   return (
     <div className={modal ? "min-h-0 text-[#f1e8ca]" : "min-h-screen text-[#f1e8ca]"}>
-      <section className={modal ? "px-4 pb-8 pt-3 sm:px-8" : "px-6 pb-12 pt-3"}>
+      <section className={modal ? `px-4 pt-3 sm:px-8 ${compactVoiceMemoModal ? "pb-5" : "pb-8"}` : "px-6 pb-12 pt-3"}>
         <div className="mx-auto w-full max-w-7xl">
           <motion.div
             initial={modal ? false : { opacity: 0, y: 30 }}
@@ -260,7 +261,7 @@ export default function Booking({ expectedMode, modal = false }) {
             transition={{ duration: 1, ease: [0.22, 1, 0.36, 1] }}
             className="max-w-5xl"
           >
-            <p className="mb-8 text-sm font-medium uppercase tracking-[0.35em] text-[#f1e8ca]/65">
+            <p className={`${compactVoiceMemoModal ? "mb-4" : "mb-8"} text-sm font-medium uppercase tracking-[0.35em] text-[#f1e8ca]/65`}>
               {isTimed ? "Reservations" : "Reading Request"}
             </p>
 
@@ -271,7 +272,7 @@ export default function Booking({ expectedMode, modal = false }) {
               {displayTitle}
             </h1>
 
-            <div className="mt-8 flex min-h-7 flex-wrap items-center gap-4 text-xl text-[#f1e8ca]/80">
+            <div className={`${compactVoiceMemoModal ? "mt-4" : "mt-8"} flex min-h-7 flex-wrap items-center gap-4 text-xl text-[#f1e8ca]/80`}>
               <span>
                 {displayPriceAmount != null && displayCurrency
                   ? formatPrice(displayPriceAmount, displayCurrency)
@@ -284,7 +285,7 @@ export default function Booking({ expectedMode, modal = false }) {
               </span>
             </div>
 
-            <div className={modal ? "mt-8 max-w-4xl text-lg leading-[1.8] text-[#f1e8ca]/88 md:text-xl" : "mt-8 max-w-4xl text-xl leading-[2] text-[#f1e8ca]/88 md:text-2xl"}>
+            <div className={modal ? `${compactVoiceMemoModal ? "mt-5" : "mt-8"} max-w-4xl text-lg leading-[1.8] text-[#f1e8ca]/88 md:text-xl` : "mt-8 max-w-4xl text-xl leading-[2] text-[#f1e8ca]/88 md:text-2xl"}>
               <p>
                 {isTimed
                   ? "Select a date and time from the shared availability calendar."
@@ -354,7 +355,7 @@ export default function Booking({ expectedMode, modal = false }) {
           )}
 
           {!isTimed && (
-            <div className="mx-auto flex w-full max-w-5xl flex-col gap-10">
+            <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 sm:gap-7">
               {success ? (
                 <BookingSuccess service={service} />
               ) : (

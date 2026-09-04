@@ -180,15 +180,15 @@ export default function SquareCardPayment({ bookingId, paymentAccessToken, servi
   }
 
   return (
-    <section className="rounded-[1.5rem] border border-white/10 bg-white/[0.04] p-4 backdrop-blur-sm sm:p-5">
-      <p className="mb-3 text-xs uppercase tracking-[0.2em] text-[#f1e8ca]/55">Secure card payment</p>
-      <div className="rounded-2xl border border-white/10 bg-[#f8f7f2] p-4 text-[#29312b] sm:p-5">
+    <section className="rounded-[1.5rem] border border-white/10 bg-white/[0.04] p-3 backdrop-blur-sm sm:p-4">
+      <p className="mb-2 text-xs uppercase tracking-[0.2em] text-[#f1e8ca]/55">Secure card payment</p>
+      <div className="rounded-2xl border border-white/10 bg-[#f8f7f2] p-3 text-[#29312b] sm:p-4">
         {state === "configuration_missing" && <Message title="Square configuration required">Secure payment is not configured in this environment. Your request remains saved for recovery.</Message>}
         {state === "loading" && <Message>Loading secure payment...</Message>}
         {state === "error" && <Message title="Payment is temporarily unavailable"><p>{error}</p><Button onClick={() => initialize(false)}>Try again</Button></Message>}
         {state === "verifying" && <Message title="Verifying your payment"><p>Do not pay again. The secure server is confirming the existing payment attempt.</p>{error && <p>{error}</p>}<Button onClick={() => checkStatus()}>Check payment</Button></Message>}
         {state === "restart" && <Message title="Payment was not completed"><p>{error || "No charge was recorded for the previous attempt."}</p><Button onClick={() => initialize(true)}>Try payment again</Button></Message>}
-        {state === "success" && <Message title="Payment confirmed">Your Voice Memo Reading is confirmed and a confirmation email has been queued. Thank you.</Message>}
+        {state === "success" && <Message title="Payment confirmed">Your Voice Memo Reading is confirmed and a confirmation email has been sent. Thank you.</Message>}
         <form onSubmit={submit} className={state === "ready" || state === "tokenizing" ? "block" : "hidden"}>
           <div id="square-card-container" className="min-h-24" />
           {error && <p className="mb-4 text-sm text-red-700">{error}</p>}
@@ -200,9 +200,9 @@ export default function SquareCardPayment({ bookingId, paymentAccessToken, servi
 }
 
 function Message({ title, children }) {
-  return <div className="flex min-h-28 flex-col items-center justify-center gap-3 px-3 py-5 text-center sm:px-5">{title && <h3 className="text-xl">{title}</h3>}<div className="text-sm leading-relaxed sm:text-base">{children}</div></div>;
+  return <div className="flex min-h-24 flex-col items-center justify-center gap-2 px-3 py-4 text-center sm:px-4">{title && <h3 className="text-xl">{title}</h3>}<div className="text-sm leading-relaxed sm:text-base">{children}</div></div>;
 }
 
 function Button({ onClick, children }) {
-  return <button type="button" onClick={onClick} className="mt-5 rounded-xl bg-[#365d3c] px-5 py-3 text-white">{children}</button>;
+  return <button type="button" onClick={onClick} className="mt-3 rounded-xl bg-[#365d3c] px-5 py-3 text-white">{children}</button>;
 }
