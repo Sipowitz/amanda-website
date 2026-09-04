@@ -115,6 +115,16 @@ Deno.serve(async (request) => {
         p_payment_access_token: payload.paymentAccessToken,
       });
       if (error) return json(request, { error: "Payment status is unavailable." }, 403);
+      // The recovery token has already been verified by get_payment_status.
+      // Return only the existing contact fields needed by Square tokenization.
+      const { data: booking, error: bookingError } = await supabase
+        .from("bookings")
+        .select("customer_name, customer_email, customer_phone")
+        .eq("id", payload.bookingId)
+        .single();
+      if (bookingError || !booking) {
+        return json(request, { error: "Payment status is unavailable." }, 403);
+      }
       return json(request, {
         paid: data.paid,
         canRestart: data.can_restart,
@@ -126,6 +136,11 @@ Deno.serve(async (request) => {
         serviceName: data.service_name,
         amountMinor: data.amount_minor,
         currency: data.currency,
+        buyerContact: {
+          givenName: booking.customer_name,
+          email: booking.customer_email,
+          ...(booking.customer_phone ? { phone: booking.customer_phone } : {}),
+        },
       });
     }
 

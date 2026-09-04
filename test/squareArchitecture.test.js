@@ -143,6 +143,16 @@ test("frontend does not treat tokenization or API acceptance as payment success"
   assert.match(source, /card\?\.destroy/);
 });
 
+test("Square charge tokenization uses the authenticated booking contact", async () => {
+  const component = await read("../src/components/booking/SquareCardPayment.jsx");
+  const edge = await paymentFunction();
+  assert.match(component, /buildSquareVerificationDetails\(context\)/);
+  assert.match(edge, /select\("customer_name, customer_email, customer_phone"\)/);
+  assert.match(edge, /givenName: booking\.customer_name/);
+  assert.match(edge, /email: booking\.customer_email/);
+  assert.match(edge, /phone: booking\.customer_phone/);
+});
+
 test("timed Stripe Payment Link infrastructure remains present", async () => {
   const sql = await read("../supabase/migrations/20260817213000_service_stripe_payment_links.sql");
   assert.match(sql, /stripe_payment_link_url/);

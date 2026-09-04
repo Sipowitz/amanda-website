@@ -5,6 +5,7 @@ import {
   initializeDirectPayment,
   submitSquarePayment,
 } from "../../services/bookingService";
+import { buildSquareVerificationDetails } from "../../services/squareVerification";
 
 const applicationId = import.meta.env.VITE_SQUARE_APPLICATION_ID;
 const locationId = import.meta.env.VITE_SQUARE_LOCATION_ID;
@@ -46,6 +47,7 @@ export default function SquareCardPayment({ bookingId, paymentAccessToken, servi
     serviceName: service.name,
     amountMinor: service.price_amount,
     currency: service.currency,
+    buyerContact: null,
   });
   const [attemptId, setAttemptId] = useState(null);
   const [state, setState] = useState(
@@ -82,6 +84,9 @@ export default function SquareCardPayment({ bookingId, paymentAccessToken, servi
     const current = await getDirectPaymentStatus(bookingId, paymentAccessToken);
     const currentState = handleStatus(current);
     if (currentState !== "ready" && !(restart && currentState === "restart")) return;
+    if (!current.buyerContact?.givenName || !current.buyerContact?.email) {
+      throw new Error("Buyer contact details are unavailable for secure payment.");
+    }
     const attempt = await initializeDirectPayment(bookingId, paymentAccessToken);
     if (attempt.paid) {
       handleStatus(attempt);
@@ -96,6 +101,7 @@ export default function SquareCardPayment({ bookingId, paymentAccessToken, servi
       serviceName: attempt.serviceName,
       amountMinor: attempt.amountMinor,
       currency: attempt.currency,
+      buyerContact: current.buyerContact,
     });
     const Square = await loadSquareSdk();
     if (!Square || !mountedRef.current) throw new Error("Secure card form is unavailable.");
@@ -145,13 +151,9 @@ export default function SquareCardPayment({ bookingId, paymentAccessToken, servi
     setError("");
     setState("tokenizing");
     try {
-      const tokenized = await cardRef.current.tokenize({
-        amount: (context.amountMinor / 100).toFixed(2),
-        currencyCode: context.currency,
-        intent: "CHARGE",
-        customerInitiated: true,
-        sellerKeyedIn: false,
-      });
+      const tokenized = await cardRef.current.tokenize(
+        buildSquareVerificationDetails(context),
+      );
       if (tokenized.status !== "OK" || !tokenized.token) {
         throw new Error(tokenized.errors?.[0]?.message || "Card details could not be tokenized.");
       }
