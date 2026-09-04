@@ -147,10 +147,21 @@ test("Square charge tokenization uses the authenticated booking contact", async 
   const component = await read("../src/components/booking/SquareCardPayment.jsx");
   const edge = await paymentFunction();
   assert.match(component, /buildSquareVerificationDetails\(context\)/);
-  assert.match(edge, /select\("customer_name, customer_email, customer_phone"\)/);
+  assert.match(edge, /select\("customer_name, customer_email, customer_phone, customer_message"\)/);
   assert.match(edge, /givenName: booking\.customer_name/);
   assert.match(edge, /email: booking\.customer_email/);
   assert.match(edge, /phone: booking\.customer_phone/);
+});
+
+test("Voice Memo request fields remain rendered beside the direct-payment step", async () => {
+  const booking = await bookingPage();
+  const form = await read("../src/components/booking/BookingForm.jsx");
+  assert.match(booking, /<BookingForm[\s\S]*locked=\{Boolean\(paymentIdentity\)\}[\s\S]*paymentIdentity && \([\s\S]*<SquareCardPayment/);
+  assert.doesNotMatch(booking, /paymentIdentity \? \([\s\S]*<SquareCardPayment/);
+  assert.match(form, /required[\s\S]*disabled=\{locked\}/);
+  assert.match(form, /required=\{!isTimed\}[\s\S]*disabled=\{locked\}/);
+  assert.match(booking, /onBookingRecovered=\{handleBookingRecovered\}/);
+  assert.match(await paymentFunction(), /message: booking\.customer_message/);
 });
 
 test("timed Stripe Payment Link infrastructure remains present", async () => {

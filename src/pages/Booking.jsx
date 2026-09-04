@@ -60,6 +60,12 @@ export default function Booking({ expectedMode, modal = false }) {
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
   const [paymentIdentity, setPaymentIdentity] = useState(null);
+  const [bookingFormData, setBookingFormData] = useState({
+    name: "",
+    email: "",
+    phone: "",
+    message: "",
+  });
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -75,6 +81,7 @@ export default function Booking({ expectedMode, modal = false }) {
         setSelectedSlot(null);
         setSuccess(false);
         setPaymentIdentity(null);
+        setBookingFormData({ name: "", email: "", phone: "", message: "" });
 
         const resolvedService = await getServiceBySlug(serviceSlug);
 
@@ -198,6 +205,15 @@ export default function Booking({ expectedMode, modal = false }) {
   const handlePaymentVerified = useCallback(() => {
     clearPaymentIdentity(window.sessionStorage, serviceSlug);
   }, [serviceSlug]);
+
+  const handleBookingRecovered = useCallback((details) => {
+    setBookingFormData({
+      name: details.name || "",
+      email: details.email || "",
+      phone: details.phone || "",
+      message: details.message || "",
+    });
+  }, []);
 
   if (!loading && !service) {
     return (
@@ -325,6 +341,8 @@ export default function Booking({ expectedMode, modal = false }) {
                         setSuccess(false);
                       }}
                       loading={submitting}
+                      formData={bookingFormData}
+                      onFormDataChange={setBookingFormData}
                     />
                   )}
 
@@ -335,31 +353,38 @@ export default function Booking({ expectedMode, modal = false }) {
           )}
 
           {!isTimed && (
-            <div className="mx-auto w-full max-w-5xl">
-              {paymentIdentity ? (
-                <SquareCardPayment
-                  bookingId={paymentIdentity.bookingId}
-                  paymentAccessToken={paymentIdentity.paymentAccessToken}
-                  service={service}
-                  onPaymentVerified={handlePaymentVerified}
-                />
-              ) : success ? (
+            <div className="mx-auto flex w-full max-w-5xl flex-col gap-10">
+              {success ? (
                 <BookingSuccess service={service} />
               ) : (
-                <BookingForm
-                  service={service}
-                  bookingMode={expectedMode}
-                  presentation={presentation}
-                  onSubmit={handleBookingSubmit}
-                  loading={submitting}
-                  disabled={loading || !service}
-                  animateOnMount={false}
-                  submitLabel={
-                    service?.payment_flow === "direct_payment"
-                      ? "Pay now"
-                      : undefined
-                  }
-                />
+                <>
+                  <BookingForm
+                    service={service}
+                    bookingMode={expectedMode}
+                    presentation={presentation}
+                    onSubmit={handleBookingSubmit}
+                    loading={submitting}
+                    disabled={loading || !service}
+                    animateOnMount={false}
+                    submitLabel={
+                      service?.payment_flow === "direct_payment"
+                        ? "Continue to payment"
+                        : undefined
+                    }
+                    formData={bookingFormData}
+                    onFormDataChange={setBookingFormData}
+                    locked={Boolean(paymentIdentity)}
+                  />
+                  {paymentIdentity && (
+                    <SquareCardPayment
+                      bookingId={paymentIdentity.bookingId}
+                      paymentAccessToken={paymentIdentity.paymentAccessToken}
+                      service={service}
+                      onBookingRecovered={handleBookingRecovered}
+                      onPaymentVerified={handlePaymentVerified}
+                    />
+                  )}
+                </>
               )}
             </div>
           )}

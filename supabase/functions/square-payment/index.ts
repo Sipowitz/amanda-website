@@ -119,7 +119,7 @@ Deno.serve(async (request) => {
       // Return only the existing contact fields needed by Square tokenization.
       const { data: booking, error: bookingError } = await supabase
         .from("bookings")
-        .select("customer_name, customer_email, customer_phone")
+        .select("customer_name, customer_email, customer_phone, customer_message")
         .eq("id", payload.bookingId)
         .single();
       if (bookingError || !booking) {
@@ -140,6 +140,12 @@ Deno.serve(async (request) => {
           givenName: booking.customer_name,
           email: booking.customer_email,
           ...(booking.customer_phone ? { phone: booking.customer_phone } : {}),
+        },
+        bookingDetails: {
+          name: booking.customer_name,
+          email: booking.customer_email,
+          phone: booking.customer_phone || "",
+          message: booking.customer_message,
         },
       });
     }

@@ -39,7 +39,7 @@ function formatPrice(amount, currency) {
   return (amount / 100).toLocaleString("en-US", { style: "currency", currency });
 }
 
-export default function SquareCardPayment({ bookingId, paymentAccessToken, service, onPaymentVerified }) {
+export default function SquareCardPayment({ bookingId, paymentAccessToken, service, onBookingRecovered, onPaymentVerified }) {
   const cardRef = useRef(null);
   const mountedRef = useRef(true);
   const submittingRef = useRef(false);
@@ -82,6 +82,7 @@ export default function SquareCardPayment({ bookingId, paymentAccessToken, servi
     setError("");
     setState("loading");
     const current = await getDirectPaymentStatus(bookingId, paymentAccessToken);
+    if (current.bookingDetails) onBookingRecovered?.(current.bookingDetails);
     const currentState = handleStatus(current);
     if (currentState !== "ready" && !(restart && currentState === "restart")) return;
     if (!current.buyerContact?.givenName || !current.buyerContact?.email) {
@@ -114,7 +115,7 @@ export default function SquareCardPayment({ bookingId, paymentAccessToken, servi
     cardRef.current = card;
     await card.attach("#square-card-container");
     setState("ready");
-  }, [bookingId, handleStatus, paymentAccessToken]);
+  }, [bookingId, handleStatus, onBookingRecovered, paymentAccessToken]);
 
   useEffect(() => {
     mountedRef.current = true;
