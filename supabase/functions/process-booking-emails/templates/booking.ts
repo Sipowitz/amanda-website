@@ -144,17 +144,25 @@ export function buildBookingRequestAdminEmail(
   const customerEmail = String(payload.customer_email ?? "");
   const customerPhone = String(payload.customer_phone ?? "");
   const customerMessage = String(payload.customer_message ?? "");
+  const directPayment = payload.direct_payment === true;
+  const introduction = directPayment
+    ? "A new paid booking has been confirmed through the website."
+    : "A new booking request has been submitted through the website.";
 
-  const subject =
-    `New booking request from ${details.customerName || "a customer"}`;
+  const subject = directPayment
+    ? `New paid booking from ${details.customerName || "a customer"}`
+    : `New booking request from ${details.customerName || "a customer"}`;
 
   const text = [
-    "A new booking request has been received.",
+    directPayment
+      ? "A new paid booking has been confirmed."
+      : "A new booking request has been received.",
     "",
     `Customer: ${details.customerName}`,
     `Email: ${customerEmail}`,
     `Phone: ${customerPhone || "Not provided"}`,
     `Service: ${details.serviceName}`,
+    directPayment ? "Payment: Received" : "",
     details.hasAppointment ? `Date: ${details.slotDate}` : "",
     details.hasAppointment ? `Time: ${details.slotTime}` : "",
     `Message: ${customerMessage || "No message supplied"}`,
@@ -163,17 +171,18 @@ export function buildBookingRequestAdminEmail(
   ].filter(Boolean).join("\n");
 
   const html = getEmailLayout({
-    eyebrow: "New Booking Request",
+    eyebrow: directPayment ? "New Paid Booking" : "New Booking Request",
     heading: details.customerName || "New customer",
     body: `
       <p style="margin: 0;">
-        A new booking request has been submitted through the website.
+        ${introduction}
       </p>
     `,
     details: [
       { label: "Email", value: customerEmail },
       { label: "Telephone", value: customerPhone || "Not provided" },
       ...getBookingDetailRows(details),
+      ...(directPayment ? [{ label: "Payment", value: "Received" }] : []),
       { label: "Message", value: customerMessage || "No message supplied" },
     ],
     buttonLabel: "Open Admin Area",

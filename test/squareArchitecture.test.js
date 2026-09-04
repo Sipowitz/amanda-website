@@ -147,7 +147,7 @@ test("Square charge tokenization uses the authenticated booking contact", async 
   const component = await read("../src/components/booking/SquareCardPayment.jsx");
   const edge = await paymentFunction();
   assert.match(component, /buildSquareVerificationDetails\(context\)/);
-  assert.match(edge, /select\("customer_name, customer_email, customer_phone, customer_message"\)/);
+  assert.match(edge, /\.select\(bookingContextSelection\)/);
   assert.match(edge, /givenName: booking\.customer_name/);
   assert.match(edge, /email: booking\.customer_email/);
   assert.match(edge, /phone: booking\.customer_phone/);

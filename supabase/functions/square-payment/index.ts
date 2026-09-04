@@ -82,6 +82,56 @@ function publicAttempt(attempt: Record<string, unknown>) {
   };
 }
 
+function publicBookingContext(booking: Record<string, unknown>) {
+  const relatedSlot = Array.isArray(booking.availability_slots)
+    ? booking.availability_slots[0]
+    : booking.availability_slots;
+  const slot = relatedSlot && typeof relatedSlot === "object"
+    ? relatedSlot as Record<string, unknown>
+    : null;
+  const bookingMode = booking.service_booking_mode_snapshot;
+  const appointmentDate = bookingMode === "timed" ? slot?.slot_date ?? null : null;
+  const appointmentTime = bookingMode === "timed" ? slot?.slot_time ?? null : null;
+
+  return {
+    serviceId: booking.service_id,
+    serviceName: booking.service_name_snapshot,
+    bookingMode,
+    slotId: bookingMode === "timed" ? booking.slot_id : null,
+    appointmentDate,
+    appointmentTime,
+    buyerContact: {
+      givenName: booking.customer_name,
+      email: booking.customer_email,
+      ...(booking.customer_phone ? { phone: booking.customer_phone } : {}),
+    },
+    bookingDetails: {
+      name: booking.customer_name,
+      email: booking.customer_email,
+      phone: booking.customer_phone || "",
+      message: booking.customer_message,
+      serviceId: booking.service_id,
+      serviceName: booking.service_name_snapshot,
+      bookingMode,
+      slotId: bookingMode === "timed" ? booking.slot_id : null,
+      appointmentDate,
+      appointmentTime,
+    },
+  };
+}
+
+const bookingContextSelection = [
+  "service_id",
+  "service_name_snapshot",
+  "service_booking_mode_snapshot",
+  "slot_id",
+  "customer_name",
+  "customer_email",
+  "customer_phone",
+  "customer_message",
+  "availability_slots!bookings_slot_id_fkey(slot_date,slot_time)",
+].join(",");
+
 Deno.serve(async (request) => {
   if (request.method === "OPTIONS") {
     if (!allowedOrigin(request)) return new Response(null, { status: 403 });
@@ -116,10 +166,11 @@ Deno.serve(async (request) => {
       });
       if (error) return json(request, { error: "Payment status is unavailable." }, 403);
       // The recovery token has already been verified by get_payment_status.
-      // Return only the existing contact fields needed by Square tokenization.
+      // Appointment data comes from the booking's protected slot relationship,
+      // never from browser recovery storage.
       const { data: booking, error: bookingError } = await supabase
         .from("bookings")
-        .select("customer_name, customer_email, customer_phone, customer_message")
+        .select(bookingContextSelection)
         .eq("id", payload.bookingId)
         .single();
       if (bookingError || !booking) {
@@ -136,17 +187,7 @@ Deno.serve(async (request) => {
         serviceName: data.service_name,
         amountMinor: data.amount_minor,
         currency: data.currency,
-        buyerContact: {
-          givenName: booking.customer_name,
-          email: booking.customer_email,
-          ...(booking.customer_phone ? { phone: booking.customer_phone } : {}),
-        },
-        bookingDetails: {
-          name: booking.customer_name,
-          email: booking.customer_email,
-          phone: booking.customer_phone || "",
-          message: booking.customer_message,
-        },
+        ...publicBookingContext(booking),
       });
     }
 
@@ -157,7 +198,20 @@ Deno.serve(async (request) => {
         p_provider: "square",
       });
       if (error) return json(request, { error: "This payment cannot be started." }, 409);
-      return json(request, publicAttempt(data));
+      // begin_payment_attempt verifies the same recovery token before this
+      // service-role lookup exposes the booking's trusted display context.
+      const { data: booking, error: bookingError } = await supabase
+        .from("bookings")
+        .select(bookingContextSelection)
+        .eq("id", payload.bookingId)
+        .single();
+      if (bookingError || !booking) {
+        return json(request, { error: "This payment cannot be started." }, 409);
+      }
+      return json(request, {
+        ...publicAttempt(data),
+        ...publicBookingContext(booking),
+      });
     }
 
     // Validate recovery access immediately before the privileged state change.

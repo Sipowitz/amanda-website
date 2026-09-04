@@ -87,6 +87,7 @@ export default function SquareCardPayment({ bookingId, paymentAccessToken, servi
   const [context, setContext] = useState({
     amountMinor: service.price_amount,
     currency: service.currency,
+    serviceName: service.name,
     buyerContact: null,
   });
   const [attemptId, setAttemptId] = useState(null);
@@ -96,6 +97,12 @@ export default function SquareCardPayment({ bookingId, paymentAccessToken, servi
   const [error, setError] = useState("");
 
   const handleStatus = useCallback((status) => {
+    if (status.serviceName) {
+      setContext((current) => ({
+        ...current,
+        serviceName: status.serviceName,
+      }));
+    }
     if (status.paid && status.bookingStatus === "confirmed" && status.paymentStatus === "paid") {
       setState("success");
       onPaymentVerified?.(status);
@@ -141,6 +148,7 @@ export default function SquareCardPayment({ bookingId, paymentAccessToken, servi
     setContext({
       amountMinor: attempt.amountMinor,
       currency: attempt.currency,
+      serviceName: attempt.serviceName,
       buyerContact: current.buyerContact,
     });
     const Square = await loadSquareSdk();
@@ -242,7 +250,7 @@ export default function SquareCardPayment({ bookingId, paymentAccessToken, servi
         {state === "error" && <Message title="Payment is temporarily unavailable"><p>{error}</p><Button onClick={() => initialize(false)}>Try again</Button></Message>}
         {state === "verifying" && <Message title="Verifying your payment"><p>Do not pay again. The secure server is confirming the existing payment attempt.</p>{error && <p>{error}</p>}<Button onClick={() => checkStatus()}>Check payment</Button></Message>}
         {state === "restart" && <Message title="Payment was not completed"><p>{error || "No charge was recorded for the previous attempt."}</p><Button onClick={() => initialize(true)}>Try payment again</Button></Message>}
-        {state === "success" && <Message title="Payment confirmed">Your Voice Memo Reading is confirmed and a confirmation email has been sent. Thank you.</Message>}
+        {state === "success" && <Message title="Payment confirmed">Your {context.serviceName || "booking"} is confirmed and a confirmation email has been sent. Thank you.</Message>}
         <form onSubmit={submit} className={state === "ready" || state === "tokenizing" ? "block" : "hidden"}>
           <p className="mb-2 text-sm font-medium text-[#3e4b40] [text-shadow:none]">Card details</p>
           <div id="square-card-container" className="min-h-24" />
