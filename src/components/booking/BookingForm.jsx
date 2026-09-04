@@ -148,7 +148,7 @@ export default function BookingForm({
         {loading
           ? "Sending..."
           : isTimed
-            ? "Confirm Booking"
+            ? submitLabel || "Confirm Booking"
             : submitLabel || "Request Voice Memo Reading"}
       </button>
     </motion.form>

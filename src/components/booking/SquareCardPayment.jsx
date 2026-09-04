@@ -80,7 +80,7 @@ function formatPrice(amount, currency) {
   });
 }
 
-export default function SquareCardPayment({ bookingId, paymentAccessToken, service, onBookingRecovered, onPaymentVerified }) {
+export default function SquareCardPayment({ bookingId, paymentAccessToken, service, onBookingRecovered, onPaymentVerified, onChooseNewAppointment }) {
   const cardRef = useRef(null);
   const mountedRef = useRef(true);
   const submittingRef = useRef(false);
@@ -129,7 +129,13 @@ export default function SquareCardPayment({ bookingId, paymentAccessToken, servi
     setError("");
     setState("loading");
     const current = await getDirectPaymentStatus(bookingId, paymentAccessToken);
-    if (current.bookingDetails) onBookingRecovered?.(current.bookingDetails);
+    if (current.bookingDetails) {
+      onBookingRecovered?.({
+        ...current.bookingDetails,
+        amountMinor: current.amountMinor,
+        currency: current.currency,
+      });
+    }
     const currentState = handleStatus(current);
     if (currentState !== "ready" && !(restart && currentState === "restart")) return;
     if (!current.buyerContact?.givenName || !current.buyerContact?.email) {
@@ -249,7 +255,7 @@ export default function SquareCardPayment({ bookingId, paymentAccessToken, servi
         {state === "loading" && <Message>Loading secure payment...</Message>}
         {state === "error" && <Message title="Payment is temporarily unavailable"><p>{error}</p><Button onClick={() => initialize(false)}>Try again</Button></Message>}
         {state === "verifying" && <Message title="Verifying your payment"><p>Do not pay again. The secure server is confirming the existing payment attempt.</p>{error && <p>{error}</p>}<Button onClick={() => checkStatus()}>Check payment</Button></Message>}
-        {state === "restart" && <Message title="Payment was not completed"><p>{error || "No charge was recorded for the previous attempt."}</p><Button onClick={() => initialize(true)}>Try payment again</Button></Message>}
+        {state === "restart" && <Message title="Payment was not completed"><p>{onChooseNewAppointment ? "Your appointment reservation is no longer held." : error || "No charge was recorded for the previous attempt."}</p><div className="flex flex-wrap items-center justify-center gap-3"><Button onClick={() => initialize(true)}>Try payment again</Button>{onChooseNewAppointment && <Button onClick={onChooseNewAppointment}>Choose a new appointment</Button>}</div></Message>}
         {state === "success" && <Message title="Payment confirmed">Your {context.serviceName || "booking"} is confirmed and a confirmation email has been sent. Thank you.</Message>}
         <form onSubmit={submit} className={state === "ready" || state === "tokenizing" ? "block" : "hidden"}>
           <p className="mb-2 text-sm font-medium text-[#3e4b40] [text-shadow:none]">Card details</p>

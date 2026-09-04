@@ -71,6 +71,7 @@ export async function createBooking({
 
 export async function createPendingPaymentBooking({
   serviceId,
+  slotId,
   name,
   email,
   phone,
@@ -80,6 +81,7 @@ export async function createPendingPaymentBooking({
     "create_pending_payment_booking",
     {
       p_service_id: serviceId,
+      p_slot_id: slotId || null,
       p_customer_name: name,
       p_customer_email: email,
       p_customer_phone: phone || null,

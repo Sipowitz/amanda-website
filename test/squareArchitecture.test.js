@@ -170,7 +170,7 @@ test("Voice Memo request form collapses to one compact summary for payment", asy
   const booking = await bookingPage();
   const form = await read("../src/components/booking/BookingForm.jsx");
   const summary = await read("../src/components/booking/BookingRequestSummary.jsx");
-  assert.match(booking, /paymentIdentity \? \([\s\S]*<BookingRequestSummary[\s\S]*<SquareCardPayment/);
+  assert.match(booking, /showingDirectPayment && \([\s\S]*<BookingRequestSummary[\s\S]*<SquareCardPayment/);
   assert.match(booking, /\) : \([\s\S]*<BookingForm/);
   assert.match(form, /name="name"[\s\S]*required/);
   assert.match(form, /name="email"[\s\S]*required/);

@@ -61,6 +61,7 @@ export default function Booking({ expectedMode, modal = false }) {
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
   const [paymentIdentity, setPaymentIdentity] = useState(null);
+  const [recoveredBookingDetails, setRecoveredBookingDetails] = useState(null);
   const [bookingFormData, setBookingFormData] = useState({
     name: "",
     email: "",
@@ -82,6 +83,7 @@ export default function Booking({ expectedMode, modal = false }) {
         setSelectedSlot(null);
         setSuccess(false);
         setPaymentIdentity(null);
+        setRecoveredBookingDetails(null);
         setBookingFormData({ name: "", email: "", phone: "", message: "" });
 
         const resolvedService = await getServiceBySlug(serviceSlug);
@@ -172,11 +174,12 @@ export default function Booking({ expectedMode, modal = false }) {
       } else {
         const { bookingId, paymentAccessToken } =
           await createPendingPaymentBooking({
-          serviceId: service.id,
-          name: formData.name,
-          email: formData.email,
-          phone: formData.phone,
-          message: formData.message,
+            serviceId: service.id,
+            slotId: selectedSlot?.id || null,
+            name: formData.name,
+            email: formData.email,
+            phone: formData.phone,
+            message: formData.message,
           });
 
         const identity = {
@@ -185,6 +188,7 @@ export default function Booking({ expectedMode, modal = false }) {
           serviceId: service.id,
         };
         storePaymentIdentity(window.sessionStorage, serviceSlug, identity);
+        setRecoveredBookingDetails(null);
         setPaymentIdentity(identity);
       }
 
@@ -195,6 +199,22 @@ export default function Booking({ expectedMode, modal = false }) {
       }
     } catch (bookingError) {
       console.error("Booking failed:", bookingError);
+      const unavailableSlot = service?.booking_mode === "timed" &&
+        service?.payment_flow === "direct_payment" &&
+        /slot.*(?:no longer available|already been booked)/i.test(
+          bookingError.message || "",
+        );
+      if (unavailableSlot) {
+        try {
+          setSlots(await getAvailableSlots());
+        } catch {
+          // Preserve the authoritative booking error if availability refresh fails.
+        }
+        setSelectedDate(null);
+        setSelectedSlot(null);
+        setError("That appointment time is no longer available. Please choose another time.");
+        return;
+      }
       setError(
         bookingError.message || "Something went wrong while creating the booking.",
       );
@@ -214,7 +234,22 @@ export default function Booking({ expectedMode, modal = false }) {
       phone: details.phone || "",
       message: details.message || "",
     });
+    setRecoveredBookingDetails(details);
   }, []);
+
+  const handleChooseNewAppointment = useCallback(async () => {
+    clearPaymentIdentity(window.sessionStorage, serviceSlug);
+    setPaymentIdentity(null);
+    setRecoveredBookingDetails(null);
+    setSelectedDate(null);
+    setSelectedSlot(null);
+    setError("");
+    try {
+      setSlots(await getAvailableSlots());
+    } catch (slotsError) {
+      setError(slotsError.message || "Available appointments could not be refreshed.");
+    }
+  }, [serviceSlug]);
 
   if (!loading && !service) {
     return (
@@ -250,6 +285,8 @@ export default function Booking({ expectedMode, modal = false }) {
     ? service.duration_minutes
     : presentation?.displayDurationMinutes;
   const compactVoiceMemoModal = modal && !isTimed;
+  const usesDirectPayment = service?.payment_flow === "direct_payment";
+  const showingDirectPayment = usesDirectPayment && paymentIdentity;
 
   return (
     <div className={modal ? "min-h-0 text-[#f1e8ca]" : "min-h-screen text-[#f1e8ca]"}>
@@ -298,7 +335,21 @@ export default function Booking({ expectedMode, modal = false }) {
 
       <section className={modal ? "px-4 pb-10 sm:px-8 sm:pb-12" : "px-6 pb-24"}>
         <div className="mx-auto flex w-full max-w-7xl flex-col gap-10">
-          {isTimed && (
+          {showingDirectPayment && (
+            <div className="mx-auto flex w-full max-w-5xl flex-col gap-4 sm:gap-5">
+              <BookingRequestSummary details={recoveredBookingDetails || {}} />
+              <SquareCardPayment
+                bookingId={paymentIdentity.bookingId}
+                paymentAccessToken={paymentIdentity.paymentAccessToken}
+                service={service}
+                onBookingRecovered={handleBookingRecovered}
+                onPaymentVerified={handlePaymentVerified}
+                onChooseNewAppointment={isTimed ? handleChooseNewAppointment : undefined}
+              />
+            </div>
+          )}
+
+          {isTimed && !showingDirectPayment && (
             <>
               <DateSelector
                 loading={loading}
@@ -343,6 +394,7 @@ export default function Booking({ expectedMode, modal = false }) {
                         setSuccess(false);
                       }}
                       loading={submitting}
+                      submitLabel={usesDirectPayment ? "Continue to payment" : undefined}
                       formData={bookingFormData}
                       onFormDataChange={setBookingFormData}
                     />
@@ -354,25 +406,13 @@ export default function Booking({ expectedMode, modal = false }) {
             </>
           )}
 
-          {!isTimed && (
+          {!isTimed && !showingDirectPayment && (
             <div className={`mx-auto flex w-full max-w-5xl flex-col ${paymentIdentity ? "gap-4 sm:gap-5" : "gap-6 sm:gap-7"}`}>
               {success ? (
                 <BookingSuccess service={service} />
               ) : (
                 <>
-                  {paymentIdentity ? (
-                    <>
-                      <BookingRequestSummary details={bookingFormData} />
-                      <SquareCardPayment
-                        bookingId={paymentIdentity.bookingId}
-                        paymentAccessToken={paymentIdentity.paymentAccessToken}
-                        service={service}
-                        onBookingRecovered={handleBookingRecovered}
-                        onPaymentVerified={handlePaymentVerified}
-                      />
-                    </>
-                  ) : (
-                    <BookingForm
+                  <BookingForm
                       service={service}
                       bookingMode={expectedMode}
                       presentation={presentation}
@@ -388,7 +428,6 @@ export default function Booking({ expectedMode, modal = false }) {
                       formData={bookingFormData}
                       onFormDataChange={setBookingFormData}
                     />
-                  )}
                 </>
               )}
             </div>
