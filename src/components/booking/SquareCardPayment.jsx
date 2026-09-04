@@ -31,7 +31,7 @@ const squareCardStyle = {
     borderWidth: "1px",
   },
   input: {
-    backgroundColor: "#fffdf8",
+    backgroundColor: "#faf8f1",
     color: "#29312b",
     fontFamily: "Inter, sans-serif",
     fontSize: "16px",
@@ -227,16 +227,16 @@ export default function SquareCardPayment({ bookingId, paymentAccessToken, servi
   const displayAmount = formatPrice(context.amountMinor, context.currency);
 
   return (
-    <section className="rounded-[1.5rem] border border-[#f1e8ca]/16 bg-white/[0.06] p-4 shadow-[0_18px_50px_rgba(38,55,40,0.14)] backdrop-blur-sm sm:p-5">
-      <div className="flex items-end justify-between gap-5">
+    <section className="mx-auto w-full max-w-lg rounded-[1.25rem] border border-[#ded8ca] bg-[#f3efe5] p-4 text-[#29312b] shadow-[0_16px_42px_rgba(37,49,39,0.16)] sm:p-5">
+      <div className="flex items-end justify-between gap-4 border-b border-[#d8d2c5] pb-4">
         <div>
-          <h2 className="text-2xl font-normal text-[#fff8e7] sm:text-[1.7rem]">Secure checkout</h2>
-          <p className="mt-1 text-sm text-[#f1e8ca]/68">{service.name}</p>
+          <h2 className="text-2xl font-normal text-[#304435] [text-shadow:none] sm:text-[1.7rem]">Secure checkout</h2>
+          <p className="mt-1 text-sm text-[#667068] [text-shadow:none]">{service.name}</p>
         </div>
-        <p className="shrink-0 text-2xl font-medium tabular-nums text-[#fff8e7]">{displayAmount}</p>
+        <p className="shrink-0 text-2xl font-semibold tabular-nums text-[#304435] [text-shadow:none]">{displayAmount}</p>
       </div>
 
-      <div className="mt-4 rounded-xl border border-[#ded9cc] bg-[#fbfaf6] p-4 text-[#29312b] shadow-[0_8px_24px_rgba(37,49,39,0.10)] sm:p-5">
+      <div className="pt-4">
         {state === "configuration_missing" && <Message title="Square configuration required">Secure payment is not configured in this environment. Your request remains saved for recovery.</Message>}
         {state === "loading" && <Message>Loading secure payment...</Message>}
         {state === "error" && <Message title="Payment is temporarily unavailable"><p>{error}</p><Button onClick={() => initialize(false)}>Try again</Button></Message>}

@@ -161,6 +161,7 @@ test("Square checkout keeps the authoritative amount visible in its secure UI", 
   assert.match(component, /formatPrice\(context\.amountMinor, context\.currency\)/);
   assert.match(component, /`Pay \$\{displayAmount\} securely`/);
   assert.match(component, /Secure payment powered by Square/);
+  assert.match(component, /max-w-lg/);
 });
 
 test("Voice Memo request form collapses to one compact summary for payment", async () => {

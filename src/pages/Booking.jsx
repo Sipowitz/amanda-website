@@ -355,7 +355,7 @@ export default function Booking({ expectedMode, modal = false }) {
           )}
 
           {!isTimed && (
-            <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 sm:gap-7">
+            <div className={`mx-auto flex w-full max-w-5xl flex-col ${paymentIdentity ? "gap-4 sm:gap-5" : "gap-6 sm:gap-7"}`}>
               {success ? (
                 <BookingSuccess service={service} />
               ) : (
