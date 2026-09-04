@@ -153,6 +153,16 @@ test("Square charge tokenization uses the authenticated booking contact", async 
   assert.match(edge, /phone: booking\.customer_phone/);
 });
 
+test("Square checkout keeps the authoritative amount visible in its secure UI", async () => {
+  const component = await read("../src/components/booking/SquareCardPayment.jsx");
+  assert.match(component, /payments\.card\(\{ style: squareCardStyle \}\)/);
+  assert.match(component, /Secure checkout/);
+  assert.match(component, /service\.name/);
+  assert.match(component, /formatPrice\(context\.amountMinor, context\.currency\)/);
+  assert.match(component, /`Pay \$\{displayAmount\} securely`/);
+  assert.match(component, /Secure payment powered by Square/);
+});
+
 test("Voice Memo request form collapses to one compact summary for payment", async () => {
   const booking = await bookingPage();
   const form = await read("../src/components/booking/BookingForm.jsx");

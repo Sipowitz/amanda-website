@@ -16,6 +16,44 @@ const sdkUrl = environment === "production"
     ? "https://sandbox.web.squarecdn.com/v1/square.js"
     : "";
 
+const squareCardStyle = {
+  ".input-container": {
+    borderColor: "#d8d5ca",
+    borderRadius: "10px",
+    borderWidth: "1px",
+  },
+  ".input-container.is-focus": {
+    borderColor: "#55735a",
+    borderWidth: "1px",
+  },
+  ".input-container.is-error": {
+    borderColor: "#a94d45",
+    borderWidth: "1px",
+  },
+  input: {
+    backgroundColor: "#fffdf8",
+    color: "#29312b",
+    fontFamily: "Inter, sans-serif",
+    fontSize: "16px",
+    fontWeight: "400",
+  },
+  "input::placeholder": {
+    color: "#7a817a",
+  },
+  ".message-text": {
+    color: "#687168",
+  },
+  ".message-icon": {
+    color: "#687168",
+  },
+  ".message-text.is-error": {
+    color: "#8f3f39",
+  },
+  ".message-icon.is-error": {
+    color: "#8f3f39",
+  },
+};
+
 let sdkPromise;
 function loadSquareSdk() {
   if (window.Square) return Promise.resolve(window.Square);
@@ -33,6 +71,13 @@ function loadSquareSdk() {
     });
   }
   return sdkPromise;
+}
+
+function formatPrice(amount, currency) {
+  return (amount / 100).toLocaleString("en-US", {
+    style: "currency",
+    currency,
+  });
 }
 
 export default function SquareCardPayment({ bookingId, paymentAccessToken, service, onBookingRecovered, onPaymentVerified }) {
@@ -101,7 +146,7 @@ export default function SquareCardPayment({ bookingId, paymentAccessToken, servi
     const Square = await loadSquareSdk();
     if (!Square || !mountedRef.current) throw new Error("Secure card form is unavailable.");
     const payments = Square.payments(applicationId, locationId);
-    const card = await payments.card();
+    const card = await payments.card({ style: squareCardStyle });
     if (!mountedRef.current) {
       await card.destroy();
       return;
@@ -179,10 +224,19 @@ export default function SquareCardPayment({ bookingId, paymentAccessToken, servi
     }
   }
 
+  const displayAmount = formatPrice(context.amountMinor, context.currency);
+
   return (
-    <section className="rounded-[1.5rem] border border-white/10 bg-white/[0.04] p-3 backdrop-blur-sm sm:p-4">
-      <p className="mb-2 text-xs uppercase tracking-[0.2em] text-[#f1e8ca]/55">Secure card payment</p>
-      <div className="rounded-2xl border border-white/10 bg-[#f8f7f2] p-3 text-[#29312b] sm:p-4">
+    <section className="rounded-[1.5rem] border border-[#f1e8ca]/16 bg-white/[0.06] p-4 shadow-[0_18px_50px_rgba(38,55,40,0.14)] backdrop-blur-sm sm:p-5">
+      <div className="flex items-end justify-between gap-5">
+        <div>
+          <h2 className="text-2xl font-normal text-[#fff8e7] sm:text-[1.7rem]">Secure checkout</h2>
+          <p className="mt-1 text-sm text-[#f1e8ca]/68">{service.name}</p>
+        </div>
+        <p className="shrink-0 text-2xl font-medium tabular-nums text-[#fff8e7]">{displayAmount}</p>
+      </div>
+
+      <div className="mt-4 rounded-xl border border-[#ded9cc] bg-[#fbfaf6] p-4 text-[#29312b] shadow-[0_8px_24px_rgba(37,49,39,0.10)] sm:p-5">
         {state === "configuration_missing" && <Message title="Square configuration required">Secure payment is not configured in this environment. Your request remains saved for recovery.</Message>}
         {state === "loading" && <Message>Loading secure payment...</Message>}
         {state === "error" && <Message title="Payment is temporarily unavailable"><p>{error}</p><Button onClick={() => initialize(false)}>Try again</Button></Message>}
@@ -190,9 +244,16 @@ export default function SquareCardPayment({ bookingId, paymentAccessToken, servi
         {state === "restart" && <Message title="Payment was not completed"><p>{error || "No charge was recorded for the previous attempt."}</p><Button onClick={() => initialize(true)}>Try payment again</Button></Message>}
         {state === "success" && <Message title="Payment confirmed">Your Voice Memo Reading is confirmed and a confirmation email has been sent. Thank you.</Message>}
         <form onSubmit={submit} className={state === "ready" || state === "tokenizing" ? "block" : "hidden"}>
+          <p className="mb-2 text-sm font-medium text-[#3e4b40] [text-shadow:none]">Card details</p>
           <div id="square-card-container" className="min-h-24" />
           {error && <p className="mb-4 text-sm text-red-700">{error}</p>}
-          <button disabled={state !== "ready"} className="w-full rounded-xl bg-[#365d3c] px-5 py-3 text-white disabled:opacity-50">{state === "tokenizing" ? "Submitting..." : "Pay securely"}</button>
+          <button disabled={state !== "ready"} className="min-h-12 w-full rounded-xl bg-[#365d3c] px-5 py-3.5 text-base font-semibold text-white shadow-[0_8px_18px_rgba(54,93,60,0.22)] transition hover:bg-[#2f5335] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#365d3c] disabled:cursor-not-allowed disabled:opacity-55">
+            {state === "tokenizing" ? "Processing securely..." : `Pay ${displayAmount} securely`}
+          </button>
+          <p className="mt-3 flex items-center justify-center gap-1.5 text-xs text-[#647066] [text-shadow:none]">
+            <LockIcon />
+            Secure payment powered by Square
+          </p>
         </form>
       </div>
     </section>
@@ -205,4 +266,13 @@ function Message({ title, children }) {
 
 function Button({ onClick, children }) {
   return <button type="button" onClick={onClick} className="mt-3 rounded-xl bg-[#365d3c] px-5 py-3 text-white">{children}</button>;
+}
+
+function LockIcon() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 20 20" className="h-3.5 w-3.5" fill="none">
+      <rect x="4.5" y="8" width="11" height="8" rx="2" stroke="currentColor" strokeWidth="1.5" />
+      <path d="M7 8V5.75a3 3 0 0 1 6 0V8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+    </svg>
+  );
 }
