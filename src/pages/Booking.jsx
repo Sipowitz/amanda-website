@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { format } from "date-fns";
 import { motion } from "framer-motion";
@@ -8,12 +8,19 @@ import DateSelector from "../components/booking/DateSelector";
 import TimeSlotPicker from "../components/booking/TimeSlotPicker";
 import BookingForm from "../components/booking/BookingForm";
 import BookingSuccess from "../components/booking/BookingSuccess";
+import SquareCardPayment from "../components/booking/SquareCardPayment";
 
 import {
   createBooking,
+  createPendingPaymentBooking,
   getAvailableSlots,
   getServiceBySlug,
 } from "../services/bookingService";
+import {
+  clearPaymentIdentity,
+  readPaymentIdentity,
+  storePaymentIdentity,
+} from "../services/paymentRecovery";
 
 const servicePresentation = {
   "private-readings": {
@@ -52,6 +59,7 @@ export default function Booking({ expectedMode, modal = false }) {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [paymentIdentity, setPaymentIdentity] = useState(null);
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -66,6 +74,7 @@ export default function Booking({ expectedMode, modal = false }) {
         setSelectedDate(null);
         setSelectedSlot(null);
         setSuccess(false);
+        setPaymentIdentity(null);
 
         const resolvedService = await getServiceBySlug(serviceSlug);
 
@@ -75,6 +84,15 @@ export default function Booking({ expectedMode, modal = false }) {
 
         if (active) {
           setService(resolvedService);
+          if (resolvedService.payment_flow === "direct_payment") {
+            setPaymentIdentity(
+              readPaymentIdentity(
+                window.sessionStorage,
+                serviceSlug,
+                resolvedService.id,
+              ),
+            );
+          }
         }
 
         const availableSlots = expectedMode === "timed"
@@ -130,16 +148,37 @@ export default function Booking({ expectedMode, modal = false }) {
     try {
       setSubmitting(true);
 
-      await createBooking({
-        serviceId: service.id,
-        slotId: selectedSlot?.id || null,
-        name: formData.name,
-        email: formData.email,
-        phone: formData.phone,
-        message: formData.message,
-      });
+      const usesDirectPayment = service.payment_flow === "direct_payment";
 
-      setSuccess(true);
+      if (!usesDirectPayment) {
+        await createBooking({
+          serviceId: service.id,
+          slotId: selectedSlot?.id || null,
+          name: formData.name,
+          email: formData.email,
+          phone: formData.phone,
+          message: formData.message,
+        });
+
+        setSuccess(true);
+      } else {
+        const { bookingId, paymentAccessToken } =
+          await createPendingPaymentBooking({
+          serviceId: service.id,
+          name: formData.name,
+          email: formData.email,
+          phone: formData.phone,
+          message: formData.message,
+          });
+
+        const identity = {
+          bookingId,
+          paymentAccessToken,
+          serviceId: service.id,
+        };
+        storePaymentIdentity(window.sessionStorage, serviceSlug, identity);
+        setPaymentIdentity(identity);
+      }
 
       if (selectedSlot) {
         setSlots((previousSlots) =>
@@ -155,6 +194,10 @@ export default function Booking({ expectedMode, modal = false }) {
       setSubmitting(false);
     }
   }
+
+  const handlePaymentVerified = useCallback(() => {
+    clearPaymentIdentity(window.sessionStorage, serviceSlug);
+  }, [serviceSlug]);
 
   if (!loading && !service) {
     return (
@@ -293,7 +336,14 @@ export default function Booking({ expectedMode, modal = false }) {
 
           {!isTimed && (
             <div className="mx-auto w-full max-w-5xl">
-              {success ? (
+              {paymentIdentity ? (
+                <SquareCardPayment
+                  bookingId={paymentIdentity.bookingId}
+                  paymentAccessToken={paymentIdentity.paymentAccessToken}
+                  service={service}
+                  onPaymentVerified={handlePaymentVerified}
+                />
+              ) : success ? (
                 <BookingSuccess service={service} />
               ) : (
                 <BookingForm
@@ -304,6 +354,11 @@ export default function Booking({ expectedMode, modal = false }) {
                   loading={submitting}
                   disabled={loading || !service}
                   animateOnMount={false}
+                  submitLabel={
+                    service?.payment_flow === "direct_payment"
+                      ? "Pay now"
+                      : undefined
+                  }
                 />
               )}
             </div>

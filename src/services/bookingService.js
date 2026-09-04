@@ -68,3 +68,78 @@ export async function createBooking({
     bookingId: data,
   };
 }
+
+export async function createPendingPaymentBooking({
+  serviceId,
+  name,
+  email,
+  phone,
+  message,
+}) {
+  const { data, error } = await supabase.rpc(
+    "create_pending_payment_booking",
+    {
+      p_service_id: serviceId,
+      p_customer_name: name,
+      p_customer_email: email,
+      p_customer_phone: phone || null,
+      p_customer_message: message || null,
+    },
+  );
+
+  if (error) {
+    throw error;
+  }
+
+  return {
+    bookingId: data.booking_id,
+    paymentAccessToken: data.payment_access_token,
+  };
+}
+
+async function invokePaymentAction(action, bookingId, paymentAccessToken, extra = {}) {
+  const { data, error } = await supabase.functions.invoke(
+    "square-payment",
+    {
+      body: { action, bookingId, paymentAccessToken, ...extra },
+    },
+  );
+
+  if (error) {
+    throw error;
+  }
+
+  return data;
+}
+
+export async function initializeDirectPayment(bookingId, paymentAccessToken) {
+  const data = await invokePaymentAction(
+    "initialize",
+    bookingId,
+    paymentAccessToken,
+  );
+
+  if (!data?.attemptId && !data?.paid) {
+    throw new Error(data?.error || "Payment attempt was not created.");
+  }
+
+  return data;
+}
+
+export async function getDirectPaymentStatus(bookingId, paymentAccessToken) {
+  const data = await invokePaymentAction(
+    "status",
+    bookingId,
+    paymentAccessToken,
+  );
+
+  if (!data || typeof data.paid !== "boolean") {
+    throw new Error(data?.error || "Payment status is unavailable.");
+  }
+
+  return data;
+}
+
+export async function submitSquarePayment({ bookingId, paymentAccessToken, attemptId, sourceToken }) {
+  return invokePaymentAction("submit", bookingId, paymentAccessToken, { attemptId, sourceToken });
+}

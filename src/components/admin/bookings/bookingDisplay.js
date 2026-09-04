@@ -5,6 +5,7 @@ export const paymentMethods = [
   { value: "card", label: "Card" },
   { value: "payment_link", label: "Payment Link" },
   { value: "stripe", label: "Stripe" },
+  { value: "square", label: "Square" },
   { value: "complimentary", label: "Complimentary" },
   { value: "other", label: "Other" },
 ];
@@ -12,6 +13,8 @@ export const paymentMethods = [
 export function getStatusLabel(status) {
   return {
     pending: "Pending",
+    pending_payment: "Pending Payment",
+    payment_expired: "Payment Expired",
     confirmed: "Confirmed",
     completed: "Completed",
     no_show: "No Show",
@@ -26,6 +29,8 @@ export function getStatusStyles(status) {
     completed: "border-[#cbdde9] bg-[#e9f1f6] text-[#315f7c]",
     no_show: "border-[#d8d7d1] bg-[#efeee9] text-[#68685f]",
     pending: "border-[#ead7a6] bg-[#f8edcf] text-[#7b5b12]",
+    pending_payment: "border-[#ead7a6] bg-[#f8edcf] text-[#7b5b12]",
+    payment_expired: "border-[#ddd0ea] bg-[#f0e8f7] text-[#6d4f88]",
   }[status] || "border-[#ead7a6] bg-[#f8edcf] text-[#7b5b12]";
 }
 
