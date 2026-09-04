@@ -41,9 +41,20 @@ export default function BookingCard({
   const isCancelled = booking.status === "cancelled";
   const isDirectPayment =
     booking.service_payment_flow_snapshot === "direct_payment";
-  const isDirectPaymentPending = isDirectPayment &&
-    ["pending_payment", "payment_expired"].includes(booking.status);
-  const canCancel = !isDirectPayment || booking.status === "payment_expired";
+  const isSquarePayment = isDirectPayment && booking.payment_provider === "square";
+  const isTimed = booking.service_booking_mode_snapshot === "timed";
+  const attemptStatus = booking.payment_attempt_status;
+  const canCancel = !isDirectPayment || (isSquarePayment &&
+    booking.status === "pending_payment" && attemptStatus === "reserved"
+  );
+  const canCompleteDirectPayment = isSquarePayment &&
+    booking.status === "confirmed" &&
+    booking.payment_status === "paid" &&
+    booking.payment_method === "square" &&
+    attemptStatus === "completed";
+  const directPaymentState = isDirectPayment
+    ? getDirectPaymentState(booking, attemptStatus, isTimed, isSquarePayment)
+    : null;
   const outstanding = Math.max(
     Number(booking.amount_due || 0) - Number(booking.amount_paid || 0),
     0,
@@ -209,8 +220,15 @@ export default function BookingCard({
                   </p>
 
                   {isDirectPayment ? (
-                    <span className="text-sm text-[#6d746b]">
-                      Square-managed direct payment
+                    <span className="text-right text-sm text-[#6d746b]">
+                      <span className="block font-medium text-[#465148]">
+                        {directPaymentState.label}
+                      </span>
+                      {directPaymentState.detail && (
+                        <span className="mt-1 block text-xs">
+                          {directPaymentState.detail}
+                        </span>
+                      )}
                     </span>
                   ) : (
                     <button
@@ -245,7 +263,8 @@ export default function BookingCard({
                       </button>
                     )}
 
-                    {booking.status === "confirmed" && (
+                    {booking.status === "confirmed" &&
+                      (!isDirectPayment || canCompleteDirectPayment) && (
                       <button
                         disabled={isUpdating}
                         onClick={() => onStatusChange(booking, "completed")}
@@ -255,7 +274,8 @@ export default function BookingCard({
                       </button>
                     )}
 
-                    {booking.status === "confirmed" && (
+                    {booking.status === "confirmed" &&
+                      (!isDirectPayment || canCompleteDirectPayment) && (
                       <button
                         disabled={isUpdating}
                         onClick={() => onStatusChange(booking, "no_show")}
@@ -275,10 +295,10 @@ export default function BookingCard({
                       </button>
                     )}
 
-                    {isDirectPaymentPending && booking.status !== "payment_expired" && (
+                    {isDirectPayment && ["processing", "unknown"].includes(attemptStatus) && (
                       <p className="w-full text-sm text-[#6d746b]">
-                        Confirmation, payment editing and cancellation are locked
-                        while the Square payment outcome may be active.
+                        The Square payment outcome must resolve before administrative
+                        changes or cancellation are allowed.
                       </p>
                     )}
                   </div>
@@ -307,4 +327,26 @@ export default function BookingCard({
       )}
     </article>
   );
+}
+
+function getDirectPaymentState(booking, attemptStatus, isTimed, isSquarePayment) {
+  if (booking.status === "payment_expired") {
+    return {
+      label: "Payment expired",
+      detail: isTimed ? "Appointment no longer reserved" : "Payment was not completed",
+    };
+  }
+  if (isSquarePayment && attemptStatus === "reserved" && booking.status === "pending_payment") {
+    return { label: "Awaiting Square checkout", detail: isTimed ? "Appointment slot held" : "" };
+  }
+  if (isSquarePayment && attemptStatus === "processing") {
+    return { label: "Square payment processing", detail: "Payment outcome must resolve" };
+  }
+  if (isSquarePayment && attemptStatus === "unknown") {
+    return { label: "Square payment status unknown", detail: "Payment outcome must resolve" };
+  }
+  if (isSquarePayment && attemptStatus === "completed" && booking.payment_status === "paid") {
+    return { label: "Paid via Square", detail: "Provider-confirmed payment" };
+  }
+  return { label: "Square-managed direct payment", detail: "Administrative payment editing locked" };
 }

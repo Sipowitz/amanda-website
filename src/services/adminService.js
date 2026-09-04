@@ -130,10 +130,8 @@ export async function deletePastAvailabilitySlots() {
 }
 
 export async function getAdminBookings() {
-  const { data, error } = await supabase
-    .from("bookings")
-    .select(
-      `
+  const [bookingsResult, paymentStatesResult] = await Promise.all([
+    supabase.from("bookings").select(`
         *,
         availability_slots (
           id,
@@ -141,17 +139,29 @@ export async function getAdminBookings() {
           slot_time,
           is_available
         )
-      `,
-    )
-    .order("created_at", {
+      `).order("created_at", {
       ascending: false,
-    });
+    }),
+    supabase.rpc("get_admin_direct_payment_states"),
+  ]);
 
-  if (error) {
-    throw error;
+  if (bookingsResult.error) {
+    throw bookingsResult.error;
+  }
+  if (paymentStatesResult.error) {
+    throw paymentStatesResult.error;
   }
 
-  return data;
+  const paymentStateByBooking = new Map(
+    (paymentStatesResult.data || []).map((state) => [state.booking_id, state]),
+  );
+
+  return (bookingsResult.data || []).map((booking) => ({
+    ...booking,
+    payment_provider: paymentStateByBooking.get(booking.id)?.provider || null,
+    payment_attempt_status:
+      paymentStateByBooking.get(booking.id)?.attempt_status || null,
+  }));
 }
 
 export async function getAvailableAdminSlots() {
