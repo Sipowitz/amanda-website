@@ -14,7 +14,6 @@ export default function BookingForm({
   submitLabel,
   formData,
   onFormDataChange,
-  locked = false,
 }) {
   const isTimed = (service?.booking_mode || bookingMode) === "timed";
   const displayName = service?.name || presentation?.name;
@@ -101,7 +100,6 @@ export default function BookingForm({
           name="name"
           placeholder="Your name"
           required
-          disabled={locked}
           value={formData.name}
           onChange={handleChange}
           className="rounded-2xl border border-white/10 bg-black/10 px-5 py-4 text-[#f1e8ca] placeholder:text-[#f1e8ca]/35 outline-none transition focus:border-[#f1e8ca]/40"
@@ -112,7 +110,6 @@ export default function BookingForm({
           name="email"
           placeholder="Email address"
           required
-          disabled={locked}
           value={formData.email}
           onChange={handleChange}
           className="rounded-2xl border border-white/10 bg-black/10 px-5 py-4 text-[#f1e8ca] placeholder:text-[#f1e8ca]/35 outline-none transition focus:border-[#f1e8ca]/40"
@@ -123,7 +120,6 @@ export default function BookingForm({
           name="phone"
           placeholder="Phone number"
           required
-          disabled={locked}
           value={formData.phone}
           onChange={handleChange}
           className="rounded-2xl border border-white/10 bg-black/10 px-5 py-4 text-[#f1e8ca] placeholder:text-[#f1e8ca]/35 outline-none transition focus:border-[#f1e8ca]/40"
@@ -139,7 +135,6 @@ export default function BookingForm({
         }
         rows="5"
         required={!isTimed}
-        disabled={locked}
         value={formData.message}
         onChange={handleChange}
         className="rounded-2xl border border-white/10 bg-black/10 px-5 py-4 text-[#f1e8ca] placeholder:text-[#f1e8ca]/35 outline-none transition focus:border-[#f1e8ca]/40"
@@ -147,13 +142,11 @@ export default function BookingForm({
 
       <button
         type="submit"
-        disabled={loading || disabled || locked}
+        disabled={loading || disabled}
         className="rounded-2xl border border-[#f1e8ca]/20 bg-[#f1e8ca]/10 px-8 py-4 text-[#f1e8ca] transition duration-300 hover:bg-[#f1e8ca]/18 disabled:opacity-50"
       >
         {loading
           ? "Sending..."
-          : locked
-            ? "Request details saved"
           : isTimed
             ? "Confirm Booking"
             : submitLabel || "Request Voice Memo Reading"}

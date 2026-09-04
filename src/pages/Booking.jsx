@@ -7,6 +7,7 @@ import { Link, useParams } from "react-router-dom";
 import DateSelector from "../components/booking/DateSelector";
 import TimeSlotPicker from "../components/booking/TimeSlotPicker";
 import BookingForm from "../components/booking/BookingForm";
+import BookingRequestSummary from "../components/booking/BookingRequestSummary";
 import BookingSuccess from "../components/booking/BookingSuccess";
 import SquareCardPayment from "../components/booking/SquareCardPayment";
 
@@ -358,30 +359,33 @@ export default function Booking({ expectedMode, modal = false }) {
                 <BookingSuccess service={service} />
               ) : (
                 <>
-                  <BookingForm
-                    service={service}
-                    bookingMode={expectedMode}
-                    presentation={presentation}
-                    onSubmit={handleBookingSubmit}
-                    loading={submitting}
-                    disabled={loading || !service}
-                    animateOnMount={false}
-                    submitLabel={
-                      service?.payment_flow === "direct_payment"
-                        ? "Continue to payment"
-                        : undefined
-                    }
-                    formData={bookingFormData}
-                    onFormDataChange={setBookingFormData}
-                    locked={Boolean(paymentIdentity)}
-                  />
-                  {paymentIdentity && (
-                    <SquareCardPayment
-                      bookingId={paymentIdentity.bookingId}
-                      paymentAccessToken={paymentIdentity.paymentAccessToken}
+                  {paymentIdentity ? (
+                    <>
+                      <BookingRequestSummary details={bookingFormData} />
+                      <SquareCardPayment
+                        bookingId={paymentIdentity.bookingId}
+                        paymentAccessToken={paymentIdentity.paymentAccessToken}
+                        service={service}
+                        onBookingRecovered={handleBookingRecovered}
+                        onPaymentVerified={handlePaymentVerified}
+                      />
+                    </>
+                  ) : (
+                    <BookingForm
                       service={service}
-                      onBookingRecovered={handleBookingRecovered}
-                      onPaymentVerified={handlePaymentVerified}
+                      bookingMode={expectedMode}
+                      presentation={presentation}
+                      onSubmit={handleBookingSubmit}
+                      loading={submitting}
+                      disabled={loading || !service}
+                      animateOnMount={false}
+                      submitLabel={
+                        service?.payment_flow === "direct_payment"
+                          ? "Continue to payment"
+                          : undefined
+                      }
+                      formData={bookingFormData}
+                      onFormDataChange={setBookingFormData}
                     />
                   )}
                 </>

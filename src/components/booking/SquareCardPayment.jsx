@@ -35,16 +35,11 @@ function loadSquareSdk() {
   return sdkPromise;
 }
 
-function formatPrice(amount, currency) {
-  return (amount / 100).toLocaleString("en-US", { style: "currency", currency });
-}
-
 export default function SquareCardPayment({ bookingId, paymentAccessToken, service, onBookingRecovered, onPaymentVerified }) {
   const cardRef = useRef(null);
   const mountedRef = useRef(true);
   const submittingRef = useRef(false);
   const [context, setContext] = useState({
-    serviceName: service.name,
     amountMinor: service.price_amount,
     currency: service.currency,
     buyerContact: null,
@@ -99,7 +94,6 @@ export default function SquareCardPayment({ bookingId, paymentAccessToken, servi
     }
     setAttemptId(attempt.attemptId);
     setContext({
-      serviceName: attempt.serviceName,
       amountMinor: attempt.amountMinor,
       currency: attempt.currency,
       buyerContact: current.buyerContact,
@@ -186,14 +180,9 @@ export default function SquareCardPayment({ bookingId, paymentAccessToken, servi
   }
 
   return (
-    <section className="rounded-[2rem] border border-white/10 bg-white/[0.04] p-6 backdrop-blur-sm sm:p-8">
-      <p className="text-sm uppercase tracking-[0.2em] text-[#f1e8ca]/55">Payment</p>
-      <div className="mt-3 flex flex-wrap items-end justify-between gap-3">
-        <h2 className="text-3xl text-[#f1e8ca]">{context.serviceName}</h2>
-        <p className="text-2xl text-[#f1e8ca]">{formatPrice(context.amountMinor, context.currency)}</p>
-      </div>
-      <p className="mt-3 text-[#f1e8ca]/70">Secure card payment</p>
-      <div className="mt-6 min-h-[300px] rounded-2xl border border-white/10 bg-[#f8f7f2] p-5 text-[#29312b]">
+    <section className="rounded-[1.5rem] border border-white/10 bg-white/[0.04] p-4 backdrop-blur-sm sm:p-5">
+      <p className="mb-3 text-xs uppercase tracking-[0.2em] text-[#f1e8ca]/55">Secure card payment</p>
+      <div className="rounded-2xl border border-white/10 bg-[#f8f7f2] p-4 text-[#29312b] sm:p-5">
         {state === "configuration_missing" && <Message title="Square configuration required">Secure payment is not configured in this environment. Your request remains saved for recovery.</Message>}
         {state === "loading" && <Message>Loading secure payment...</Message>}
         {state === "error" && <Message title="Payment is temporarily unavailable"><p>{error}</p><Button onClick={() => initialize(false)}>Try again</Button></Message>}
@@ -211,7 +200,7 @@ export default function SquareCardPayment({ bookingId, paymentAccessToken, servi
 }
 
 function Message({ title, children }) {
-  return <div className="flex min-h-64 flex-col items-center justify-center gap-4 px-6 text-center">{title && <h3 className="text-2xl">{title}</h3>}<div>{children}</div></div>;
+  return <div className="flex min-h-28 flex-col items-center justify-center gap-3 px-3 py-5 text-center sm:px-5">{title && <h3 className="text-xl">{title}</h3>}<div className="text-sm leading-relaxed sm:text-base">{children}</div></div>;
 }
 
 function Button({ onClick, children }) {

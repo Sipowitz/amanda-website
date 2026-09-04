@@ -153,13 +153,20 @@ test("Square charge tokenization uses the authenticated booking contact", async 
   assert.match(edge, /phone: booking\.customer_phone/);
 });
 
-test("Voice Memo request fields remain rendered beside the direct-payment step", async () => {
+test("Voice Memo request form collapses to one compact summary for payment", async () => {
   const booking = await bookingPage();
   const form = await read("../src/components/booking/BookingForm.jsx");
-  assert.match(booking, /<BookingForm[\s\S]*locked=\{Boolean\(paymentIdentity\)\}[\s\S]*paymentIdentity && \([\s\S]*<SquareCardPayment/);
-  assert.doesNotMatch(booking, /paymentIdentity \? \([\s\S]*<SquareCardPayment/);
-  assert.match(form, /required[\s\S]*disabled=\{locked\}/);
-  assert.match(form, /required=\{!isTimed\}[\s\S]*disabled=\{locked\}/);
+  const summary = await read("../src/components/booking/BookingRequestSummary.jsx");
+  assert.match(booking, /paymentIdentity \? \([\s\S]*<BookingRequestSummary[\s\S]*<SquareCardPayment/);
+  assert.match(booking, /\) : \([\s\S]*<BookingForm/);
+  assert.match(form, /name="name"[\s\S]*required/);
+  assert.match(form, /name="email"[\s\S]*required/);
+  assert.match(form, /name="phone"[\s\S]*required/);
+  assert.match(form, /name="message"[\s\S]*required=\{!isTimed\}/);
+  assert.match(summary, /details\.name/);
+  assert.match(summary, /details\.email/);
+  assert.match(summary, /details\.phone &&/);
+  assert.match(summary, /details\.message/);
   assert.match(booking, /onBookingRecovered=\{handleBookingRecovered\}/);
   assert.match(await paymentFunction(), /message: booking\.customer_message/);
 });
