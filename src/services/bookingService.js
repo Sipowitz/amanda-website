@@ -128,6 +128,10 @@ export async function initializeDirectPayment(bookingId, paymentAccessToken) {
   return data;
 }
 
+export async function abandonTimedPaymentBooking(bookingId, paymentAccessToken, attemptId) {
+  return invokePaymentAction("abandon", bookingId, paymentAccessToken, { attemptId });
+}
+
 export async function getDirectPaymentStatus(bookingId, paymentAccessToken) {
   const data = await invokePaymentAction(
     "status",

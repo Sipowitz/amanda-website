@@ -32,12 +32,12 @@ test("timed direct payment submits only selected slot and customer identifiers",
 
 test("payment stage replaces timed selectors and form with shared checkout", async () => {
   const source = await bookingPage();
-  assert.match(source, /showingDirectPayment = usesDirectPayment && paymentIdentity/);
+  assert.match(source, /showingDirectPayment = \(!isTimed \|\| !loading\) && usesDirectPayment && paymentIdentity/);
   assert.match(
     source,
     /\{showingDirectPayment && \([\s\S]*BookingRequestSummary[\s\S]*SquareCardPayment/,
   );
-  assert.match(source, /\{isTimed && !showingDirectPayment && \([\s\S]*DateSelector/);
+  assert.match(source, /\{!loading && isTimed && !showingDirectPayment && \([\s\S]*DateSelector/);
   assert.match(source, /!isTimed && !showingDirectPayment/);
   assert.equal((source.match(/<SquareCardPayment/g) ?? []).length, 1);
   assert.doesNotMatch(source, /stripe_payment_link|Stripe/);
@@ -99,7 +99,7 @@ test("recovered payment states remain delegated to SquareCardPayment", async () 
 test("choosing a new appointment clears identity and refreshes availability", async () => {
   const source = await bookingPage();
   const handler = source.match(
-    /const handleChooseNewAppointment[^]*?\n {2}\}, \[serviceSlug\]\);/,
+    /const handleChooseNewAppointment[^]*?\n {2}\}, \[paymentIdentity, service, serviceSlug\]\);/,
   )?.[0] ?? "";
   assert.match(handler, /clearPaymentIdentity/);
   assert.match(handler, /setPaymentIdentity\(null\)/);

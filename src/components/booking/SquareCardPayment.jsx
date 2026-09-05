@@ -84,6 +84,8 @@ export default function SquareCardPayment({ bookingId, paymentAccessToken, servi
   const cardRef = useRef(null);
   const mountedRef = useRef(true);
   const submittingRef = useRef(false);
+  const closingRef = useRef(false);
+  const preserveRecoveryRef = useRef(false);
   const [context, setContext] = useState({
     amountMinor: service.price_amount,
     currency: service.currency,
@@ -97,6 +99,8 @@ export default function SquareCardPayment({ bookingId, paymentAccessToken, servi
   const [error, setError] = useState("");
 
   const handleStatus = useCallback((status) => {
+    if (closingRef.current) return "closing";
+    if (service.booking_mode === "timed" && status.attemptId) setAttemptId(status.attemptId);
     if (status.serviceName) {
       setContext((current) => ({
         ...current,
@@ -105,19 +109,36 @@ export default function SquareCardPayment({ bookingId, paymentAccessToken, servi
     }
     if (status.paid && status.bookingStatus === "confirmed" && status.paymentStatus === "paid") {
       setState("success");
-      onPaymentVerified?.(status);
+      if (!preserveRecoveryRef.current) onPaymentVerified?.(status);
       return "success";
     }
     if (["processing", "unknown"].includes(status.attemptStatus)) {
       setState("verifying");
       return "verifying";
     }
+    if (service.booking_mode === "timed") {
+      if (status.bookingStatus === "cancelled" && status.paymentStatus === "unpaid" &&
+        status.paid === false && status.attemptStatus === "cancelled") {
+        setState("cancelled");
+        return "cancelled";
+      }
+      const reserved = status.bookingStatus === "pending_payment" &&
+        status.paymentStatus === "unpaid" && status.paid === false &&
+        status.attemptStatus === "reserved";
+      const restartable = status.bookingStatus === "payment_expired" &&
+        status.paymentStatus === "unpaid" && status.paid === false &&
+        status.canRestart === true && ["failed", "expired", "cancelled"].includes(status.attemptStatus);
+      if (!reserved && !restartable) {
+        setState("verifying");
+        return "verifying";
+      }
+    }
     if (status.canRestart || ["failed", "expired", "cancelled"].includes(status.attemptStatus)) {
       setState("restart");
       return "restart";
     }
     return "ready";
-  }, [onPaymentVerified]);
+  }, [onPaymentVerified, service.booking_mode]);
 
   const checkStatus = useCallback(async () => {
     const status = await getDirectPaymentStatus(bookingId, paymentAccessToken);
@@ -126,9 +147,13 @@ export default function SquareCardPayment({ bookingId, paymentAccessToken, servi
   }, [bookingId, handleStatus, paymentAccessToken]);
 
   const initialize = useCallback(async (restart = false) => {
+    if (service.booking_mode === "timed" && closingRef.current) return;
     setError("");
     setState("loading");
     const current = await getDirectPaymentStatus(bookingId, paymentAccessToken);
+    // A delayed recovery response must not repopulate customer data after the
+    // checkout has closed, or start a retry while termination is pending.
+    if (service.booking_mode === "timed" && (!mountedRef.current || closingRef.current)) return;
     if (current.bookingDetails) {
       onBookingRecovered?.({
         ...current.bookingDetails,
@@ -142,6 +167,7 @@ export default function SquareCardPayment({ bookingId, paymentAccessToken, servi
       throw new Error("Buyer contact details are unavailable for secure payment.");
     }
     const attempt = await initializeDirectPayment(bookingId, paymentAccessToken);
+    if (service.booking_mode === "timed" && (!mountedRef.current || closingRef.current)) return;
     if (attempt.paid) {
       handleStatus(attempt);
       return;
@@ -168,7 +194,7 @@ export default function SquareCardPayment({ bookingId, paymentAccessToken, servi
     cardRef.current = card;
     await card.attach("#square-card-container");
     setState("ready");
-  }, [bookingId, handleStatus, onBookingRecovered, paymentAccessToken]);
+  }, [bookingId, handleStatus, onBookingRecovered, paymentAccessToken, service.booking_mode]);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -200,6 +226,7 @@ export default function SquareCardPayment({ bookingId, paymentAccessToken, servi
 
   async function submit(event) {
     event.preventDefault();
+    if (service.booking_mode === "timed" && (closingRef.current || state !== "ready")) return;
     if (submittingRef.current || !cardRef.current || !attemptId) return;
     submittingRef.current = true;
     setError("");
@@ -229,12 +256,41 @@ export default function SquareCardPayment({ bookingId, paymentAccessToken, servi
       setError(reason.message || "Payment could not be submitted.");
       try {
         const status = await checkStatus();
-        if (status.attemptStatus === "reserved") setState("ready");
+        if (service.booking_mode === "timed") {
+          if (handleStatus(status) === "ready") setState("ready");
+        } else if (status.attemptStatus === "reserved") {
+          setState("ready");
+        }
       } catch {
         setState("verifying");
       }
     } finally {
       submittingRef.current = false;
+    }
+  }
+
+  async function chooseNewAppointment() {
+    if (closingRef.current || submittingRef.current || !onChooseNewAppointment) return;
+    closingRef.current = true;
+    setState("closing");
+    setError("");
+    try {
+      await onChooseNewAppointment(attemptId);
+    } catch {
+      closingRef.current = false;
+      preserveRecoveryRef.current = true;
+      if (!mountedRef.current) return;
+      setError("Checkout could not be safely closed. Recovering your payment status.");
+      setState("verifying");
+      try {
+        const status = await checkStatus();
+        if (handleStatus(status) === "ready") await initialize();
+      } catch {
+        // Keep recovery credentials and the verification screen on uncertainty.
+        setState("verifying");
+      }
+    } finally {
+      closingRef.current = false;
     }
   }
 
@@ -253,9 +309,11 @@ export default function SquareCardPayment({ bookingId, paymentAccessToken, servi
       <div className="pt-4">
         {state === "configuration_missing" && <Message title="Square configuration required">Secure payment is not configured in this environment. Your request remains saved for recovery.</Message>}
         {state === "loading" && <Message>Loading secure payment...</Message>}
+        {state === "closing" && <Message>Closing your unpaid checkout securely...</Message>}
         {state === "error" && <Message title="Payment is temporarily unavailable"><p>{error}</p><Button onClick={() => initialize(false)}>Try again</Button></Message>}
         {state === "verifying" && <Message title="Verifying your payment"><p>Do not pay again. The secure server is confirming the existing payment attempt.</p>{error && <p>{error}</p>}<Button onClick={() => checkStatus()}>Check payment</Button></Message>}
-        {state === "restart" && <Message title="Payment was not completed"><p>{onChooseNewAppointment ? "Your appointment reservation is no longer held." : error || "No charge was recorded for the previous attempt."}</p><div className="flex flex-wrap items-center justify-center gap-3"><Button onClick={() => initialize(true)}>Try payment again</Button>{onChooseNewAppointment && <Button onClick={onChooseNewAppointment}>Choose a new appointment</Button>}</div></Message>}
+        {state === "cancelled" && <Message title="Checkout closed"><p>This unpaid checkout has been cancelled.</p>{onChooseNewAppointment && <Button onClick={chooseNewAppointment}>Choose a new appointment</Button>}</Message>}
+        {state === "restart" && <Message title="Payment was not completed"><p>{onChooseNewAppointment ? "Your appointment reservation is no longer held." : error || "No charge was recorded for the previous attempt."}</p><div className="flex flex-wrap items-center justify-center gap-3"><Button onClick={() => initialize(true)}>Try payment again</Button>{onChooseNewAppointment && <Button onClick={chooseNewAppointment}>Choose a new appointment</Button>}</div></Message>}
         {state === "success" && <Message title="Payment confirmed">Your {context.serviceName || "booking"} is confirmed and a confirmation email has been sent. Thank you.</Message>}
         <form onSubmit={submit} className={state === "ready" || state === "tokenizing" ? "block" : "hidden"}>
           <p className="mb-2 text-sm font-medium text-[#3e4b40] [text-shadow:none]">Card details</p>

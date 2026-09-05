@@ -13,6 +13,12 @@ type BasePayload = {
   bookingId: string;
   paymentAccessToken: string;
 };
+type AbandonPayload = {
+  action: "abandon";
+  bookingId: string;
+  paymentAccessToken: string;
+  attemptId: string;
+};
 type SubmitPayload = {
   action: "submit";
   bookingId: string;
@@ -48,7 +54,7 @@ function validBase(value: Record<string, unknown>) {
     recoveryTokenPattern.test(value.paymentAccessToken);
 }
 
-function parsePayload(value: unknown): BasePayload | SubmitPayload | null {
+function parsePayload(value: unknown): BasePayload | AbandonPayload | SubmitPayload | null {
   if (!value || typeof value !== "object") return null;
   const payload = value as Record<string, unknown>;
   if (!validBase(payload)) return null;
@@ -56,6 +62,11 @@ function parsePayload(value: unknown): BasePayload | SubmitPayload | null {
     if (Object.keys(payload).sort().join(",") !==
       "action,bookingId,paymentAccessToken") return null;
     return payload as BasePayload;
+  }
+  if (payload.action === "abandon" &&
+    Object.keys(payload).sort().join(",") === "action,attemptId,bookingId,paymentAccessToken" &&
+    typeof payload.attemptId === "string" && uuidPattern.test(payload.attemptId)) {
+    return payload as AbandonPayload;
   }
   if (payload.action === "submit" &&
     Object.keys(payload).sort().join(",") ===
@@ -158,6 +169,18 @@ Deno.serve(async (request) => {
     const supabase = createClient(supabaseUrl, serviceRoleKey, {
       auth: { persistSession: false, autoRefreshToken: false },
     });
+
+    if (payload.action === "abandon") {
+      const { data, error } = await supabase.rpc("abandon_timed_payment_booking", {
+        p_attempt_id: payload.attemptId,
+        p_booking_id: payload.bookingId,
+        p_payment_access_token: payload.paymentAccessToken,
+      });
+      if (error || data !== true) {
+        return json(request, { error: "Checkout could not be safely abandoned. Recover payment status." }, 409);
+      }
+      return json(request, { abandoned: true });
+    }
 
     if (payload.action === "status") {
       const { data, error } = await supabase.rpc("get_payment_status", {

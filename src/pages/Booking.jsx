@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { format } from "date-fns";
 import { motion } from "framer-motion";
@@ -12,6 +12,8 @@ import BookingSuccess from "../components/booking/BookingSuccess";
 import SquareCardPayment from "../components/booking/SquareCardPayment";
 
 import {
+  abandonTimedPaymentBooking,
+  getDirectPaymentStatus,
   createBooking,
   createPendingPaymentBooking,
   getAvailableSlots,
@@ -22,6 +24,13 @@ import {
   readPaymentIdentity,
   storePaymentIdentity,
 } from "../services/paymentRecovery";
+
+import { createCheckoutEntryPolicy, resolveTimedPaymentEntry, terminateTimedPaymentCheckout } from "../services/timedPaymentEntry";
+
+const checkoutEntryPolicy = createCheckoutEntryPolicy(
+  window.performance.getEntriesByType("navigation")[0]?.type,
+  window.location.pathname,
+);
 
 const servicePresentation = {
   "private-readings": {
@@ -69,9 +78,19 @@ export default function Booking({ expectedMode, modal = false }) {
     message: "",
   });
   const [error, setError] = useState("");
+  const entryRef = useRef(null);
 
   useEffect(() => {
     let active = true;
+    // Preserve the decision across StrictMode effect replay and async rerenders.
+    if (entryRef.current?.serviceSlug !== serviceSlug) {
+      entryRef.current = {
+        serviceSlug,
+        recover: checkoutEntryPolicy(window.location.pathname),
+        resolution: null,
+      };
+    }
+    const entry = entryRef.current;
 
     async function loadBookingPage() {
       try {
@@ -92,17 +111,31 @@ export default function Booking({ expectedMode, modal = false }) {
           throw new Error("This booking route does not match the selected service.");
         }
 
-        if (active) {
-          setService(resolvedService);
-          if (resolvedService.payment_flow === "direct_payment") {
-            setPaymentIdentity(
-              readPaymentIdentity(
-                window.sessionStorage,
-                serviceSlug,
-                resolvedService.id,
-              ),
-            );
+        if (!active) return;
+        setService(resolvedService);
+        if (resolvedService.payment_flow === "direct_payment") {
+          const storedIdentity = readPaymentIdentity(
+            window.sessionStorage, serviceSlug, resolvedService.id,
+          );
+          let identity = storedIdentity;
+          if (storedIdentity && resolvedService.booking_mode === "timed") {
+            entry.resolution ||= resolveTimedPaymentEntry({
+              identity: storedIdentity,
+              recover: entry.recover,
+              getStatus: getDirectPaymentStatus,
+              abandon: abandonTimedPaymentBooking,
+              clearIdentity: () => {
+                const current = readPaymentIdentity(window.sessionStorage, serviceSlug, resolvedService.id);
+                if (current && current.bookingId !== storedIdentity.bookingId) {
+                  throw new Error("Another checkout is active. Recover its payment status.");
+                }
+                clearPaymentIdentity(window.sessionStorage, serviceSlug);
+              },
+            });
+            identity = await entry.resolution;
           }
+          if (!active) return;
+          setPaymentIdentity(identity);
         }
 
         const availableSlots = expectedMode === "timed"
@@ -151,7 +184,7 @@ export default function Booking({ expectedMode, modal = false }) {
   }, [selectedDate]);
 
   async function handleBookingSubmit(formData) {
-    if (!service || (service.booking_mode === "timed" && !selectedSlot)) {
+    if ((expectedMode === "timed" && (loading || paymentIdentity)) || !service || (service.booking_mode === "timed" && !selectedSlot)) {
       return;
     }
 
@@ -223,9 +256,16 @@ export default function Booking({ expectedMode, modal = false }) {
     }
   }
 
-  const handlePaymentVerified = useCallback(() => {
+  const handlePaymentVerified = useCallback((status) => {
+    if (service?.booking_mode === "timed") {
+      // A verified paid booking is already non-restartable. A late callback
+      // from an old checkout must never clear a newer booking's credentials.
+      if (!status?.paid || status.bookingStatus !== "confirmed" || status.paymentStatus !== "paid") return;
+      const current = readPaymentIdentity(window.sessionStorage, serviceSlug, service.id);
+      if (current?.bookingId !== paymentIdentity?.bookingId) return;
+    }
     clearPaymentIdentity(window.sessionStorage, serviceSlug);
-  }, [serviceSlug]);
+  }, [paymentIdentity?.bookingId, service, serviceSlug]);
 
   const handleBookingRecovered = useCallback((details) => {
     setBookingFormData({
@@ -237,19 +277,41 @@ export default function Booking({ expectedMode, modal = false }) {
     setRecoveredBookingDetails(details);
   }, []);
 
-  const handleChooseNewAppointment = useCallback(async () => {
-    clearPaymentIdentity(window.sessionStorage, serviceSlug);
+  const handleChooseNewAppointment = useCallback(async (attemptId) => {
+    const entry = entryRef.current;
+    if (service?.booking_mode !== "timed" || service.payment_flow !== "direct_payment") {
+      throw new Error("This checkout cannot choose a new appointment.");
+    }
+    await terminateTimedPaymentCheckout({
+      identity: paymentIdentity,
+      attemptId,
+      abandon: abandonTimedPaymentBooking,
+      clearIdentity: () => {
+        const current = readPaymentIdentity(window.sessionStorage, serviceSlug, service.id);
+        if (current && current.bookingId !== paymentIdentity.bookingId) {
+          throw new Error("Another checkout is active. Recover its payment status.");
+        }
+        clearPaymentIdentity(window.sessionStorage, serviceSlug);
+      },
+    });
+    if (entryRef.current !== entry) return;
+    setLoading(true);
     setPaymentIdentity(null);
     setRecoveredBookingDetails(null);
+    setBookingFormData({ name: "", email: "", phone: "", message: "" });
     setSelectedDate(null);
     setSelectedSlot(null);
+    setSlots([]);
+    setSuccess(false);
     setError("");
     try {
       setSlots(await getAvailableSlots());
     } catch (slotsError) {
       setError(slotsError.message || "Available appointments could not be refreshed.");
+    } finally {
+      setLoading(false);
     }
-  }, [serviceSlug]);
+  }, [paymentIdentity, service, serviceSlug]);
 
   if (!loading && !service) {
     return (
@@ -286,7 +348,7 @@ export default function Booking({ expectedMode, modal = false }) {
     : presentation?.displayDurationMinutes;
   const compactVoiceMemoModal = modal && !isTimed;
   const usesDirectPayment = service?.payment_flow === "direct_payment";
-  const showingDirectPayment = usesDirectPayment && paymentIdentity;
+  const showingDirectPayment = (!isTimed || !loading) && usesDirectPayment && paymentIdentity;
 
   return (
     <div className={modal ? "min-h-0 text-[#f1e8ca]" : "min-h-screen text-[#f1e8ca]"}>
@@ -335,6 +397,7 @@ export default function Booking({ expectedMode, modal = false }) {
 
       <section className={modal ? "px-4 pb-10 sm:px-8 sm:pb-12" : "px-6 pb-24"}>
         <div className="mx-auto flex w-full max-w-7xl flex-col gap-10">
+          {loading && isTimed && <p role="status" className="text-center text-[#f1e8ca]/70">Loading booking...</p>}
           {showingDirectPayment && (
             <div className="mx-auto flex w-full max-w-5xl flex-col gap-4 sm:gap-5">
               <BookingRequestSummary details={recoveredBookingDetails || {}} />
@@ -349,7 +412,7 @@ export default function Booking({ expectedMode, modal = false }) {
             </div>
           )}
 
-          {isTimed && !showingDirectPayment && (
+          {!loading && isTimed && !showingDirectPayment && (
             <>
               <DateSelector
                 loading={loading}
