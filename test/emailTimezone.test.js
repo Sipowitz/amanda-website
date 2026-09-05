@@ -101,3 +101,31 @@ test("paid Voice Memo confirmation acknowledges direct payment without a payment
   assert.doesNotMatch(email.text, /Pay now:/);
   assert.doesNotMatch(email.html, />Pay now</);
 });
+
+test("paid timed confirmation renders appointment and omits Stripe payment link", () => {
+  const email = buildEmail("booking_confirmed", {
+    ...timedPayload,
+    direct_payment: true,
+    stripe_payment_link_url: "https://buy.stripe.com/example",
+  }, context);
+
+  assert.match(email.text, /Date: Wednesday, 15 July 2026/);
+  assert.match(email.text, /Time: 10:00 AM CDT/);
+  assert.match(email.text, /Payment received: \$85\.00/);
+  assert.doesNotMatch(email.text, /Pay now:/);
+  assert.doesNotMatch(email.html, />Pay now</);
+});
+
+test("paid direct admin notification is not described as a pending request", () => {
+  const email = buildEmail("booking_request_admin", {
+    ...timedPayload,
+    direct_payment: true,
+  }, context);
+
+  assert.match(email.subject, /New paid booking/);
+  assert.match(email.text, /paid booking has been confirmed/);
+  assert.match(email.text, /Payment: Received/);
+  assert.match(email.text, /Date: Wednesday, 15 July 2026/);
+  assert.match(email.text, /Time: 10:00 AM CDT/);
+  assert.doesNotMatch(email.text, /booking request has been received/i);
+});
