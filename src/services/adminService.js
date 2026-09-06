@@ -36,13 +36,12 @@ export async function generateSlots({
         const formattedTime = slotTime.toLocaleTimeString([], {
           hour: "2-digit",
           minute: "2-digit",
-          hour12: false,
+          hourCycle: "h23",
         });
 
         slots.push({
           slot_date: formattedDate,
           slot_time: formattedTime,
-          is_available: true,
         });
 
         slotTime.setMinutes(slotTime.getMinutes() + Number(interval));
@@ -56,9 +55,8 @@ export async function generateSlots({
     return;
   }
 
-  const { error } = await supabase.from("availability_slots").upsert(slots, {
-    onConflict: "slot_date,slot_time",
-    ignoreDuplicates: true,
+  const { error } = await supabase.rpc("create_availability_slots", {
+    p_slots: slots,
   });
 
   if (error) {
@@ -262,10 +260,9 @@ export async function cancelBooking(bookingId) {
 }
 
 export async function deleteSlot(slotId) {
-  const { error } = await supabase
-    .from("availability_slots")
-    .delete()
-    .eq("id", slotId);
+  const { error } = await supabase.rpc("delete_availability_slot", {
+    p_slot_id: slotId,
+  });
 
   if (error) {
     throw error;
