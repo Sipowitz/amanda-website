@@ -37,7 +37,7 @@ test("payment stage replaces timed selectors and form with shared checkout", asy
     source,
     /\{showingDirectPayment && \([\s\S]*BookingRequestSummary[\s\S]*SquareCardPayment/,
   );
-  assert.match(source, /\{!loading && isTimed && !showingDirectPayment && \([\s\S]*DateSelector/);
+  assert.match(source, /\{!loading && isTimed && !showingDirectPayment && !cleanupBlocked && \([\s\S]*DateSelector/);
   assert.match(source, /!isTimed && !showingDirectPayment/);
   assert.equal((source.match(/<SquareCardPayment/g) ?? []).length, 1);
   assert.doesNotMatch(source, /stripe_payment_link|Stripe/);

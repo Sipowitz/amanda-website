@@ -13,6 +13,7 @@ import SquareCardPayment from "../components/booking/SquareCardPayment";
 
 import {
   abandonTimedPaymentBooking,
+  cleanupTimedCheckout,
   getDirectPaymentStatus,
   createBooking,
   createPendingPaymentBooking,
@@ -26,6 +27,8 @@ import {
 } from "../services/paymentRecovery";
 
 import { createCheckoutEntryPolicy, resolveTimedPaymentEntry, terminateTimedPaymentCheckout } from "../services/timedPaymentEntry";
+
+import { clearCleanupMarker, getCleanupStorage, isCleanupStorageEvent, resolveOutstandingTimedCleanups } from "../services/timedCheckoutCleanup";
 
 const checkoutEntryPolicy = createCheckoutEntryPolicy(
   window.performance.getEntriesByType("navigation")[0]?.type,
@@ -67,6 +70,8 @@ export default function Booking({ expectedMode, modal = false }) {
   const [selectedDate, setSelectedDate] = useState(null);
   const [selectedSlot, setSelectedSlot] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [cleanupBlocked, setCleanupBlocked] = useState(false);
+  const [cleanupCheck, setCleanupCheck] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
   const [paymentIdentity, setPaymentIdentity] = useState(null);
@@ -95,6 +100,7 @@ export default function Booking({ expectedMode, modal = false }) {
     async function loadBookingPage() {
       try {
         setLoading(true);
+        setCleanupBlocked(false);
         setError("");
         setService(null);
         setSlots([]);
@@ -118,6 +124,14 @@ export default function Booking({ expectedMode, modal = false }) {
             window.sessionStorage, serviceSlug, resolvedService.id,
           );
           let identity = storedIdentity;
+          if (!storedIdentity && resolvedService.booking_mode === "timed") {
+            const cleared = await resolveOutstandingTimedCleanups({
+              storage: getCleanupStorage(), cleanup: cleanupTimedCheckout, active: () => active,
+            });
+            if (!active) return;
+            setCleanupBlocked(!cleared);
+            if (!cleared) return;
+          }
           if (storedIdentity && resolvedService.booking_mode === "timed") {
             entry.resolution ||= resolveTimedPaymentEntry({
               identity: storedIdentity,
@@ -130,6 +144,7 @@ export default function Booking({ expectedMode, modal = false }) {
                   throw new Error("Another checkout is active. Recover its payment status.");
                 }
                 clearPaymentIdentity(window.sessionStorage, serviceSlug);
+                clearCleanupMarker(getCleanupStorage(), storedIdentity.bookingId);
               },
             });
             identity = await entry.resolution;
@@ -163,7 +178,20 @@ export default function Booking({ expectedMode, modal = false }) {
     return () => {
       active = false;
     };
-  }, [expectedMode, serviceSlug]);
+  }, [cleanupCheck, expectedMode, serviceSlug]);
+
+  useEffect(() => {
+    if (!cleanupBlocked) return undefined;
+    const timer = window.setInterval(() => setCleanupCheck((value) => value + 1), 15000);
+    return () => window.clearInterval(timer);
+  }, [cleanupBlocked]);
+
+  useEffect(() => {
+    if (expectedMode !== "timed" || paymentIdentity) return undefined;
+    const changed = (event) => { if (isCleanupStorageEvent(event)) setCleanupCheck((value) => value + 1); };
+    window.addEventListener("storage", changed);
+    return () => window.removeEventListener("storage", changed);
+  }, [expectedMode, paymentIdentity]);
 
   const uniqueDates = useMemo(
     () => [...new Set(slots.map((slot) => slot.slot_date))],
@@ -184,12 +212,16 @@ export default function Booking({ expectedMode, modal = false }) {
   }, [selectedDate]);
 
   async function handleBookingSubmit(formData) {
-    if ((expectedMode === "timed" && (loading || paymentIdentity)) || !service || (service.booking_mode === "timed" && !selectedSlot)) {
+    if ((expectedMode === "timed" && (loading || cleanupBlocked || paymentIdentity)) || !service || (service.booking_mode === "timed" && !selectedSlot)) {
       return;
     }
 
     try {
       setSubmitting(true);
+      if (service.booking_mode === "timed" && service.payment_flow === "direct_payment") {
+        const cleared = await resolveOutstandingTimedCleanups({ storage: getCleanupStorage(), cleanup: cleanupTimedCheckout });
+        if (!cleared) { setCleanupBlocked(true); return; }
+      }
 
       const usesDirectPayment = service.payment_flow === "direct_payment";
 
@@ -265,6 +297,7 @@ export default function Booking({ expectedMode, modal = false }) {
       if (current?.bookingId !== paymentIdentity?.bookingId) return;
     }
     clearPaymentIdentity(window.sessionStorage, serviceSlug);
+    if (service?.booking_mode === "timed") clearCleanupMarker(getCleanupStorage(), paymentIdentity?.bookingId);
   }, [paymentIdentity?.bookingId, service, serviceSlug]);
 
   const handleBookingRecovered = useCallback((details) => {
@@ -292,6 +325,7 @@ export default function Booking({ expectedMode, modal = false }) {
           throw new Error("Another checkout is active. Recover its payment status.");
         }
         clearPaymentIdentity(window.sessionStorage, serviceSlug);
+        clearCleanupMarker(getCleanupStorage(), paymentIdentity.bookingId, attemptId);
       },
     });
     if (entryRef.current !== entry) return;
@@ -398,6 +432,10 @@ export default function Booking({ expectedMode, modal = false }) {
       <section className={modal ? "px-4 pb-10 sm:px-8 sm:pb-12" : "px-6 pb-24"}>
         <div className="mx-auto flex w-full max-w-7xl flex-col gap-10">
           {loading && isTimed && <p role="status" className="text-center text-[#f1e8ca]/70">Loading booking...</p>}
+          {cleanupBlocked && isTimed && <div role="status" className="text-center text-[#f1e8ca]/70">
+            <p>A previous checkout cannot yet be safely closed. Waiting for its inactivity period or payment verification.</p>
+            <button type="button" onClick={() => setCleanupCheck((value) => value + 1)}>Check previous checkout</button>
+          </div>}
           {showingDirectPayment && (
             <div className="mx-auto flex w-full max-w-5xl flex-col gap-4 sm:gap-5">
               <BookingRequestSummary details={recoveredBookingDetails || {}} />
@@ -412,7 +450,7 @@ export default function Booking({ expectedMode, modal = false }) {
             </div>
           )}
 
-          {!loading && isTimed && !showingDirectPayment && (
+          {!loading && isTimed && !showingDirectPayment && !cleanupBlocked && (
             <>
               <DateSelector
                 loading={loading}

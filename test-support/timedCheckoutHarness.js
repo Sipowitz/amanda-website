@@ -35,7 +35,7 @@ const bundle = await rolldown({
       if (id === "\0transport") return `
         const call = (name) => (...args) => globalThis.checkoutHarness[name](...args);
         export const getServiceBySlug = call('service'), getAvailableSlots = call('slots'),
-          getDirectPaymentStatus = call('status'), abandonTimedPaymentBooking = call('abandon'),
+          getDirectPaymentStatus = call('status'), renewTimedCheckoutLease = call('lease'), cleanupTimedCheckout = call('cleanup'), abandonTimedPaymentBooking = call('abandon'),
           initializeDirectPayment = call('initialize'), submitSquarePayment = call('submit'),
           createBooking = call('create'), createPendingPaymentBooking = call('create');`;
       if (id === "\0router") return `import React from 'react'; export const useParams = () => ({serviceSlug: globalThis.checkoutHarness.slug}); export const Link = (p) => React.createElement('a', p);`;
@@ -54,11 +54,11 @@ const retryId = "123e4567-e89b-42d3-a456-426614174003";
 let moduleId = 0;
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
-export async function mount(t, { mode = "timed", state = "failed", navigation = "reload", abandon, transport = {}, square, nodeMock, strict = true } = {}) {
+export async function mount(t, { mode = "timed", state = "failed", navigation = "reload", abandon, transport = {}, square, nodeMock, strict = true, emptySession = false, persistent = new Map() } = {}) {
   const slug = mode === "timed" ? "private-readings" : "voice-memo-reading";
   const identity = { bookingId, paymentAccessToken: "a".repeat(64), serviceId: "service" };
   const key = `amanda:direct-payment:${slug}`;
-  const storage = new Map([[key, JSON.stringify(identity)]]);
+  const storage = new Map(emptySession ? [] : [[key, JSON.stringify(identity)]]);
   const calls = [];
   const service = { id: "service", slug, booking_mode: mode, payment_flow: "direct_payment", name: "Reading", price_amount: 8500, currency: "USD" };
   const context = {
@@ -74,7 +74,15 @@ export async function mount(t, { mode = "timed", state = "failed", navigation = 
     paymentStatus: authoritative === "completed" ? "paid" : "unpaid",
     paid: authoritative === "completed", canRestart: ["failed", "expired"].includes(authoritative),
   });
+  const listeners = new Map();
   globalThis.window = {
+    addEventListener: (event, callback) => { if (!listeners.has(event)) listeners.set(event, new Set()); listeners.get(event).add(callback); },
+    removeEventListener: (event, callback) => listeners.get(event)?.delete(callback),
+    localStorage: {
+      get length() { return persistent.size; }, key: (i) => [...persistent.keys()][i],
+      getItem: (k) => persistent.get(k) ?? null,
+      setItem: (k, value) => persistent.set(k, value), removeItem: (k) => persistent.delete(k),
+    },
     performance: { getEntriesByType: () => [{ type: navigation }] },
     location: { pathname: `/services/${slug}/${mode === "timed" ? "book" : "request"}` },
     sessionStorage: {
@@ -88,6 +96,8 @@ export async function mount(t, { mode = "timed", state = "failed", navigation = 
   };
   globalThis.checkoutHarness = {
     slug, service: async () => service,
+    lease: async () => ({ cleanupCapability: "c".repeat(64), expiresAt: "2099-01-01T00:00:00Z", renewAfterSeconds: 60 }),
+    cleanup: async () => { calls.push("cleanup"); return { abandoned: false }; },
     slots: async () => { calls.push("slots"); return [{ id: "slot", slot_date: "2026-12-20", slot_time: "12:00" }]; },
     status: async () => { calls.push("status"); return status(); },
     abandon: async (...args) => {
@@ -116,5 +126,5 @@ export async function mount(t, { mode = "timed", state = "failed", navigation = 
     }
   };
   const submit = () => act(async () => root.root.findByType("form").props.onSubmit({ preventDefault() {} }));
-  return { root, storage, calls, key, button, click, waitFor, submit, setState: (value) => { authoritative = value; } };
+  return { root, storage, persistent, calls, key, button, click, waitFor, submit, dispatch: (event) => { for (const cb of listeners.get(event) || []) cb(); }, setState: (value) => { authoritative = value; } };
 }

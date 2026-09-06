@@ -149,3 +149,16 @@ export async function getDirectPaymentStatus(bookingId, paymentAccessToken) {
 export async function submitSquarePayment({ bookingId, paymentAccessToken, attemptId, sourceToken }) {
   return invokePaymentAction("submit", bookingId, paymentAccessToken, { attemptId, sourceToken });
 }
+
+
+export async function renewTimedCheckoutLease(bookingId, paymentAccessToken, attemptId, cleanupCapability = null) {
+  return invokePaymentAction("lease", bookingId, paymentAccessToken, { attemptId, cleanupCapability });
+}
+
+export async function cleanupTimedCheckout({ bookingId, attemptId, cleanupCapability }) {
+  const { data, error } = await supabase.functions.invoke("square-payment", {
+    body: { action: "cleanup", bookingId, attemptId, cleanupCapability },
+  });
+  if (error) throw error;
+  return data;
+}

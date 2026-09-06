@@ -19,6 +19,19 @@ type AbandonPayload = {
   paymentAccessToken: string;
   attemptId: string;
 };
+type LeasePayload = {
+  action: "lease";
+  bookingId: string;
+  attemptId: string;
+  paymentAccessToken: string;
+  cleanupCapability: string | null;
+};
+type CleanupPayload = {
+  action: "cleanup";
+  bookingId: string;
+  attemptId: string;
+  cleanupCapability: string;
+};
 type SubmitPayload = {
   action: "submit";
   bookingId: string;
@@ -54,10 +67,24 @@ function validBase(value: Record<string, unknown>) {
     recoveryTokenPattern.test(value.paymentAccessToken);
 }
 
-function parsePayload(value: unknown): BasePayload | AbandonPayload | SubmitPayload | null {
+function parsePayload(value: unknown): BasePayload | AbandonPayload | SubmitPayload | LeasePayload | CleanupPayload | null {
   if (!value || typeof value !== "object") return null;
   const payload = value as Record<string, unknown>;
+  if (payload.action === "cleanup") {
+    if (Object.keys(payload).sort().join(",") !== "action,attemptId,bookingId,cleanupCapability" ||
+      typeof payload.bookingId !== "string" || !uuidPattern.test(payload.bookingId) ||
+      typeof payload.attemptId !== "string" || !uuidPattern.test(payload.attemptId) ||
+      typeof payload.cleanupCapability !== "string" || !recoveryTokenPattern.test(payload.cleanupCapability)) return null;
+    return payload as CleanupPayload;
+  }
   if (!validBase(payload)) return null;
+  if (payload.action === "lease") {
+    if (Object.keys(payload).sort().join(",") !== "action,attemptId,bookingId,cleanupCapability,paymentAccessToken" ||
+      typeof payload.attemptId !== "string" || !uuidPattern.test(payload.attemptId) ||
+      (payload.cleanupCapability !== null && (typeof payload.cleanupCapability !== "string" ||
+        !recoveryTokenPattern.test(payload.cleanupCapability)))) return null;
+    return payload as LeasePayload;
+  }
   if (payload.action === "initialize" || payload.action === "status") {
     if (Object.keys(payload).sort().join(",") !==
       "action,bookingId,paymentAccessToken") return null;
@@ -169,6 +196,28 @@ Deno.serve(async (request) => {
     const supabase = createClient(supabaseUrl, serviceRoleKey, {
       auth: { persistSession: false, autoRefreshToken: false },
     });
+
+    if (payload.action === "cleanup") {
+      if (!allowedOrigin(request)) return json(request, { abandoned: false }, 403);
+      const { data, error } = await supabase.rpc("cleanup_timed_checkout", {
+        p_booking_id: payload.bookingId, p_attempt_id: payload.attemptId,
+        p_cleanup_capability: payload.cleanupCapability,
+      });
+      // Never return RPC errors, booking status, customer context or payment data.
+      return json(request, { abandoned: !error && data === true }, error || data !== true ? 409 : 200);
+    }
+    if (payload.action === "lease") {
+      const { data, error } = await supabase.rpc("renew_timed_checkout_lease", {
+        p_booking_id: payload.bookingId, p_attempt_id: payload.attemptId,
+        p_payment_access_token: payload.paymentAccessToken,
+        p_cleanup_capability: payload.cleanupCapability,
+      });
+      if (error || !data) return json(request, { error: "Checkout lease cannot be renewed." }, 409);
+      return json(request, {
+        cleanupCapability: data.cleanupCapability, expiresAt: data.expiresAt,
+        renewAfterSeconds: data.renewAfterSeconds,
+      });
+    }
 
     if (payload.action === "abandon") {
       const { data, error } = await supabase.rpc("abandon_timed_payment_booking", {

@@ -3,9 +3,12 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   getDirectPaymentStatus,
   initializeDirectPayment,
+  renewTimedCheckoutLease,
   submitSquarePayment,
 } from "../../services/bookingService";
 import { buildSquareVerificationDetails } from "../../services/squareVerification";
+
+import { getCleanupStorage, renewCheckoutCleanup } from "../../services/timedCheckoutCleanup";
 
 const applicationId = import.meta.env.VITE_SQUARE_APPLICATION_ID;
 const locationId = import.meta.env.VITE_SQUARE_LOCATION_ID;
@@ -82,6 +85,7 @@ function formatPrice(amount, currency) {
 
 export default function SquareCardPayment({ bookingId, paymentAccessToken, service, onBookingRecovered, onPaymentVerified, onChooseNewAppointment }) {
   const cardRef = useRef(null);
+  const renewalDelayRef = useRef(60000);
   const containerRef = useRef(null);
   const bindingRef = useRef(null);
   const generationRef = useRef(0);
@@ -207,6 +211,14 @@ export default function SquareCardPayment({ bookingId, paymentAccessToken, servi
         setState("verifying");
         return;
       }
+      if (service.booking_mode === "timed") {
+        const lease = await renewCheckoutCleanup({
+          storage: getCleanupStorage(), bookingId, paymentAccessToken, attemptId: attempt.attemptId,
+          renew: renewTimedCheckoutLease, active,
+        });
+        if (!active()) return;
+        renewalDelayRef.current = lease.renewAfterSeconds * 1000;
+      }
       setAttemptId(attempt.attemptId);
       setContext({
         amountMinor: attempt.amountMinor,
@@ -241,7 +253,7 @@ export default function SquareCardPayment({ bookingId, paymentAccessToken, servi
     } finally {
       if (initializingRef.current === generation) initializingRef.current = null;
     }
-  }, [bookingId, destroyCard, handleStatus, onBookingRecovered, paymentAccessToken]);
+  }, [bookingId, destroyCard, handleStatus, onBookingRecovered, paymentAccessToken, service.booking_mode]);
 
   const invalidate = useCallback(() => {
     ++generationRef.current;
@@ -273,6 +285,40 @@ export default function SquareCardPayment({ bookingId, paymentAccessToken, servi
     const timer = window.setInterval(() => checkStatus().catch(() => {}), 5000);
     return () => window.clearInterval(timer);
   }, [checkStatus, state]);
+
+  useEffect(() => {
+    if (service.booking_mode !== "timed" || !attemptId || !["ready", "tokenizing"].includes(state)) return undefined;
+    let stopped = false;
+    let inFlight = false;
+    let timer;
+    const generation = generationRef.current;
+    const active = () => !stopped && mountedRef.current && !closingRef.current && generation === generationRef.current;
+    async function renew() {
+      if (!active() || inFlight) return;
+      inFlight = true;
+      window.clearTimeout(timer);
+      try {
+        const lease = await renewCheckoutCleanup({
+          storage: getCleanupStorage(), bookingId, paymentAccessToken, attemptId,
+          renew: renewTimedCheckoutLease, active,
+        });
+        if (lease) renewalDelayRef.current = lease.renewAfterSeconds * 1000;
+      } catch {
+        // No inference about server state. Submission still revalidates, and
+        // cleanup/submission serialize at the database if this lease lapses.
+      } finally {
+        inFlight = false;
+        if (active()) timer = window.setTimeout(renew, renewalDelayRef.current);
+      }
+    }
+    timer = window.setTimeout(renew, renewalDelayRef.current);
+    window.addEventListener("focus", renew);
+    return () => {
+      stopped = true;
+      window.clearTimeout(timer);
+      window.removeEventListener("focus", renew);
+    };
+  }, [attemptId, bookingId, paymentAccessToken, service.booking_mode, state]);
 
   async function submit(event) {
     event.preventDefault();

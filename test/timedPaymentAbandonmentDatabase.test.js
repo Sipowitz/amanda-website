@@ -16,7 +16,7 @@ const functionSql = (sql, name) => {
 // Real PostgreSQL executes the new RPC and existing submission/restart/expiry
 // functions. An isolated fixture supplies only the tables those functions use;
 // this does not apply historical data migrations or contact Supabase/Square.
-test("timed checkout abandonment in PostgreSQL", { timeout: 300000 }, async (t) => {
+test("timed checkout abandonment in PostgreSQL", { timeout: 600000 }, async (t) => {
   if (spawnSync("docker", ["image", "inspect", "postgres:17"], { stdio: "ignore" }).status !== 0) {
     t.skip("Requires Docker with local postgres:17 image (docker pull postgres:17).");
     return;
@@ -46,6 +46,7 @@ test("timed checkout abandonment in PostgreSQL", { timeout: 300000 }, async (t) 
   const lifecycle = await read("20260904000000_timed_direct_payment_lifecycle.sql");
   const migration = await read("20260905000000_abandon_timed_payment_checkout.sql");
   const supersession = await read("20260906000000_payment_failure_supersession.sql");
+  const leaseMigration = await read("20260906001000_timed_checkout_cleanup_lease.sql");
   const admin = await read("20260904001000_direct_payment_admin_lifecycle.sql");
   const services = await read("20260817210000_add_booking_services.sql");
   const security = await read("20260817185300_booking_security_admin_foundation.sql");
@@ -119,6 +120,7 @@ test("timed checkout abandonment in PostgreSQL", { timeout: 300000 }, async (t) 
     ${functionSql(admin, "public.cancel_booking")}
     ${migration}
     ${supersession}
+    ${leaseMigration}
   `);
   const booking = "123e4567-e89b-42d3-a456-426614174000";
   const attempt = "123e4567-e89b-42d3-a456-426614174001";
@@ -130,7 +132,7 @@ test("timed checkout abandonment in PostgreSQL", { timeout: 300000 }, async (t) 
   const restart = `select public.begin_payment_attempt('${booking}', '${token}', 'square');`;
   const adminCancel = `set request.jwt.claims = '{"role":"authenticated","sub":"123e4567-e89b-42d3-a456-426614174099"}'; select public.cancel_booking('${booking}');`;
   const reset = () => query(`
-    truncate private.payment_attempts, private.booking_payment_access, private.payment_webhook_events, public.bookings, public.availability_slots, public.test_emails, public.test_releases, public.test_slot_writes;
+    truncate private.timed_checkout_cleanup, private.payment_attempts, private.booking_payment_access, private.payment_webhook_events, public.bookings, public.availability_slots, public.test_emails, public.test_releases, public.test_slot_writes;
     insert into public.availability_slots(id) values ('${slot}');
     insert into public.bookings(id, slot_id) values ('${booking}', '${slot}');
     insert into private.booking_payment_access values ('${booking}', extensions.digest('${token}', 'sha256'));
@@ -681,6 +683,139 @@ test("timed checkout abandonment in PostgreSQL", { timeout: 300000 }, async (t) 
       await assert.rejects(query(`${auth}set role ${role};select private.expire_payment_booking_if_current('${booking}', '${attempt}');`), /permission denied/);
     }
     await assert.rejects(query(`set request.jwt.claims = '{"role":"authenticated"}';${providerFailure()}`), /Service-role access/);
+  });
+
+  const issueLease = async (existing = null) => JSON.parse(await query(auth + `select public.renew_timed_checkout_lease('${booking}', '${token}', '${attempt}', ${existing ? `'${existing}'` : "null"});`));
+  const cleanup = (capability, boundAttempt = attempt) => `select public.cleanup_timed_checkout('${booking}', '${boundAttempt}', '${capability}');`;
+  const ageLease = () => query("update private.timed_checkout_cleanup set lease_until = clock_timestamp() - interval '1 second';");
+
+  await t.test("cleanup capability is hashed, bounded by reservation lifetime and configurable grace", async () => {
+    await reset();
+    await query("update private.timed_checkout_cleanup_policy set grace_seconds = 240;");
+    const lease = await issueLease();
+    assert.match(lease.cleanupCapability, /^[a-f0-9]{64}$/);
+    assert.equal(lease.renewAfterSeconds, 80);
+    assert.equal(await query(`select capability_hash = extensions.digest('${lease.cleanupCapability}', 'sha256'),
+      lease_until > clock_timestamp() + interval '230 seconds',
+      expires_at = (select created_at + interval '1 hour' from private.payment_attempts where id = '${attempt}')
+      from private.timed_checkout_cleanup;`), "t|t|t");
+    await query("update private.timed_checkout_cleanup_policy set grace_seconds = 180;");
+    assert.equal(await query(auth + cleanup(lease.cleanupCapability)), "f");
+    await assert.rejects(query(auth + `select public.renew_timed_checkout_lease('${booking}', '${"b".repeat(64)}', '${attempt}', null);`), /Payment access is invalid/);
+  });
+
+  await t.test("renewal with session authority prevents cleanup, including renewal winning the lock", async () => {
+    await reset(); const lease = await issueLease(); await ageLease();
+    const renewed = await issueLease(lease.cleanupCapability);
+    assert.equal(renewed.cleanupCapability, lease.cleanupCapability);
+    assert.equal(await query(auth + cleanup(lease.cleanupCapability)), "f");
+    await ageLease();
+    const renewal = `select public.renew_timed_checkout_lease('${booking}', '${token}', '${attempt}', '${lease.cleanupCapability}');`;
+    assert.equal((await race(renewal, cleanup(lease.cleanupCapability))).value, "f");
+    assert.equal(await parentState(), "pending_payment\nf");
+  });
+
+  await t.test("lost cleanup acknowledgement and duplicate cleanup only acknowledge the original release", async () => {
+    await reset(); const lease = await issueLease(); await ageLease();
+    await query(auth + cleanup(lease.cleanupCapability)); // Deliberately discard acknowledgement.
+    assert.equal(await parentState(), "cancelled\nt");
+    assert.equal(await query(auth + cleanup(lease.cleanupCapability)), "t");
+    await query(`insert into public.bookings(id, slot_id) values (gen_random_uuid(), '${slot}'); update public.availability_slots set is_available = false;
+      update private.timed_checkout_cleanup set expires_at = now() - interval '1 minute';`);
+    const before = await snapshot();
+    assert.equal((await race(cleanup(lease.cleanupCapability), cleanup(lease.cleanupCapability))).value, "t");
+    assert.equal(await snapshot(), before);
+    assert.equal(await query("select count(*) from public.test_releases; select count(*) from public.test_emails;"), "1\n0");
+  });
+
+  for (const first of ["cleanup", "submit"]) {
+    await t.test(`${first} wins lease cleanup/submission race`, async () => {
+      await reset(); const lease = await issueLease(); await ageLease();
+      const result = await race(first === "cleanup" ? cleanup(lease.cleanupCapability) : submit,
+        first === "cleanup" ? submit : cleanup(lease.cleanupCapability));
+      if (first === "cleanup") {
+        assert.match(result.error?.message || "", /no longer eligible/);
+        assert.equal(await parentState(), "cancelled\nt");
+      } else {
+        assert.equal(result.value, "f");
+        assert.equal(await parentState(), "pending_payment\nf");
+      }
+    });
+  }
+
+  await t.test("cleanup winning rejects retry creation and later lease renewal", async () => {
+    await reset(); const lease = await issueLease(); await ageLease();
+    assert.match((await race(cleanup(lease.cleanupCapability), restart)).error?.message || "", /not eligible/);
+    await assert.rejects(issueLease(lease.cleanupCapability), /cannot be renewed/);
+    assert.equal(await query("select count(*) from private.payment_attempts;"), "1");
+  });
+
+  await t.test("retry creation atomically invalidates old capability before cleanup can acquire booking lock", async () => {
+    await reset(); const lease = await issueLease(); await ageLease();
+    await query(auth + submit + fail);
+    assert.equal((await race(restart, cleanup(lease.cleanupCapability))).value, "f");
+    assert.equal(await query("select invalidated_at is not null from private.timed_checkout_cleanup;"), "t");
+    assert.equal(await parentState(), "pending_payment\nf");
+    const newer = await newAttempt();
+    assert.equal(await query(auth + cleanup(lease.cleanupCapability, newer)), "f");
+  });
+
+  for (const [name, mutation] of [
+    ["processing", "update private.payment_attempts set status = 'processing', submitted_at = now();"],
+    ["unknown", "update private.payment_attempts set status = 'unknown', submitted_at = now();"],
+    ["submitted", "update private.payment_attempts set submitted_at = now();"],
+    ["provider payment", "update private.payment_attempts set provider_payment_id = 'possible-payment';"],
+    ["provider status", "update private.payment_attempts set provider_status = 'PENDING';"],
+    ["provider completion", "update private.payment_attempts set provider_status = 'COMPLETED';"],
+    ["completion timestamp", "update private.payment_attempts set completed_at = now();"],
+    ["provider location", "update private.payment_attempts set provider_location_id = 'sandbox-location';"],
+    ["paid timestamp", "update public.bookings set paid_at = now();"],
+    ["paid amount", "update public.bookings set amount_paid = 1;"],
+    ["paid booking", "update public.bookings set payment_status = 'paid';"],
+    ["expired capability", "update private.timed_checkout_cleanup set expires_at = now() - interval '1 second';"],
+    ["lost slot", "update public.availability_slots set is_available = true;"],
+  ]) {
+    await t.test(`automatic cleanup refuses ${name} without mutation`, async () => {
+      await reset(); const lease = await issueLease(); await ageLease(); await query(mutation);
+      const before = await snapshot();
+      assert.equal(await query(auth + cleanup(lease.cleanupCapability)), "f");
+      assert.equal(await snapshot(), before);
+    });
+  }
+
+  await t.test("paid completion blocks cleanup and preserves exactly two emails", async () => {
+    await reset(); const lease = await issueLease(); await ageLease(); await query(auth + submit + completed());
+    const before = await snapshot();
+    assert.equal(await query(auth + cleanup(lease.cleanupCapability)), "f");
+    assert.equal(await snapshot(), before);
+    assert.equal(await query("select count(*) from public.test_emails;"), "2");
+  });
+
+  await t.test("one-hour fallback remains unchanged; expired marker only acknowledges completed expiry", async () => {
+    await reset(); const lease = await issueLease();
+    await query("update private.payment_attempts set created_at = now() - interval '61 minutes'; update private.timed_checkout_cleanup set expires_at = now() - interval '1 minute';");
+    assert.equal(await query(auth + cleanup(lease.cleanupCapability)), "f");
+    assert.equal(await query("select private.expire_stale_reserved_payment_attempts();"), "1");
+    const before = await snapshot();
+    assert.equal(await query(auth + cleanup(lease.cleanupCapability)), "t");
+    assert.equal(await snapshot(), before);
+  });
+
+  await t.test("Voice Memo cannot issue a cleanup capability or be cleaned with one", async () => {
+    await reset(); const lease = await issueLease(); await ageLease();
+    await query("update public.bookings set service_booking_mode_snapshot = 'untimed', slot_id = null;");
+    await assert.rejects(issueLease(), /cannot be renewed/);
+    assert.equal(await query(auth + cleanup(lease.cleanupCapability)), "f");
+  });
+
+  await t.test("cleanup credential is not recovery authority; wrong capabilities and roles are rejected", async () => {
+    await reset(); const lease = await issueLease(); await ageLease();
+    assert.equal(await query(auth + cleanup("d".repeat(64))), "f");
+    await assert.rejects(query(auth + restart.replace(token, lease.cleanupCapability)), /Payment access is invalid/);
+    for (const role of ["anon", "authenticated"]) {
+      await assert.rejects(query(`${auth}set role ${role};${cleanup(lease.cleanupCapability)}`), /permission denied/);
+    }
+    await assert.rejects(query(`set request.jwt.claims = '{"role":"authenticated"}';${cleanup(lease.cleanupCapability)}`), /Service-role access/);
   });
 
 });
