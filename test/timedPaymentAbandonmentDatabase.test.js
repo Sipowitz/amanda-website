@@ -45,6 +45,7 @@ test("timed checkout abandonment in PostgreSQL", { timeout: 300000 }, async (t) 
   const phaseOne = await read("20260818001000_direct_payment_phase_one.sql");
   const lifecycle = await read("20260904000000_timed_direct_payment_lifecycle.sql");
   const migration = await read("20260905000000_abandon_timed_payment_checkout.sql");
+  const supersession = await read("20260906000000_payment_failure_supersession.sql");
   const admin = await read("20260904001000_direct_payment_admin_lifecycle.sql");
   const services = await read("20260817210000_add_booking_services.sql");
   const security = await read("20260817185300_booking_security_admin_foundation.sql");
@@ -105,6 +106,8 @@ test("timed checkout abandonment in PostgreSQL", { timeout: 300000 }, async (t) 
       for each row execute function public.observe_slot_write();
     ${phaseOne.match(/create table private.payment_webhook_events \([^]*?\n\);/)?.[0]}
     ${attempts}
+    create unique index payment_attempts_provider_payment_unique on private.payment_attempts(provider, provider_payment_id)
+      where provider_payment_id is not null;
     create unique index payment_attempts_one_active_per_booking on private.payment_attempts(booking_id)
       where status in ('reserved', 'processing', 'unknown');
     ${functionSql(phaseOne, "public.mark_payment_attempt_processing")}
@@ -115,6 +118,7 @@ test("timed checkout abandonment in PostgreSQL", { timeout: 300000 }, async (t) 
     ${functionSql(services, "private.cancel_booking")}
     ${functionSql(admin, "public.cancel_booking")}
     ${migration}
+    ${supersession}
   `);
   const booking = "123e4567-e89b-42d3-a456-426614174000";
   const attempt = "123e4567-e89b-42d3-a456-426614174001";
@@ -505,5 +509,178 @@ test("timed checkout abandonment in PostgreSQL", { timeout: 300000 }, async (t) 
       await assert.rejects(query(auth + submit), /no longer eligible/);
     });
   }
+
+  const providerFailure = (event = "null", status = "FAILED") => `select public.record_provider_payment_result(
+    'square', ${event}, 'payment.created', '${booking}', '${attempt}', 'square-payment',
+    'sandbox-location', '${status}', 8500, 'USD');`;
+  const parentState = () => query(`select status from public.bookings where id = '${booking}';
+    select is_available from public.availability_slots where id = '${slot}';`);
+  const newAttempt = () => query(`select id from private.payment_attempts where booking_id = '${booking}' and id <> '${attempt}';`);
+  const retryAfterDecline = async () => {
+    await reset(); await query(auth + submit + fail + restart);
+    return newAttempt();
+  };
+
+  await t.test("legacy live sequence proves ownership 400 before retry, then stale FAILED expires B's hold", async () => {
+    await query(functionSql(lifecycle, "public.record_provider_payment_result"));
+    try {
+      await declined();
+      // square-webhook maps this RPC exception to HTTP 400. No dedup row commits.
+      await assert.rejects(query(auth + providerFailure("'retried-event'")), /no longer safely owns its slot/);
+      assert.equal(await query("select count(*) from private.payment_webhook_events;"), "0");
+      await query(auth + restart);
+      await query(auth + providerFailure("'retried-event'"));
+      assert.equal(await parentState(), "payment_expired\nt");
+      assert.equal(await query(`select status || ':' || (submitted_at is null)::text from private.payment_attempts where id <> '${attempt}';`), "reserved:true");
+    } finally {
+      // Replace only function definitions in this isolated test database.
+      await query(functionSql(supersession, "public.record_provider_payment_result"));
+    }
+  });
+
+  for (const operation of [fail, providerFailure(), providerFailure("'cancel-event'", "CANCELED")]) {
+    await t.test(`current provider failure releases exactly once: ${operation.includes("fail_payment_attempt") ? "API rejection" : operation.includes("CANCELED") ? "CANCELED" : "FAILED"}`, async () => {
+      await reset(); await query(auth + submit + operation);
+      assert.equal(await parentState(), "payment_expired\nt");
+      await query(auth + operation);
+      assert.equal(await query("select count(*) from public.test_releases; select count(*) from public.test_emails;"), "1\n0");
+    });
+  }
+
+  for (const state of ["reserved", "processing", "unknown", "completed"]) {
+    await t.test(`stale FAILED API/webhook preserves newer ${state} attempt and parent`, async () => {
+      const newer = await retryAfterDecline();
+      if (state !== "reserved") await query(`update private.payment_attempts set status = '${state}', submitted_at = now(), completed_at = case when '${state}' = 'completed' then now() end, provider_payment_id = 'newer-payment' where id = '${newer}';`);
+      if (state === "completed") await query(`update public.bookings set status = 'confirmed', payment_status = 'paid', amount_paid = 85, paid_at = now();`);
+      const before = await parentState();
+      const attemptBefore = await query(`select to_jsonb(a) from private.payment_attempts a where id = '${newer}';`);
+      for (const operation of [providerFailure(), providerFailure("'late-event'"), providerFailure("'late-event'"), providerFailure("'second-event'", "CANCELED")]) {
+        await query(auth + operation);
+        assert.equal(await parentState(), before);
+        assert.equal(await query(`select to_jsonb(a) from private.payment_attempts a where id = '${newer}';`), attemptBefore);
+      }
+      assert.equal(await query(`select status from private.payment_attempts where id = '${attempt}'; select count(*) from public.test_releases; select count(*) from public.test_emails;`), "failed\n1\n0");
+      assert.equal(await query("select count(*) from private.payment_webhook_events where processed_at is not null;"), "2");
+    });
+  }
+
+  await t.test("failure of completed attempt preserves completed provider evidence", async () => {
+    await reset(); await query(auth + submit + completed());
+    const before = await snapshot();
+    await query(auth + providerFailure("'late-completed-failure'"));
+    assert.equal(await snapshot(), before);
+    assert.equal(await query("select count(*) from public.test_emails;"), "2");
+  });
+
+  await t.test("late webhook after release or replacement slot owner is acknowledged without slot writes", async () => {
+    await declined();
+    await query(auth + providerFailure("'released-event'"));
+    await query(`insert into public.bookings(id, slot_id) values (gen_random_uuid(), '${slot}'); update public.availability_slots set is_available = false;`);
+    const before = await snapshot();
+    await query(auth + providerFailure("'released-event'"));
+    assert.equal(await snapshot(), before, "duplicate event performs no writes");
+    const writes = await query("select count(*) from public.test_slot_writes;");
+    await query(auth + providerFailure("'replacement-event'"));
+    assert.equal(await query("select count(*) from public.test_slot_writes;"), writes);
+  });
+
+  for (const first of ["retry", "failure"]) {
+    await t.test(`${first} wins booking lock: delayed A failure and B creation serialize safely`, async () => {
+      await declined();
+      const failure = providerFailure("'racing-failure'");
+      const result = await race(first === "retry" ? restart : failure, first === "retry" ? failure : restart);
+      assert.equal(result.error, undefined);
+      assert.equal(await parentState(), "pending_payment\nf");
+      assert.equal(await query(`select status from private.payment_attempts where id <> '${attempt}';`), "reserved");
+      assert.equal(await query("select count(*) from public.test_releases;"), "1");
+    });
+  }
+
+  await t.test("initial failure wins before waiting retry creates B", async () => {
+    await reset(); await query(auth + submit);
+    assert.equal((await race(providerFailure(), restart)).error, undefined);
+    assert.equal(await parentState(), "pending_payment\nf");
+  });
+
+  await t.test("equal or reversed timestamps cannot hide another active attempt", async () => {
+    const newer = await retryAfterDecline();
+    for (const time of ["created_at", "created_at - interval '1 minute'"]) {
+      await query(`update private.payment_attempts set created_at = (select ${time} from private.payment_attempts where id = '${attempt}') where id = '${newer}';`);
+      await query(auth + providerFailure());
+      assert.equal(await parentState(), "pending_payment\nf");
+    }
+  });
+
+  await t.test("API failure updates A but newer terminal history prevents parent expiry", async () => {
+    await reset(); await query(auth + submit);
+    await query(`insert into private.payment_attempts(booking_id, provider, idempotency_key, amount_minor, currency, status, created_at, submitted_at)
+      values ('${booking}', 'square', 'newer-terminal', 8500, 'USD', 'failed', now() + interval '1 second', now());`);
+    await query(auth + fail);
+    assert.equal(await parentState(), "pending_payment\nf");
+    assert.equal(await query(`select status from private.payment_attempts where id = '${attempt}';`), "failed");
+  });
+
+  for (const state of ["failed", "completed"]) {
+    await t.test(`one-hour sweep expires old A only, preserving newer ${state} history/hold`, async () => {
+      await reset();
+      await query(`update private.payment_attempts set created_at = now() - interval '2 hours';
+        insert into private.payment_attempts(booking_id, provider, idempotency_key, amount_minor, currency, status, submitted_at, completed_at, provider_payment_id)
+        values ('${booking}', 'square', 'newer-sweep', 8500, 'USD', '${state}', now(), case when '${state}' = 'completed' then now() end, 'newer-payment');`);
+      assert.equal(await query("select private.expire_stale_reserved_payment_attempts();"), "1");
+      assert.equal(await parentState(), "pending_payment\nf");
+      assert.equal(await query(`select status from private.payment_attempts where id = '${attempt}';`), "expired");
+    });
+  }
+
+  for (const operation of [fail, providerFailure()]) {
+    await t.test(`Voice Memo failure/retry preserves untimed parent: ${operation.includes("fail_payment_attempt") ? "API" : "provider"}`, async () => {
+      await reset(); await query("update public.bookings set service_booking_mode_snapshot = 'untimed', slot_id = null;");
+      await query(auth + submit + operation);
+      assert.equal(await query("select status from public.bookings;"), "payment_expired");
+      await query(auth + restart + providerFailure("'untimed-late'"));
+      assert.equal(await query("select status from public.bookings; select count(*) from public.test_slot_writes;"), "pending_payment\n0");
+    });
+  }
+
+  await t.test("retry B can submit and complete after A's delayed webhook, exactly two emails", async () => {
+    const newer = await retryAfterDecline();
+    await query(auth + providerFailure("'old-failure-before-pay'"));
+    await query(auth + submit.replace(attempt, newer));
+    await query(auth + completed("'retry-completed'").replace(attempt, newer).replace("'square-payment'", "'retry-square-payment'"));
+    const before = await parentState();
+    await query(auth + providerFailure("'old-failure-after-pay'"));
+    assert.equal(await parentState(), before);
+    assert.equal(before, "confirmed\nf");
+    assert.equal(await query("select count(*) from public.test_emails;"), "2");
+  });
+
+  await t.test("provider identity validation and payment ID uniqueness still reject unrelated results", async () => {
+    const newer = await retryAfterDecline();
+    await query(`update private.payment_attempts set provider_payment_id = 'newer-payment' where id = '${newer}';`);
+    const before = await snapshot();
+    for (const operation of [
+      providerFailure().replace("8500, 'USD'", "1, 'USD'"),
+      providerFailure().replace("'sandbox-location'", "'wrong-location'"),
+      providerFailure().replace("'square-payment'", "'newer-payment'"),
+      providerFailure().replace(`'${attempt}'`, `'${slot}'`),
+    ]) await assert.rejects(query(auth + operation));
+    assert.equal(await snapshot(), before);
+  });
+
+  await t.test("equal timestamp terminal history uses UUID tie-breaker", async () => {
+    await reset(); await query(auth + submit);
+    await query(`insert into private.payment_attempts(id, booking_id, provider, idempotency_key, amount_minor, currency, status, created_at, submitted_at)
+      select 'ffffffff-ffff-4fff-afff-ffffffffffff', booking_id, provider, 'tie-terminal', amount_minor, currency, 'failed', created_at, now()
+      from private.payment_attempts where id = '${attempt}';`);
+    await query(auth + fail);
+    assert.equal(await parentState(), "pending_payment\nf");
+  });
+
+  await t.test("private transition helper has no callable client/service-role privilege", async () => {
+    for (const role of ["anon", "authenticated", "service_role"]) {
+      await assert.rejects(query(`${auth}set role ${role};select private.expire_payment_booking_if_current('${booking}', '${attempt}');`), /permission denied/);
+    }
+    await assert.rejects(query(`set request.jwt.claims = '{"role":"authenticated"}';${providerFailure()}`), /Service-role access/);
+  });
 
 });
