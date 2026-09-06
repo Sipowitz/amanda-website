@@ -82,6 +82,12 @@ function formatPrice(amount, currency) {
 
 export default function SquareCardPayment({ bookingId, paymentAccessToken, service, onBookingRecovered, onPaymentVerified, onChooseNewAppointment }) {
   const cardRef = useRef(null);
+  const containerRef = useRef(null);
+  const bindingRef = useRef(null);
+  const generationRef = useRef(0);
+  const statusRequestRef = useRef(0);
+  const initializingRef = useRef(null);
+  const cardWorkRef = useRef(Promise.resolve());
   const mountedRef = useRef(true);
   const submittingRef = useRef(false);
   const closingRef = useRef(false);
@@ -98,8 +104,22 @@ export default function SquareCardPayment({ bookingId, paymentAccessToken, servi
   );
   const [error, setError] = useState("");
 
+  // SDK operations are serialized, including cleanup after an obsolete attach.
+  const destroyCard = useCallback(async () => {
+    const card = cardRef.current;
+    bindingRef.current = null;
+    await card?.destroy();
+    cardRef.current = null;
+    containerRef.current?.replaceChildren();
+  }, []);
+
   const handleStatus = useCallback((status) => {
-    if (closingRef.current) return "closing";
+    if (!mountedRef.current || closingRef.current) return "closing";
+    if (bindingRef.current && (status.attemptId !== bindingRef.current.attemptId ||
+      status.attemptStatus !== "reserved")) {
+      bindingRef.current = null;
+      setState("verifying");
+    }
     if (service.booking_mode === "timed" && status.attemptId) setAttemptId(status.attemptId);
     if (status.serviceName) {
       setContext((current) => ({
@@ -141,82 +161,112 @@ export default function SquareCardPayment({ bookingId, paymentAccessToken, servi
   }, [onPaymentVerified, service.booking_mode]);
 
   const checkStatus = useCallback(async () => {
+    if (initializingRef.current) return null;
+    const generation = generationRef.current;
+    const request = ++statusRequestRef.current;
     const status = await getDirectPaymentStatus(bookingId, paymentAccessToken);
+    if (!mountedRef.current || closingRef.current || generation !== generationRef.current ||
+      request !== statusRequestRef.current) return null;
     handleStatus(status);
     return status;
   }, [bookingId, handleStatus, paymentAccessToken]);
 
   const initialize = useCallback(async (restart = false) => {
-    if (service.booking_mode === "timed" && closingRef.current) return;
-    setError("");
-    setState("loading");
-    const current = await getDirectPaymentStatus(bookingId, paymentAccessToken);
-    // A delayed recovery response must not repopulate customer data after the
-    // checkout has closed, or start a retry while termination is pending.
-    if (service.booking_mode === "timed" && (!mountedRef.current || closingRef.current)) return;
-    if (current.bookingDetails) {
-      onBookingRecovered?.({
-        ...current.bookingDetails,
-        amountMinor: current.amountMinor,
-        currency: current.currency,
+    if (!mountedRef.current || closingRef.current || submittingRef.current || initializingRef.current) return;
+    const generation = ++generationRef.current;
+    ++statusRequestRef.current;
+    initializingRef.current = generation;
+    bindingRef.current = null;
+    const active = () => mountedRef.current && !closingRef.current && generation === generationRef.current;
+    try {
+      setError("");
+      setState("loading");
+      const current = await getDirectPaymentStatus(bookingId, paymentAccessToken);
+      // A delayed recovery response must not repopulate customer data after the
+      // checkout has closed, or start a retry while termination is pending.
+      if (!active()) return;
+      if (current.bookingDetails) {
+        onBookingRecovered?.({
+          ...current.bookingDetails,
+          amountMinor: current.amountMinor,
+          currency: current.currency,
+        });
+      }
+      const currentState = handleStatus(current);
+      if (currentState !== "ready" && !(restart && currentState === "restart")) return;
+      if (!current.buyerContact?.givenName || !current.buyerContact?.email) {
+        throw new Error("Buyer contact details are unavailable for secure payment.");
+      }
+      const attempt = await initializeDirectPayment(bookingId, paymentAccessToken);
+      if (!active()) return;
+      if (attempt.paid) {
+        handleStatus(attempt);
+        return;
+      }
+      if (attempt.attemptStatus !== "reserved" || !attempt.attemptId) {
+        setState("verifying");
+        return;
+      }
+      setAttemptId(attempt.attemptId);
+      setContext({
+        amountMinor: attempt.amountMinor,
+        currency: attempt.currency,
+        serviceName: attempt.serviceName,
+        buyerContact: current.buyerContact,
       });
+      const work = cardWorkRef.current.then(async () => {
+        if (!active()) return;
+        await destroyCard();
+        if (!active()) return;
+        const Square = await loadSquareSdk();
+        if (!active()) return;
+        if (!Square) throw new Error("Secure card form is unavailable.");
+        const payments = Square.payments(applicationId, locationId);
+        const card = await payments.card({ style: squareCardStyle });
+        cardRef.current = card;
+        if (!active()) { await destroyCard(); return; }
+        await card.attach(containerRef.current || "#square-card-container");
+        if (!active()) { await destroyCard(); return; }
+        bindingRef.current = { card, attemptId: attempt.attemptId, generation };
+        setState("ready");
+      });
+      cardWorkRef.current = work.catch(() => {});
+      await work;
+    } catch (reason) {
+      if (active()) {
+        bindingRef.current = null;
+        setError(reason.message || "Unable to initialize secure payment.");
+        setState("error");
+      }
+    } finally {
+      if (initializingRef.current === generation) initializingRef.current = null;
     }
-    const currentState = handleStatus(current);
-    if (currentState !== "ready" && !(restart && currentState === "restart")) return;
-    if (!current.buyerContact?.givenName || !current.buyerContact?.email) {
-      throw new Error("Buyer contact details are unavailable for secure payment.");
-    }
-    const attempt = await initializeDirectPayment(bookingId, paymentAccessToken);
-    if (service.booking_mode === "timed" && (!mountedRef.current || closingRef.current)) return;
-    if (attempt.paid) {
-      handleStatus(attempt);
-      return;
-    }
-    if (["processing", "unknown"].includes(attempt.attemptStatus)) {
-      setState("verifying");
-      return;
-    }
-    setAttemptId(attempt.attemptId);
-    setContext({
-      amountMinor: attempt.amountMinor,
-      currency: attempt.currency,
-      serviceName: attempt.serviceName,
-      buyerContact: current.buyerContact,
-    });
-    const Square = await loadSquareSdk();
-    if (!Square || !mountedRef.current) throw new Error("Secure card form is unavailable.");
-    const payments = Square.payments(applicationId, locationId);
-    const card = await payments.card({ style: squareCardStyle });
-    if (!mountedRef.current) {
-      await card.destroy();
-      return;
-    }
-    cardRef.current = card;
-    await card.attach("#square-card-container");
-    setState("ready");
-  }, [bookingId, handleStatus, onBookingRecovered, paymentAccessToken, service.booking_mode]);
+  }, [bookingId, destroyCard, handleStatus, onBookingRecovered, paymentAccessToken]);
+
+  const invalidate = useCallback(() => {
+    ++generationRef.current;
+    ++statusRequestRef.current;
+    initializingRef.current = null;
+    bindingRef.current = null;
+  }, []);
 
   useEffect(() => {
     mountedRef.current = true;
     let initializeTimer;
     if (applicationId && locationId && sdkUrl) {
       initializeTimer = window.setTimeout(() => {
-        initialize().catch((reason) => {
-          if (mountedRef.current) {
-            setError(reason.message || "Unable to initialize secure payment.");
-            setState("error");
-          }
-        });
+        void initialize();
       }, 0);
     }
     return () => {
       window.clearTimeout(initializeTimer);
       mountedRef.current = false;
-      const card = cardRef.current;
-      cardRef.current = null;
-      card?.destroy().catch(() => {});
+      invalidate();
+      cardWorkRef.current = cardWorkRef.current.then(destroyCard);
+      // Retain cleanup failure in the queue: replacement must not attach.
+      cardWorkRef.current.catch(() => {});
     };
-  }, [initialize]);
+  }, [destroyCard, initialize, invalidate]);
 
   useEffect(() => {
     if (state !== "verifying") return undefined;
@@ -227,24 +277,44 @@ export default function SquareCardPayment({ bookingId, paymentAccessToken, servi
   async function submit(event) {
     event.preventDefault();
     if (service.booking_mode === "timed" && (closingRef.current || state !== "ready")) return;
-    if (submittingRef.current || !cardRef.current || !attemptId) return;
+    const binding = bindingRef.current;
+    if (submittingRef.current || initializingRef.current || !binding ||
+      binding.card !== cardRef.current || binding.attemptId !== attemptId ||
+      binding.generation !== generationRef.current) return;
+    const active = () => mountedRef.current && !closingRef.current && bindingRef.current === binding &&
+      binding.generation === generationRef.current;
     submittingRef.current = true;
     setError("");
     setState("tokenizing");
     try {
-      const tokenized = await cardRef.current.tokenize(
+      const tokenized = await binding.card.tokenize(
         buildSquareVerificationDetails(context),
       );
       if (tokenized.status !== "OK" || !tokenized.token) {
         throw new Error(tokenized.errors?.[0]?.message || "Card details could not be tokenized.");
       }
+      if (!active()) return;
+      // Revalidate after tokenization; another tab may have consumed the hold.
+      const status = await checkStatus();
+      if (!active()) return;
+      if (!status) { setState("verifying"); return; }
+      if (status.attemptStatus !== "reserved" || status.attemptId !== binding.attemptId ||
+        (service.booking_mode === "timed" && (status.bookingStatus !== "pending_payment" ||
+          status.paymentStatus !== "unpaid" || status.paid !== false))) {
+        bindingRef.current = null;
+        setState("verifying");
+        return;
+      }
+      bindingRef.current = null;
       setState("verifying");
       const result = await submitSquarePayment({
         bookingId,
         paymentAccessToken,
-        attemptId,
+        attemptId: binding.attemptId,
         sourceToken: tokenized.token,
       });
+      if (!mountedRef.current || binding.generation !== generationRef.current || closingRef.current) return;
+      ++statusRequestRef.current;
       // The single-use token stays in this call only. It is never stored/logged.
       if (result.declined) {
         setError(result.error || "Payment was declined.");
@@ -253,14 +323,12 @@ export default function SquareCardPayment({ bookingId, paymentAccessToken, servi
       }
       await checkStatus();
     } catch (reason) {
+      if (!mountedRef.current || binding.generation !== generationRef.current || closingRef.current) return;
       setError(reason.message || "Payment could not be submitted.");
       try {
         const status = await checkStatus();
-        if (service.booking_mode === "timed") {
-          if (handleStatus(status) === "ready") setState("ready");
-        } else if (status.attemptStatus === "reserved") {
-          setState("ready");
-        }
+        if (status && bindingRef.current === binding && status.attemptStatus === "reserved" &&
+          status.attemptId === binding.attemptId && handleStatus(status) === "ready") setState("ready");
       } catch {
         setState("verifying");
       }
@@ -272,6 +340,9 @@ export default function SquareCardPayment({ bookingId, paymentAccessToken, servi
   async function chooseNewAppointment() {
     if (closingRef.current || submittingRef.current || !onChooseNewAppointment) return;
     closingRef.current = true;
+    ++generationRef.current;
+    ++statusRequestRef.current;
+    bindingRef.current = null;
     setState("closing");
     setError("");
     try {
@@ -284,7 +355,7 @@ export default function SquareCardPayment({ bookingId, paymentAccessToken, servi
       setState("verifying");
       try {
         const status = await checkStatus();
-        if (handleStatus(status) === "ready") await initialize();
+        if (status && handleStatus(status) === "ready") await initialize();
       } catch {
         // Keep recovery credentials and the verification screen on uncertainty.
         setState("verifying");
@@ -317,7 +388,7 @@ export default function SquareCardPayment({ bookingId, paymentAccessToken, servi
         {state === "success" && <Message title="Payment confirmed">Your {context.serviceName || "booking"} is confirmed and a confirmation email has been sent. Thank you.</Message>}
         <form onSubmit={submit} className={state === "ready" || state === "tokenizing" ? "block" : "hidden"}>
           <p className="mb-2 text-sm font-medium text-[#3e4b40] [text-shadow:none]">Card details</p>
-          <div id="square-card-container" className="min-h-24" />
+          <div ref={containerRef} id="square-card-container" className="min-h-24" />
           {error && <p className="mb-4 text-sm text-red-700">{error}</p>}
           <button disabled={state !== "ready"} className="min-h-12 w-full rounded-xl bg-[#365d3c] px-5 py-3.5 text-base font-semibold text-white shadow-[0_8px_18px_rgba(54,93,60,0.22)] transition hover:bg-[#2f5335] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#365d3c] disabled:cursor-not-allowed disabled:opacity-55">
             {state === "tokenizing" ? "Processing securely..." : `Pay ${displayAmount} securely`}

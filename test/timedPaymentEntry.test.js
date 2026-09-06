@@ -142,5 +142,5 @@ test("Edge abandonment accepts only recovery credentials and invokes its own RPC
 test("timed card recovery cannot bypass authoritative status guards after a submit error", async () => {
   const card = await readFile(new URL("../src/components/booking/SquareCardPayment.jsx", import.meta.url), "utf8");
   assert.match(card, /status.bookingStatus === "cancelled" && status.paymentStatus === "unpaid" &&\s+status.paid === false && status.attemptStatus === "cancelled"/);
-  assert.match(card, /const status = await checkStatus\(\);\s+if \(service.booking_mode === "timed"\) \{\s+if \(handleStatus\(status\) === "ready"\) setState\("ready"\)/);
+  assert.match(card, /if \(status && bindingRef.current === binding && status.attemptStatus === "reserved" &&\s+status.attemptId === binding.attemptId && handleStatus\(status\) === "ready"\) setState\("ready"\)/);
 });

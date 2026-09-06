@@ -54,7 +54,7 @@ const retryId = "123e4567-e89b-42d3-a456-426614174003";
 let moduleId = 0;
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
-export async function mount(t, { mode = "timed", state = "failed", navigation = "reload", abandon, transport = {} } = {}) {
+export async function mount(t, { mode = "timed", state = "failed", navigation = "reload", abandon, transport = {}, square, nodeMock, strict = true } = {}) {
   const slug = mode === "timed" ? "private-readings" : "voice-memo-reading";
   const identity = { bookingId, paymentAccessToken: "a".repeat(64), serviceId: "service" };
   const key = `amanda:direct-payment:${slug}`;
@@ -84,7 +84,7 @@ export async function mount(t, { mode = "timed", state = "failed", navigation = 
     },
     setTimeout: globalThis.setTimeout, clearTimeout: globalThis.clearTimeout,
     setInterval: globalThis.setInterval, clearInterval: globalThis.clearInterval,
-    Square: { payments: () => ({ card: async () => ({ attach: async () => {}, destroy: async () => {}, tokenize: async () => ({ status: "OK", token: "source" }) }) }) },
+    Square: square || { payments: () => ({ card: async () => ({ attach: async () => {}, destroy: async () => {}, tokenize: async () => ({ status: "OK", token: "source" }) }) }) },
   };
   globalThis.checkoutHarness = {
     slug, service: async () => service,
@@ -97,14 +97,14 @@ export async function mount(t, { mode = "timed", state = "failed", navigation = 
       authoritative = "cancelled";
       return { abandoned: true };
     },
-    initialize: async () => { calls.push("initialize"); authoritative = "reserved"; return { ...context, attemptId: currentAttempt, attemptStatus: "reserved" }; },
+    initialize: async () => { calls.push("initialize"); if (authoritative !== "reserved") currentAttempt = retryId; authoritative = "reserved"; return { ...context, attemptId: currentAttempt, attemptStatus: "reserved" }; },
     submit: async () => { calls.push("submit"); return {}; },
     create: async () => { calls.push("create"); throw new Error("Replacement creation must require a new form submission"); },
   };
   Object.assign(globalThis.checkoutHarness, transport);
   const { default: Booking } = await import(`data:text/javascript;base64,${Buffer.from(compiledPage + `\n//# sourceURL=checkout-test-${moduleId}.mjs`).toString("base64")}#${moduleId++}`);
   let root;
-  await act(async () => { root = create(React.createElement(React.StrictMode, null, React.createElement(Booking, { expectedMode: mode }))); });
+  await act(async () => { root = create(React.createElement(strict ? React.StrictMode : React.Fragment, null, React.createElement(Booking, { expectedMode: mode })), { createNodeMock: nodeMock }); });
   await act(async () => { await delay(20); });
   t.after(async () => { await act(async () => root.unmount()); });
   const button = (label) => root.root.findAllByType("button").find((node) => node.children.join("") === label);
