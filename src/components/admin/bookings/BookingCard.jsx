@@ -6,6 +6,7 @@ import BookingPaymentEditor from "./BookingPaymentEditor";
 import {
   formatBookingDate,
   formatCurrency,
+  formatTimestamp,
   getPaymentLabel,
   getPaymentMethodLabel,
   getPaymentStyles,
@@ -76,7 +77,8 @@ export default function BookingCard({
       <button
         type="button"
         onClick={() => setExpanded((value) => !value)}
-        className="grid w-full gap-4 px-5 py-5 text-left transition hover:bg-[#faf8f2] md:grid-cols-[190px_minmax(0,1.3fr)_170px_150px_130px] md:items-center md:px-6"
+        aria-expanded={expanded}
+        className={`grid w-full gap-4 px-5 py-5 text-left transition hover:bg-[#faf8f2] ${isDirectPayment ? "md:grid-cols-[190px_minmax(0,1fr)_170px_130px]" : "md:grid-cols-[190px_minmax(0,1.3fr)_170px_150px_130px]"} md:items-center md:px-6`}
       >
         <div className="border-[#e4e0d7] md:border-r md:pr-5">
           <p className="text-sm font-medium text-[#525d54]">
@@ -104,6 +106,7 @@ export default function BookingCard({
             {booking.customer_name}
           </p>
 
+          {!isDirectPayment && <>
           <p className="mt-1 truncate text-sm text-[#4f5b53]">
             {booking.customer_email}
           </p>
@@ -113,6 +116,7 @@ export default function BookingCard({
               {booking.customer_phone}
             </p>
           )}
+          </>}
         </div>
 
         <div className="flex flex-wrap gap-2 md:flex-col md:items-start">
@@ -120,11 +124,14 @@ export default function BookingCard({
             {getStatusLabel(booking.status)}
           </Badge>
 
+          {(!isDirectPayment || booking.payment_status !== "paid") && (
           <Badge className={getPaymentStyles(booking.payment_status)}>
             {getPaymentLabel(booking.payment_status)}
           </Badge>
+          )}
         </div>
 
+        {!isDirectPayment && (
         <div className="border-[#e4e0d7] md:border-l md:pl-5">
           <p className="text-lg font-semibold text-[#1f2922]">
             {formatCurrency(booking.amount_due)}
@@ -140,6 +147,7 @@ export default function BookingCard({
               : `Paid: ${formatCurrency(booking.amount_paid)}`}
           </p>
         </div>
+        )}
 
         <div className="flex items-center justify-between gap-3 md:justify-end">
           <span className="rounded-xl border border-[#d8d4ca] bg-[#fbfaf6] px-4 py-2.5 text-sm font-medium text-[#39443c]">
@@ -156,7 +164,7 @@ export default function BookingCard({
 
       {expanded && (
         <div className="border-t border-[#e3dfd6] bg-[#fbfaf6] px-5 py-6 md:px-6">
-          <div className="grid gap-7 xl:grid-cols-[minmax(0,1fr)_300px]">
+          <div className={`grid gap-7 ${!isDirectPayment ? "xl:grid-cols-[minmax(0,1fr)_300px]" : ""}`}>
             <div className="space-y-7">
               <div className="grid gap-6 md:grid-cols-2">
                 <section>
@@ -189,11 +197,16 @@ export default function BookingCard({
                   </p>
 
                   <div className="space-y-1.5 text-sm text-[#445047]">
+                    {isDirectPayment ? <>
+                      <p>Amount: {formatCurrency(booking.amount_paid)}</p>
+                      {booking.paid_at && <p>Paid on: {formatTimestamp(booking.paid_at)}</p>}
+                    </> : <>
                     <p>Due: {formatCurrency(booking.amount_due)}</p>
                     <p>Paid: {formatCurrency(booking.amount_paid)}</p>
                     <p>
                       Method: {getPaymentMethodLabel(booking.payment_method)}
                     </p>
+                    </>}
                     {booking.payment_reference && (
                       <p>Reference: {booking.payment_reference}</p>
                     )}
@@ -219,7 +232,7 @@ export default function BookingCard({
                     Actions
                   </p>
 
-                  {isDirectPayment ? (
+                  {isDirectPayment ? (attemptStatus !== "completed" && (
                     <span className="text-right text-sm text-[#6d746b]">
                       <span className="block font-medium text-[#465148]">
                         {directPaymentState.label}
@@ -230,7 +243,7 @@ export default function BookingCard({
                         </span>
                       )}
                     </span>
-                  ) : (
+                  )) : (
                     <button
                       type="button"
                       onClick={() => onTogglePayment(booking)}
@@ -270,18 +283,18 @@ export default function BookingCard({
                         onClick={() => onStatusChange(booking, "completed")}
                         className="rounded-xl border border-[#cbdde9] bg-[#e9f1f6] px-4 py-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#315f7c] disabled:opacity-40"
                       >
-                        Complete
+                        Mark completed
                       </button>
                     )}
 
-                    {booking.status === "confirmed" &&
+                    {isTimed && booking.status === "confirmed" &&
                       (!isDirectPayment || canCompleteDirectPayment) && (
                       <button
                         disabled={isUpdating}
                         onClick={() => onStatusChange(booking, "no_show")}
                         className="rounded-xl border border-[#d8d7d1] bg-[#efeee9] px-4 py-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#68685f] disabled:opacity-40"
                       >
-                        No Show
+                        Mark no-show
                       </button>
                     )}
 
@@ -321,7 +334,7 @@ export default function BookingCard({
               )}
             </div>
 
-            <BookingTimeline booking={booking} />
+            {!isDirectPayment && <BookingTimeline booking={booking} />}
           </div>
         </div>
       )}

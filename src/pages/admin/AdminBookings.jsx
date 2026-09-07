@@ -3,38 +3,30 @@ import { useLocation, useNavigate } from "react-router-dom";
 
 import BookingCard from "../../components/admin/bookings/BookingCard";
 import BookingFilters from "../../components/admin/bookings/BookingFilters";
-import CreateBookingPanel from "../../components/admin/bookings/CreateBookingPanel";
+import { normalizeBookingFilter, matchesBookingSearch, isNormalAdminBooking } from "../../components/admin/bookings/bookingDisplay";
 
 import { useAdminAuth } from "../../contexts/AdminAuthContext";
 import { useToast } from "../../contexts/ToastContext";
 import { useConfirm } from "../../contexts/ConfirmContext";
 
-import { getActiveServices } from "../../services/bookingService";
-
 import {
   cancelBooking,
-  createAdminBooking,
   getAdminBookings,
-  getAvailableAdminSlots,
   updateBookingPayment,
   updateBookingStatus,
 } from "../../services/adminService";
 
 export default function AdminBookings() {
   const [bookings, setBookings] = useState([]);
-  const [availableSlots, setAvailableSlots] = useState([]);
-  const [services, setServices] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [creatingBooking, setCreatingBooking] = useState(false);
   const [updatingBookingId, setUpdatingBookingId] = useState(null);
   const [savingPaymentId, setSavingPaymentId] = useState(null);
   const [openPaymentId, setOpenPaymentId] = useState(null);
   const [paymentForms, setPaymentForms] = useState({});
-  const [showCreatePanel, setShowCreatePanel] = useState(false);
   const [search, setSearch] = useState("");
   const location = useLocation();
-  const [filter, setFilter] = useState(location.state?.filter || "upcoming");
-  const [formData, setFormData] = useState({ serviceId: "", slotId: "", name: "", email: "", phone: "", message: "" });
+  const [selectedFilter, setSelectedFilter] = useState("confirmed");
+  const filter = location.state?.filter ? normalizeBookingFilter(location.state.filter) : selectedFilter;
 
   const navigate = useNavigate();
   const { logout } = useAdminAuth();
@@ -45,39 +37,23 @@ export default function AdminBookings() {
     loadData();
   }, []);
 
-  useEffect(() => {
+  function handleFilterChange(value) {
+    setSelectedFilter(normalizeBookingFilter(value));
     if (location.state?.filter) {
-      setFilter(location.state.filter);
       navigate(location.pathname, { replace: true, state: {} });
     }
-  }, [location.pathname, location.state, navigate]);
+  }
 
   async function loadData() {
     try {
       setLoading(true);
-      const [bookingsData, slotsData, servicesData] = await Promise.all([
-        getAdminBookings(),
-        getAvailableAdminSlots(),
-        getActiveServices(),
-      ]);
-      setBookings(bookingsData);
-      setAvailableSlots(slotsData);
-      setServices(servicesData);
+      setBookings(await getAdminBookings());
     } catch (error) {
       console.error(error);
       toast.error("Failed to load bookings");
     } finally {
       setLoading(false);
     }
-  }
-
-  function handleFormChange(event) {
-    const { name, value } = event.target;
-    setFormData((previous) => ({
-      ...previous,
-      [name]: value,
-      ...(name === "serviceId" ? { slotId: "" } : {}),
-    }));
   }
 
   function getInitialPaymentForm(booking) {
@@ -107,30 +83,6 @@ export default function AdminBookings() {
       if (name === "amountDue" && nextForm.paymentStatus === "paid") nextForm.amountPaid = value;
       return { ...previous, [bookingId]: nextForm };
     });
-  }
-
-  async function handleCreateBooking(event) {
-    event.preventDefault();
-    try {
-      setCreatingBooking(true);
-      await createAdminBooking({
-        serviceId: formData.serviceId,
-        slotId: formData.slotId,
-        name: formData.name,
-        email: formData.email,
-        phone: formData.phone,
-        message: formData.message,
-      });
-      await loadData();
-      setFormData({ serviceId: "", slotId: "", name: "", email: "", phone: "", message: "" });
-      setShowCreatePanel(false);
-      toast.success("Booking created successfully");
-    } catch (error) {
-      console.error(error);
-      toast.error(error.message || "Failed to create booking");
-    } finally {
-      setCreatingBooking(false);
-    }
   }
 
   async function handleStatusChange(booking, nextStatus) {
@@ -211,26 +163,8 @@ export default function AdminBookings() {
   }
 
   const filteredBookings = useMemo(() => {
-    const today = new Date().toISOString().split("T")[0];
     return bookings
-      .filter((booking) => {
-        const slot = booking.availability_slots;
-        const term = search.trim().toLowerCase();
-        const matchesSearch = !term || [
-          booking.customer_name,
-          booking.customer_email,
-          booking.customer_phone,
-          booking.service_name_snapshot,
-        ].filter(Boolean).some((value) => value.toLowerCase().includes(term));
-        const isUntimed = booking.service_booking_mode_snapshot === "untimed";
-        const isUpcoming = isUntimed || slot?.slot_date >= today;
-        if (filter === "upcoming") return matchesSearch && isUpcoming;
-        if (filter === "past") return matchesSearch && !isUntimed && !isUpcoming;
-        if (filter === "payment_due") return matchesSearch && ["unpaid", "part_paid"].includes(booking.payment_status);
-        if (filter === "paid") return matchesSearch && booking.payment_status === "paid";
-        if (["pending", "pending_payment", "payment_expired", "confirmed", "completed", "no_show", "cancelled"].includes(filter)) return matchesSearch && booking.status === filter;
-        return matchesSearch;
-      })
+      .filter((booking) => isNormalAdminBooking(booking) && booking.status === filter && matchesBookingSearch(booking, search))
       .sort((a, b) => {
         if (!a.availability_slots && !b.availability_slots) {
           return new Date(b.created_at) - new Date(a.created_at);
@@ -255,7 +189,7 @@ export default function AdminBookings() {
             </h1>
 
             <p className="mt-4 max-w-2xl text-base leading-7 text-[#566158]">
-              Review requests, manage payments and progress each appointment through its lifecycle.
+              Manage appointments and Voice Memo requests awaiting completion.
             </p>
           </div>
 
@@ -272,21 +206,8 @@ export default function AdminBookings() {
         search={search}
         onSearchChange={setSearch}
         filter={filter}
-        onFilterChange={setFilter}
-        showCreatePanel={showCreatePanel}
-        onToggleCreate={() => setShowCreatePanel((value) => !value)}
+        onFilterChange={handleFilterChange}
       />
-
-      {showCreatePanel && (
-        <CreateBookingPanel
-          services={services}
-          availableSlots={availableSlots}
-          formData={formData}
-          onChange={handleFormChange}
-          onSubmit={handleCreateBooking}
-          creating={creatingBooking}
-        />
-      )}
 
       {loading ? (
         <div className="rounded-[1.1rem] border border-[#dfdbd2] bg-white/85 p-8 shadow-[0_8px_28px_rgba(45,55,45,0.06)]">
@@ -314,6 +235,28 @@ export default function AdminBookings() {
             />
           ))}
         </div>
+      )}
+      {!loading && bookings.some((booking) => booking.service_payment_flow_snapshot !== "direct_payment" && booking.status === "pending" && matchesBookingSearch(booking, search)) && (
+        <details className="rounded-xl border border-[#dfdbd2] bg-white/85 p-5">
+          <summary className="cursor-pointer text-sm font-medium text-[#39443c]">Legacy requests awaiting confirmation</summary>
+          <div className="mt-4 flex flex-col gap-3">
+            {bookings.filter((booking) => booking.service_payment_flow_snapshot !== "direct_payment" && booking.status === "pending" && matchesBookingSearch(booking, search)).map((booking) => (
+            <BookingCard
+              key={booking.id}
+              booking={booking}
+              isUpdating={updatingBookingId === booking.id}
+              isSavingPayment={savingPaymentId === booking.id}
+              paymentPanelOpen={openPaymentId === booking.id}
+              paymentForm={paymentForms[booking.id] || getInitialPaymentForm(booking)}
+              onTogglePayment={togglePaymentPanel}
+              onPaymentChange={handlePaymentFormChange}
+              onPaymentSubmit={handlePaymentSubmit}
+              onStatusChange={handleStatusChange}
+              onCancel={handleCancelBooking}
+            />
+            ))}
+          </div>
+        </details>
       )}
       </div>
     </div>

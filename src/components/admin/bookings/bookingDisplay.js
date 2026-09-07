@@ -1,3 +1,28 @@
+export const adminBookingFilters = [
+  ["confirmed", "Confirmed"],
+  ["completed", "Completed"],
+  ["no_show", "No-show"],
+  ["cancelled", "Cancelled"],
+];
+
+export function normalizeBookingFilter(value) {
+  return adminBookingFilters.some(([status]) => status === value) ? value : "confirmed";
+}
+
+export function matchesBookingSearch(booking, search) {
+  const term = search.trim().toLowerCase();
+  return [booking.customer_name, booking.customer_email, booking.customer_phone, booking.service_name_snapshot]
+    .some((value) => value?.toLowerCase().includes(term));
+}
+
+export function isNormalAdminBooking(booking) {
+  if (!adminBookingFilters.some(([status]) => status === booking.status)) return false;
+  if (booking.service_payment_flow_snapshot !== "direct_payment") return true;
+  return booking.payment_provider === "square" && booking.payment_method === "square" &&
+    booking.payment_attempt_status === "completed" &&
+    ["paid", "refunded", "part_refunded"].includes(booking.payment_status);
+}
+
 export const paymentMethods = [
   { value: "", label: "Select payment method" },
   { value: "cash", label: "Cash" },
@@ -17,7 +42,7 @@ export function getStatusLabel(status) {
     payment_expired: "Payment Expired",
     confirmed: "Confirmed",
     completed: "Completed",
-    no_show: "No Show",
+    no_show: "No-show",
     cancelled: "Cancelled",
   }[status] || "Pending";
 }

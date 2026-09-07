@@ -1,25 +1,10 @@
-const filters = [
-  ["upcoming", "Upcoming"],
-  ["pending", "Pending"],
-  ["pending_payment", "Pending Payment"],
-  ["payment_expired", "Payment Expired"],
-  ["confirmed", "Confirmed"],
-  ["payment_due", "Payment Due"],
-  ["paid", "Paid"],
-  ["completed", "Completed"],
-  ["no_show", "No Show"],
-  ["cancelled", "Cancelled"],
-  ["past", "Past"],
-  ["all", "All"],
-];
+import { adminBookingFilters } from "./bookingDisplay";
 
 export default function BookingFilters({
   search,
   onSearchChange,
   filter,
   onFilterChange,
-  showCreatePanel,
-  onToggleCreate,
 }) {
   return (
     <section className="rounded-[1.35rem] border border-[#ddd9cf] bg-white/80 p-5 shadow-[0_10px_35px_rgba(45,55,45,0.08)] backdrop-blur-xl sm:p-6">
@@ -39,17 +24,11 @@ export default function BookingFilters({
             </div>
           </label>
 
-          <button
-            type="button"
-            onClick={onToggleCreate}
-            className="w-fit rounded-xl bg-[#365d3c] px-5 py-3 text-[11px] font-semibold uppercase tracking-[0.16em] text-white shadow-sm transition hover:bg-[#2d5133]"
-          >
-            {showCreatePanel ? "Close" : "+ New Booking"}
-          </button>
+
         </div>
 
         <div className="flex gap-1 overflow-x-auto border-b border-[#e4e0d7] pb-0">
-          {filters.map(([value, label]) => (
+          {adminBookingFilters.map(([value, label]) => (
             <button
               key={value}
               type="button"
