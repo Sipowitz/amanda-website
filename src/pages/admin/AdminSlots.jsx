@@ -1,10 +1,10 @@
 import useBusinessClock from "../../hooks/useBusinessClock";
-import { isSlotPast, visibleAdminSlots } from "../../utils/slotTime";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { isSlotPast } from "../../utils/slotTime";
+import { useEffect, useMemo, useState } from "react";
 
 import { format } from "date-fns";
 
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 
 import SlotGenerator from "../../components/admin/SlotGenerator";
 import SlotItem from "../../components/admin/SlotItem";
@@ -19,15 +19,12 @@ import { useToast } from "../../contexts/ToastContext";
 import { useConfirm } from "../../contexts/ConfirmContext";
 
 import {
-  cancelBooking,
-  deletePastAvailabilitySlots,
   deleteSlot,
   generateSlots,
   getAdminSlots,
 } from "../../services/adminService";
 
 export default function AdminSlots() {
-  const cleanupStartedRef = useRef(false);
   const { now, timezone } = useBusinessClock();
 
 
@@ -36,10 +33,6 @@ export default function AdminSlots() {
   const [generating, setGenerating] = useState(false);
 
   const [loadingSlots, setLoadingSlots] = useState(true);
-
-  const [cancellingBookingId, setCancellingBookingId] = useState(null);
-
-  const [viewMode, setViewMode] = useState("all");
 
   const [selectedDate, setSelectedDate] = useState(null);
 
@@ -52,24 +45,15 @@ export default function AdminSlots() {
   const confirm = useConfirm();
 
   useEffect(() => {
-    if (cleanupStartedRef.current) {
-      return;
-    }
-
-    cleanupStartedRef.current = true;
-
-    async function cleanUpAndLoadSlots() {
+    async function loadInitialSlots() {
       try {
         setLoadingSlots(true);
-
-        await deletePastAvailabilitySlots();
-
         const data = await getAdminSlots();
 
         setSlots(data);
 
         if (data.length > 0) {
-          setSelectedDate((data.find((slot) => !isSlotPast(slot)) || data[0]).slot_date);
+          setSelectedDate((data.find((slot) => !isSlotPast(slot, Date.now())) || data[0]).slot_date);
         }
       } catch (error) {
         console.error(error);
@@ -80,7 +64,7 @@ export default function AdminSlots() {
       }
     }
 
-    cleanUpAndLoadSlots();
+    loadInitialSlots();
   }, [toast]);
 
   async function loadSlots() {
@@ -92,7 +76,7 @@ export default function AdminSlots() {
       setSlots(data);
 
       if (data.length > 0 && !selectedDate) {
-        setSelectedDate((data.find((slot) => !isSlotPast(slot)) || data[0]).slot_date);
+        setSelectedDate((data.find((slot) => !isSlotPast(slot, Date.now())) || data[0]).slot_date);
       }
     } catch (error) {
       console.error(error);
@@ -142,36 +126,8 @@ export default function AdminSlots() {
     } catch (error) {
       console.error(error);
 
-      toast.error(error.message || "Failed to delete slot");
-    }
-  }
-
-  async function handleCancelBooking(bookingId) {
-    const confirmed = await confirm({
-      title: "Cancel Booking",
-      message:
-        "Are you sure you want to cancel this booking? The appointment slot will become available again.",
-      confirmText: "Cancel Booking",
-    });
-
-    if (!confirmed) {
-      return;
-    }
-
-    try {
-      setCancellingBookingId(bookingId);
-
-      await cancelBooking(bookingId);
-
+      toast.error("That time is no longer available to delete. The schedule was refreshed.");
       await loadSlots();
-
-      toast.success("Booking cancelled successfully");
-    } catch (error) {
-      console.error(error);
-
-      toast.error(error.message || "Failed to cancel booking");
-    } finally {
-      setCancellingBookingId(null);
     }
   }
 
@@ -201,109 +157,49 @@ export default function AdminSlots() {
     }
   }
 
-  function getActiveBookings(slot) {
-    if (!slot.bookings) {
-      return [];
-    }
-
-    return slot.bookings.filter(
-      (booking) => booking.status !== "cancelled",
-    );
-  }
-
   const filteredSlots = useMemo(() => {
-    let result = visibleAdminSlots(slots, now);
-
-    if (viewMode === "bookings") {
-      result = result.filter((slot) => getActiveBookings(slot).length > 0);
-    }
+    let result = slots.filter((slot) => !isSlotPast(slot, now));
 
     if (selectedDate) {
       result = result.filter((slot) => slot.slot_date === selectedDate);
     }
 
     return result.sort((a, b) => a.slot_time.localeCompare(b.slot_time));
-  }, [slots, viewMode, selectedDate, now]);
+  }, [slots, selectedDate, now]);
 
   const availableDates = useMemo(() => {
-    return [...new Set(visibleAdminSlots(slots, now).map((slot) => slot.slot_date))];
+    return [...new Set(slots.filter((slot) => !isSlotPast(slot, now)).map((slot) => slot.slot_date))];
   }, [slots, now]);
-
-  const selectedDateStats = useMemo(() => {
-    const total = filteredSlots.length;
-
-    const booked = filteredSlots.filter(
-      (slot) => getActiveBookings(slot).length > 0,
-    ).length;
-
-    const available = total - booked;
-
-    return {
-      total,
-      booked,
-      available,
-    };
-  }, [filteredSlots]);
 
   return (
     <div className="flex flex-col gap-10">
       <AdminHeader
         title="Availability"
-        subtitle="Booking Management"
+        subtitle="Appointment times"
         onLogout={handleLogout}
       />
 
-      <p className="text-sm text-[#202620]/60">Appointment timezone: {timezone || "loading…"}</p>
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <p className="text-sm text-[#202620]/60">Timezone: {timezone || "loading…"}</p>
+        <Link to="/admin/bookings" className="rounded-full border border-[#b9c9b7] px-4 py-2 text-xs uppercase tracking-[0.18em] text-[#202620]/70 hover:bg-[#dce8da]">
+          View bookings
+        </Link>
+      </div>
       <SlotGenerator onGenerate={handleGenerateSlots} loading={generating} />
 
       <section className="flex flex-col gap-8">
-        {/* Header */}
-        <div className="flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
+        <div>
           <div>
-            <p className="mb-3 text-sm uppercase tracking-[0.3em] text-[#202620]/45">
-              Schedule Overview
-            </p>
-
-            <h2 className="text-4xl text-[#202620]">Availability</h2>
+            <p className="mb-3 text-sm uppercase tracking-[0.3em] text-[#202620]/45">Upcoming times</p>
+            <h2 className="text-4xl text-[#202620]">Choose a day</h2>
           </div>
-
-          <AdminCard className="p-1">
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setViewMode("all")}
-                className={`rounded-full px-5 py-2 text-xs uppercase tracking-[0.18em] transition ${
-                  viewMode === "all"
-                    ? "bg-[#dce8da] text-[#202620]"
-                    : "text-[#202620]/45 hover:text-[#202620]"
-                }`}
-              >
-                All Slots
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setViewMode("bookings")}
-                className={`rounded-full px-5 py-2 text-xs uppercase tracking-[0.18em] transition ${
-                  viewMode === "bookings"
-                    ? "bg-[#dce8da] text-[#202620]"
-                    : "text-[#202620]/45 hover:text-[#202620]"
-                }`}
-              >
-                Bookings Only
-              </button>
-            </div>
-          </AdminCard>
         </div>
 
         {/* Date Selector */}
         <AdminCard className="p-5">
           <div className="mb-5">
-            <p className="mb-2 text-xs uppercase tracking-[0.24em] text-[#202620]/40">
-              Schedule Navigation
-            </p>
-
-            <h3 className="text-2xl text-[#202620]">Select Day</h3>
+            <p className="mb-2 text-xs uppercase tracking-[0.24em] text-[#202620]/40">Schedule navigation</p>
+            <h3 className="text-2xl text-[#202620]">Select day</h3>
           </div>
 
           <div className="flex gap-3 overflow-x-auto pb-2">
@@ -334,41 +230,6 @@ export default function AdminSlots() {
           </div>
         </AdminCard>
 
-        {/* Day Overview */}
-        {selectedDate && (
-          <div className="grid gap-4 sm:grid-cols-3">
-            <AdminCard className="p-5">
-              <p className="mb-2 text-xs uppercase tracking-[0.24em] text-[#202620]/40">
-                Total
-              </p>
-
-              <h3 className="text-3xl text-[#202620]">
-                {selectedDateStats.total}
-              </h3>
-            </AdminCard>
-
-            <AdminCard className="p-5">
-              <p className="mb-2 text-xs uppercase tracking-[0.24em] text-[#202620]/40">
-                Available
-              </p>
-
-              <h3 className="text-3xl text-[#202620]">
-                {selectedDateStats.available}
-              </h3>
-            </AdminCard>
-
-            <AdminCard className="p-5">
-              <p className="mb-2 text-xs uppercase tracking-[0.24em] text-[#202620]/40">
-                Booked
-              </p>
-
-              <h3 className="text-3xl text-[#202620]">
-                {selectedDateStats.booked}
-              </h3>
-            </AdminCard>
-          </div>
-        )}
-
         {/* Schedule */}
         {loadingSlots ? (
           <AdminCard className="p-10">
@@ -376,7 +237,7 @@ export default function AdminSlots() {
           </AdminCard>
         ) : filteredSlots.length === 0 ? (
           <AdminCard className="p-10">
-            <p className="text-[#202620]/60">No slots found for this day.</p>
+            <p className="text-[#202620]/60">No availability has been added for this date.</p>
           </AdminCard>
         ) : (
           <div className="flex flex-col gap-5">
@@ -392,19 +253,15 @@ export default function AdminSlots() {
 
             <div className="flex flex-col gap-4">
               {filteredSlots.map((slot) => {
-                const activeBookings = getActiveBookings(slot);
-
                 return (
                   <SlotItem
                     key={slot.id}
                     now={now}
                     slot={{
                       ...slot,
-                      bookings: activeBookings,
+                      bookings: slot.bookings || [],
                     }}
                     onDelete={handleDeleteSlot}
-                    onDeleteBooking={handleCancelBooking}
-                    cancellingBookingId={cancellingBookingId}
                   />
                 );
               })}

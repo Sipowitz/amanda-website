@@ -20,6 +20,7 @@ export default function SlotGenerator({ onGenerate, loading }) {
     endTime: "17:00",
     interval: "30",
   });
+  const [repeat, setRepeat] = useState(false);
 
   const [selectedDays, setSelectedDays] = useState([1, 2, 3, 4, 5]);
 
@@ -45,20 +46,23 @@ export default function SlotGenerator({ onGenerate, loading }) {
   function handleSubmit(event) {
     event.preventDefault();
 
+    const start = new Date(`${formData.startDate}T12:00:00`);
+
     onGenerate({
       ...formData,
-      selectedDays,
+      endDate: repeat ? formData.endDate : formData.startDate,
+      selectedDays: repeat ? selectedDays : [start.getDay()],
     });
   }
 
   return (
     <AdminCard className="p-8">
       <div className="mb-8">
-        <p className="mb-3 text-sm uppercase tracking-[0.3em] text-[#202620]/45">
-          Bulk Creation
-        </p>
+          <p className="mb-3 text-sm uppercase tracking-[0.3em] text-[#202620]/45">
+          Add availability
+          </p>
 
-        <h2 className="text-4xl text-[#202620]">Generate Slots</h2>
+        <h2 className="text-4xl text-[#202620]">Create appointment times</h2>
       </div>
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-8">
@@ -66,7 +70,7 @@ export default function SlotGenerator({ onGenerate, loading }) {
         <div className="grid gap-5 md:grid-cols-2">
           <div className="flex flex-col gap-3">
             <label className="text-sm uppercase tracking-[0.18em] text-[#202620]/55">
-              Start Date
+              Date
             </label>
 
             <input
@@ -79,49 +83,27 @@ export default function SlotGenerator({ onGenerate, loading }) {
             />
           </div>
 
-          <div className="flex flex-col gap-3">
-            <label className="text-sm uppercase tracking-[0.18em] text-[#202620]/55">
-              End Date
+          <div className="flex items-end">
+            <label className="flex items-center gap-3 text-sm text-[#202620]/65">
+              <input type="checkbox" checked={repeat} onChange={(event) => setRepeat(event.target.checked)} />
+              Repeat across dates
             </label>
-
-            <input
-              type="date"
-              name="endDate"
-              required
-              value={formData.endDate}
-              onChange={handleChange}
-              className="rounded-2xl border border-[#d9dfd6] bg-white px-5 py-4 text-[#202620] outline-none backdrop-blur-xl transition focus:border-[#6f8b70] focus:bg-white/[0.07]"
-            />
           </div>
         </div>
 
-        {/* Days */}
-        <div className="flex flex-col gap-4">
-          <label className="text-sm uppercase tracking-[0.18em] text-[#202620]/55">
-            Available Days
-          </label>
-
-          <div className="flex flex-wrap gap-3">
-            {days.map((day) => {
+        {repeat && <div className="flex flex-col gap-5 rounded-2xl border border-[#d9dfd6] bg-[#f7f8f5] p-5">
+          <div className="flex flex-col gap-3">
+            <label className="text-sm uppercase tracking-[0.18em] text-[#202620]/55">End date</label>
+            <input type="date" name="endDate" required value={formData.endDate} onChange={handleChange} className="rounded-2xl border border-[#d9dfd6] bg-white px-5 py-4 text-[#202620] outline-none" />
+          </div>
+          <div className="flex flex-col gap-4">
+            <label className="text-sm uppercase tracking-[0.18em] text-[#202620]/55">Weekdays</label>
+            <div className="flex flex-wrap gap-3">{days.map((day) => {
               const active = selectedDays.includes(day.value);
-
-              return (
-                <button
-                  key={day.value}
-                  type="button"
-                  onClick={() => toggleDay(day.value)}
-                  className={`rounded-full border px-5 py-3 text-sm uppercase tracking-[0.18em] backdrop-blur-xl transition ${
-                    active
-                      ? "border-[#789478] bg-[#f1e8ca]/14 text-[#202620]"
-                      : "border-[#d9dfd6] bg-[#f6f8f4] text-[#202620]/55 hover:bg-white/[0.06] hover:text-[#202620]"
-                  }`}
-                >
-                  {day.label}
-                </button>
-              );
-            })}
+              return <button key={day.value} type="button" onClick={() => toggleDay(day.value)} className={`rounded-full border px-4 py-2 text-xs uppercase tracking-[0.18em] ${active ? "border-[#789478] bg-[#dce8da] text-[#202620]" : "border-[#d9dfd6] text-[#202620]/55"}`}>{day.label}</button>;
+            })}</div>
           </div>
-        </div>
+        </div>}
 
         {/* Times */}
         <div className="grid gap-5 md:grid-cols-3">
@@ -180,7 +162,7 @@ export default function SlotGenerator({ onGenerate, loading }) {
           disabled={loading}
           className="rounded-2xl border border-[#b9c9b7] bg-[#e5eee3] px-8 py-5 text-[#202620] backdrop-blur-xl transition duration-300 hover:bg-[#f1e8ca]/16 disabled:opacity-50"
         >
-          {loading ? "Generating..." : "Generate Booking Slots"}
+          {loading ? "Adding…" : "Add availability"}
         </button>
       </form>
     </AdminCard>

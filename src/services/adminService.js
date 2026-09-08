@@ -71,32 +71,14 @@ export async function getAdminSlots() {
     .from("availability_slots")
     .select(
       `
-      *,
+      id,
+      slot_date,
+      slot_time,
+      starts_at,
+      is_available,
       bookings (
         id,
-        slot_id,
-        service_id,
-        service_name_snapshot,
-        service_booking_mode_snapshot,
-        service_duration_minutes_snapshot,
-        service_price_amount_snapshot,
-        service_currency_snapshot,
-        customer_name,
-        customer_email,
-        customer_phone,
-        customer_message,
-        status,
-        payment_status,
-        amount_due,
-        amount_paid,
-        paid_at,
-        payment_method,
-        payment_reference,
-        confirmed_at,
-        cancelled_at,
-        completed_at,
-        created_at,
-        updated_at
+        status
       )
     `,
     )
