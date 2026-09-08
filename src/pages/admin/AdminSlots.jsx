@@ -181,7 +181,7 @@ export default function AdminSlots() {
 
       <div className="flex flex-wrap items-center justify-between gap-4">
         <p className="text-sm text-[#202620]/60">Timezone: {timezone || "loading…"}</p>
-        <Link to="/admin/bookings" className="rounded-full border border-[#b9c9b7] px-4 py-2 text-xs uppercase tracking-[0.18em] text-[#202620]/70 hover:bg-[#dce8da]">
+        <Link to="/admin/bookings" className="admin-button-secondary min-h-10 px-4 py-2 text-xs uppercase tracking-[0.14em]">
           View bookings
         </Link>
       </div>
@@ -191,7 +191,7 @@ export default function AdminSlots() {
         <div>
           <div>
             <p className="mb-3 text-sm uppercase tracking-[0.3em] text-[#202620]/45">Upcoming times</p>
-            <h2 className="text-4xl text-[#202620]">Choose a day</h2>
+            <h2 className="text-3xl text-[#202620]">Choose a day</h2>
           </div>
         </div>
 
@@ -246,7 +246,7 @@ export default function AdminSlots() {
                 Daily Schedule
               </p>
 
-              <h2 className="text-4xl text-[#202620]">
+              <h2 className="text-3xl text-[#202620]">
                 {format(new Date(`${selectedDate}T12:00:00`), "EEEE, MMMM d")}
               </h2>
             </div>

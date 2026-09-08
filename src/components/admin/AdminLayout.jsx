@@ -51,7 +51,7 @@ export default function AdminLayout() {
           )}
         </AnimatePresence>
 
-        <main className="min-w-0 bg-[radial-gradient(circle_at_top_right,rgba(164,187,164,0.14),transparent_28%)] px-5 py-7 sm:px-7 lg:px-10 lg:py-10 xl:px-14">
+        <main className="min-w-0 bg-[#f7f6f1] px-5 py-7 sm:px-7 lg:px-10 lg:py-9 xl:px-14">
           <Outlet />
         </main>
       </div>

@@ -16,7 +16,7 @@ export default function SlotItem({ slot, onDelete }) {
         opacity: 1,
         y: 0,
       }}
-      className="overflow-hidden rounded-[1.8rem] border border-white/8 bg-[#f7f8f5] p-5 transition-all duration-300"
+      className="overflow-hidden rounded-xl border border-[#dfe4dc] bg-[#fffefa] p-4 transition-all duration-200 hover:border-[#c7d3c6] sm:p-5"
     >
       <div className="flex items-center justify-between gap-5">
         <div className="flex min-w-0 items-center gap-3">
@@ -28,7 +28,7 @@ export default function SlotItem({ slot, onDelete }) {
           <button
             type="button"
             onClick={() => onDelete(slot.id)}
-            className="rounded-full border border-[#d9dfd6] bg-[#f7f8f5] px-4 py-2 text-xs uppercase tracking-[0.18em] text-[#202620]/55 transition hover:border-red-300/40 hover:text-red-700"
+            className="admin-button-danger"
           >
             Delete
           </button>

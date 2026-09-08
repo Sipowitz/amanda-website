@@ -62,7 +62,7 @@ export default function SlotGenerator({ onGenerate, loading }) {
           Add availability
           </p>
 
-        <h2 className="text-4xl text-[#202620]">Create appointment times</h2>
+        <h2 className="text-3xl text-[#202620]">Create appointment times</h2>
       </div>
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-8">
@@ -79,7 +79,7 @@ export default function SlotGenerator({ onGenerate, loading }) {
               required
               value={formData.startDate}
               onChange={handleChange}
-              className="rounded-2xl border border-[#d9dfd6] bg-white px-5 py-4 text-[#202620] outline-none backdrop-blur-xl transition focus:border-[#6f8b70] focus:bg-white/[0.07]"
+              className="admin-input w-full"
             />
           </div>
 
@@ -94,13 +94,13 @@ export default function SlotGenerator({ onGenerate, loading }) {
         {repeat && <div className="flex flex-col gap-5 rounded-2xl border border-[#d9dfd6] bg-[#f7f8f5] p-5">
           <div className="flex flex-col gap-3">
             <label className="text-sm uppercase tracking-[0.18em] text-[#202620]/55">End date</label>
-            <input type="date" name="endDate" required value={formData.endDate} onChange={handleChange} className="rounded-2xl border border-[#d9dfd6] bg-white px-5 py-4 text-[#202620] outline-none" />
+            <input type="date" name="endDate" required value={formData.endDate} onChange={handleChange} className="admin-input w-full" />
           </div>
           <div className="flex flex-col gap-4">
             <label className="text-sm uppercase tracking-[0.18em] text-[#202620]/55">Weekdays</label>
             <div className="flex flex-wrap gap-3">{days.map((day) => {
               const active = selectedDays.includes(day.value);
-              return <button key={day.value} type="button" onClick={() => toggleDay(day.value)} className={`rounded-full border px-4 py-2 text-xs uppercase tracking-[0.18em] ${active ? "border-[#789478] bg-[#dce8da] text-[#202620]" : "border-[#d9dfd6] text-[#202620]/55"}`}>{day.label}</button>;
+              return <button key={day.value} type="button" onClick={() => toggleDay(day.value)} className={`rounded-lg border px-4 py-2 text-xs font-semibold uppercase tracking-[0.14em] transition focus:outline-none focus:ring-4 focus:ring-[#55735b]/15 ${active ? "border-[#789478] bg-[#dce8da] text-[#202620]" : "border-[#d9dfd6] bg-white text-[#202620]/55 hover:border-[#b9c9b7]"}`}>{day.label}</button>;
             })}</div>
           </div>
         </div>}
@@ -117,7 +117,7 @@ export default function SlotGenerator({ onGenerate, loading }) {
               name="startTime"
               value={formData.startTime}
               onChange={handleChange}
-              className="rounded-2xl border border-[#d9dfd6] bg-white px-5 py-4 text-[#202620] outline-none backdrop-blur-xl transition focus:border-[#6f8b70] focus:bg-white/[0.07]"
+              className="admin-input w-full"
             />
           </div>
 
@@ -131,7 +131,7 @@ export default function SlotGenerator({ onGenerate, loading }) {
               name="endTime"
               value={formData.endTime}
               onChange={handleChange}
-              className="rounded-2xl border border-[#d9dfd6] bg-white px-5 py-4 text-[#202620] outline-none backdrop-blur-xl transition focus:border-[#6f8b70] focus:bg-white/[0.07]"
+              className="admin-input w-full"
             />
           </div>
 
@@ -144,7 +144,7 @@ export default function SlotGenerator({ onGenerate, loading }) {
               name="interval"
               value={formData.interval}
               onChange={handleChange}
-              className="rounded-2xl border border-[#d9dfd6] bg-white px-5 py-4 text-[#202620] outline-none backdrop-blur-xl transition focus:border-[#6f8b70] focus:bg-white/[0.07]"
+              className="admin-select w-full"
             >
               <option value="15">15 mins</option>
 
@@ -160,7 +160,7 @@ export default function SlotGenerator({ onGenerate, loading }) {
         <button
           type="submit"
           disabled={loading}
-          className="rounded-2xl border border-[#b9c9b7] bg-[#e5eee3] px-8 py-5 text-[#202620] backdrop-blur-xl transition duration-300 hover:bg-[#f1e8ca]/16 disabled:opacity-50"
+          className="admin-button w-fit px-7 py-3.5"
         >
           {loading ? "Adding…" : "Add availability"}
         </button>

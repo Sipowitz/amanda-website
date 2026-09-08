@@ -184,7 +184,7 @@ export default function AdminBookings() {
               Booking Management
             </p>
 
-            <h1 className="font-serif text-5xl font-normal leading-tight text-[#1e2821] sm:text-6xl">
+            <h1 className="font-serif text-3xl font-normal leading-tight text-[#1e2821] sm:text-4xl">
               Bookings
             </h1>
 
@@ -210,11 +210,11 @@ export default function AdminBookings() {
       />
 
       {loading ? (
-        <div className="rounded-[1.1rem] border border-[#dfdbd2] bg-white/85 p-8 shadow-[0_8px_28px_rgba(45,55,45,0.06)]">
+        <div className="rounded-2xl border border-[#dfdbd2] bg-[#fffefa] p-8 shadow-[0_6px_22px_rgba(45,55,45,0.055)]">
           <p className="text-sm text-[#687169]">Loading bookings...</p>
         </div>
       ) : filteredBookings.length === 0 ? (
-        <div className="rounded-[1.1rem] border border-[#dfdbd2] bg-white/85 p-8 shadow-[0_8px_28px_rgba(45,55,45,0.06)]">
+        <div className="rounded-2xl border border-[#dfdbd2] bg-[#fffefa] p-8 shadow-[0_6px_22px_rgba(45,55,45,0.055)]">
           <p className="text-sm text-[#687169]">No bookings found.</p>
         </div>
       ) : (

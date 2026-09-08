@@ -70,7 +70,7 @@ export default function BookingCard({
 
   return (
     <article
-      className={`relative overflow-hidden rounded-[1.1rem] border border-[#dfdbd2] bg-white/90 shadow-[0_8px_28px_rgba(45,55,45,0.07)] before:absolute before:inset-y-0 before:left-0 before:w-[3px] ${accentClass} ${
+      className={`relative overflow-hidden rounded-2xl border border-[#dfdbd2] bg-[#fffefa] shadow-[0_6px_22px_rgba(45,55,45,0.055)] before:absolute before:inset-y-0 before:left-0 before:w-[3px] ${accentClass} ${
         isCancelled ? "opacity-70" : ""
       }`}
     >
@@ -78,7 +78,7 @@ export default function BookingCard({
         type="button"
         onClick={() => setExpanded((value) => !value)}
         aria-expanded={expanded}
-        className={`grid w-full gap-4 px-5 py-5 text-left transition hover:bg-[#faf8f2] ${isDirectPayment ? "md:grid-cols-[190px_minmax(0,1fr)_170px_130px]" : "md:grid-cols-[190px_minmax(0,1.3fr)_170px_150px_130px]"} md:items-center md:px-6`}
+          className={`grid w-full gap-4 px-5 py-5 text-left transition hover:bg-[#faf8f2] focus:outline-none focus-visible:ring-4 focus-visible:ring-inset focus-visible:ring-[#55735b]/15 ${isDirectPayment ? "md:grid-cols-[190px_minmax(0,1fr)_170px_130px]" : "md:grid-cols-[190px_minmax(0,1.3fr)_170px_150px_130px]"} md:items-center md:px-6`}
       >
         <div className="border-[#e4e0d7] md:border-r md:pr-5">
           <p className="text-sm font-medium text-[#525d54]">
