@@ -1,4 +1,5 @@
 export const adminBookingFilters = [
+  ["all", "All"],
   ["confirmed", "Confirmed"],
   ["completed", "Completed"],
   ["no_show", "No-show"],

@@ -164,7 +164,7 @@ export default function AdminBookings() {
 
   const filteredBookings = useMemo(() => {
     return bookings
-      .filter((booking) => isNormalAdminBooking(booking) && booking.status === filter && matchesBookingSearch(booking, search))
+      .filter((booking) => isNormalAdminBooking(booking) && (filter === "all" || booking.status === filter) && matchesBookingSearch(booking, search))
       .sort((a, b) => {
         if (!a.availability_slots && !b.availability_slots) {
           return new Date(b.created_at) - new Date(a.created_at);

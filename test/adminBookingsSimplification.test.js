@@ -78,17 +78,36 @@ async function expand(root, name) {
   return card;
 }
 
-test('four filters, Confirmed default, overdue and untimed confirmed work visible', async (t) => {
+test('All plus four lifecycle filters, with Confirmed as the default, work correctly', async (t) => {
   const root = await mount(t, [booking('Overdue'), booking('Memo', {
     service_name_snapshot: 'Voice Memo Reading', service_booking_mode_snapshot: 'untimed', availability_slots: null,
   }), booking('Finished', {status: 'completed'})]);
-  assert.deepEqual(root.findAllByType('button').map(text).filter((s) => ['Confirmed', 'Completed', 'No-show', 'Cancelled'].includes(s)), ['Confirmed', 'Completed', 'No-show', 'Cancelled']);
+  assert.deepEqual(root.findAllByType('button').map(text).filter((s) => ['All', 'Confirmed', 'Completed', 'No-show', 'Cancelled'].includes(s)), ['All', 'Confirmed', 'Completed', 'No-show', 'Cancelled']);
   assert.match(text(root), /Overdue/);
   assert.match(text(root), /Memo/);
   assert.doesNotMatch(text(root), /Finished|New Booking|Payment Due|Pending Payment|Upcoming/);
+  await act(async () => button(root, 'All').props.onClick());
+  assert.match(text(root), /Overdue|Memo|Finished/);
   await act(async () => button(root, 'Completed').props.onClick());
   assert.match(text(root), /Finished/);
   assert.doesNotMatch(text(root), /Overdue/);
+});
+
+test('All keeps search and hides unfinished direct-payment records', async (t) => {
+  const root = await mount(t, [
+    booking('Confirmed Amanda'),
+    booking('Completed Amanda', { status: 'completed' }),
+    booking('No Show Amanda', { status: 'no_show' }),
+    booking('Cancelled Amanda', { status: 'cancelled' }),
+    booking('Unfinished Checkout', { status: 'pending_payment', payment_attempt_status: 'reserved', payment_status: 'unpaid' }),
+  ]);
+  await act(async () => button(root, 'All').props.onClick());
+  assert.match(text(root), /Confirmed Amanda|Completed Amanda|No Show Amanda|Cancelled Amanda/);
+  assert.doesNotMatch(text(root), /Unfinished Checkout/);
+  const search = root.findAllByType('input').find((input) => input.props.type === 'search');
+  await act(async () => search.props.onChange({ target: { value: 'No Show' } }));
+  assert.match(text(root), /No Show Amanda/);
+  assert.doesNotMatch(text(root), /Confirmed Amanda|Completed Amanda|Cancelled Amanda/);
 });
 
 test('obsolete navigation filters normalize to Confirmed and unfinished direct bookings stay hidden', async (t) => {
