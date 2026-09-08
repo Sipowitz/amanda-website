@@ -8,10 +8,10 @@ export default function MainLayout() {
       {/* Atmospheric Background */}
       <div className="pointer-events-none absolute inset-0 [transform:translateZ(0)] [contain:paint]">
         {/* One continuous, deliberately broad atmosphere across the public canvas. */}
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_125%_85%_at_50%_-8%,rgba(255,255,255,0.12),transparent_62%),radial-gradient(ellipse_110%_120%_at_104%_106%,rgba(67,94,69,0.20),transparent_68%),radial-gradient(ellipse_90%_100%_at_-8%_70%,rgba(255,255,255,0.035),transparent_70%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_125%_85%_at_50%_-8%,rgba(255,255,255,0.18),transparent_62%),radial-gradient(ellipse_110%_120%_at_104%_106%,rgba(67,94,69,0.32),transparent_68%),radial-gradient(ellipse_90%_100%_at_-8%_70%,rgba(255,255,255,0.06),transparent_70%)]" />
 
         {/* A low-contrast edge falloff keeps the sage base matte rather than glossy. */}
-        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-[#4f7053]/[0.08]" />
+        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-[#4f7053]/[0.14]" />
       </div>
 
       {/* Grain */}
