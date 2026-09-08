@@ -77,6 +77,7 @@ export async function mount(t, { mode = "timed", state = "failed", navigation = 
     paid: authoritative === "completed", canRestart: ["failed", "expired"].includes(authoritative),
   });
   const listeners = new Map();
+  const intervals = [];
   globalThis.window = {
     addEventListener: (event, callback) => { if (!listeners.has(event)) listeners.set(event, new Set()); listeners.get(event).add(callback); },
     removeEventListener: (event, callback) => listeners.get(event)?.delete(callback),
@@ -93,7 +94,8 @@ export async function mount(t, { mode = "timed", state = "failed", navigation = 
       removeItem: (k) => { calls.push("clear"); storage.delete(k); },
     },
     setTimeout: globalThis.setTimeout, clearTimeout: globalThis.clearTimeout,
-    setInterval: globalThis.setInterval, clearInterval: globalThis.clearInterval,
+    setInterval: (callback) => { intervals.push(callback); return intervals.length - 1; },
+    clearInterval: (id) => { intervals[id] = null; },
     Square: square || { payments: () => ({ card: async () => ({ attach: async () => {}, destroy: async () => {}, tokenize: async () => ({ status: "OK", token: "source" }) }) }) },
   };
   globalThis.checkoutHarness = {
@@ -128,5 +130,6 @@ export async function mount(t, { mode = "timed", state = "failed", navigation = 
     }
   };
   const submit = () => act(async () => root.root.findByType("form").props.onSubmit({ preventDefault() {} }));
-  return { root, storage, persistent, calls, key, button, click, waitFor, submit, dispatch: (event) => { for (const cb of listeners.get(event) || []) cb(); }, setState: (value) => { authoritative = value; } };
+  const tick = async () => act(async () => { for (const callback of intervals) if (callback) callback(); await delay(0); });
+  return { root, storage, persistent, calls, key, button, click, waitFor, submit, tick, dispatch: (event) => { for (const cb of listeners.get(event) || []) cb(); }, setState: (value) => { authoritative = value; } };
 }

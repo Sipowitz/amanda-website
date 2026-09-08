@@ -25,7 +25,7 @@ export async function getServiceBySlug(slug) {
 export async function getAvailableSlots() {
   const { data, error } = await supabase
     .from("availability_slots")
-    .select("*, starts_at:slot_starts_at")
+    .select("*")
     .eq("is_available", true)
     .order("slot_date", {
       ascending: true,

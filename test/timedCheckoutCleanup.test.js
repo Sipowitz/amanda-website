@@ -65,6 +65,58 @@ test("missing marker uses fresh UI and no automatic cleanup", async (t) => {
   assert.equal(run.calls.includes("cleanup"), false);
 });
 
+test("malformed and obsolete markers are removed without blocking availability", async (t) => {
+  const local = storage();
+  local.setItem("amanda:timed-cleanup:bad", "not-json");
+  local.setItem("amanda:timed-cleanup:obsolete", JSON.stringify({ bookingId: "not-a-uuid" }));
+  assert.deepEqual(readCleanupMarkers(local), []);
+  const run = await mount(t, { emptySession: true, persistent: local.values });
+  assert.ok(run.button("Select date"));
+  assert.equal(run.calls.includes("cleanup"), false);
+});
+
+test("valid marker with an unambiguous missing cleanup authority is self-healed", async (t) => {
+  const local = storage(); storeCleanupMarker(local, marker);
+  assert.equal(await resolveOutstandingTimedCleanups({ storage: local, cleanup: async () => ({ stale: true }) }), true);
+  assert.equal(local.length, 0);
+  const run = await mount(t, { emptySession: true, persistent: local.values });
+  assert.ok(run.button("Select date"));
+});
+
+test("active lease remains blocked and automatic retry resolves after lease expiry", async (t) => {
+  const local = storage(); storeCleanupMarker(local, marker);
+  let attempts = 0;
+  const run = await mount(t, { emptySession: true, persistent: local.values, transport: {
+    cleanup: async () => { attempts++; return attempts === 1 ? { abandoned: false } : { stale: true }; },
+  } });
+  assert.equal(run.button("Select date"), undefined);
+  await run.tick();
+  await run.waitFor(() => run.button("Select date"));
+  assert.ok(attempts >= 2);
+  assert.equal(run.persistent.size, 0);
+});
+
+test("generic cleanup failure retains marker and invalid capability is not treated as stale", async (t) => {
+  const local = storage(); storeCleanupMarker(local, marker);
+  assert.equal(await resolveOutstandingTimedCleanups({ storage: local, cleanup: async () => { throw new Error("network"); } }), false);
+  assert.equal(local.length, 1);
+  assert.equal(await resolveOutstandingTimedCleanups({ storage: local, cleanup: async () => ({ abandoned: false }) }), false);
+  assert.equal(local.length, 1);
+});
+
+test("multiple markers remove only the stale marker while active marker remains protected", async () => {
+  const local = storage();
+  const second = { ...marker, bookingId: "123e4567-e89b-42d3-a456-426614174002", attemptId: "123e4567-e89b-42d3-a456-426614174003" };
+  storeCleanupMarker(local, marker); storeCleanupMarker(local, second);
+  let calls = 0;
+  assert.equal(await resolveOutstandingTimedCleanups({ storage: local, cleanup: async (candidate) => {
+    calls++; return candidate.bookingId === marker.bookingId ? { stale: true } : { abandoned: false };
+  } }), false);
+  assert.equal(calls, 2);
+  assert.equal(local.length, 1);
+  assert.deepEqual(readCleanupMarkers(local), [second]);
+});
+
 test("Voice Memo does not read/clean or renew timed capabilities", async (t) => {
   const run = await mount(t, { mode: "untimed", state: "reserved", persistent: persistent(), transport: {
     lease: async () => { throw new Error("Untimed lease called"); },

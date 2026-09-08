@@ -53,6 +53,7 @@ test("business-time availability boundary in PostgreSQL", { timeout: 240000 }, a
   const timed = await read("20260904000000_timed_direct_payment_lifecycle.sql");
   const pastSlots = await read("20260818000000_delete_past_availability_slots.sql");
   const permissions = await read("20260906003000_protect_admin_booking_slot_mutations.sql");
+  const materializedStarts = await read("20260908100000_materialize_availability_slot_starts_at.sql");
   const adminId = randomUUID();
   await query(`
     create schema auth; create schema extensions; create extension pgcrypto with schema extensions;
@@ -125,6 +126,7 @@ test("business-time availability boundary in PostgreSQL", { timeout: 240000 }, a
     create table public.email_settings (id boolean primary key, timezone text, secret_setting text);
     insert into public.email_settings values (true, 'America/Chicago', 'must-not-be-public');
     ${await read("20260908000000_business_timezone_slot_expiry.sql")}
+    ${materializedStarts}
   `);
   const asRole = (role, sql, user = null) => query(`set role ${role};
     set request.jwt.claims = '${JSON.stringify({ role, ...(user ? { sub: user } : {}) })}'; ${sql}`);
@@ -147,7 +149,7 @@ test("business-time availability boundary in PostgreSQL", { timeout: 240000 }, a
     await assert.rejects(asRole('anon', "select private.slot_start_instant('2026-09-07','13:00');"), /permission denied/);
     assert.equal(await query("select pg_get_function_result('public.get_business_timezone()'::regprocedure);"), 'text');
     for (const value of ["null", "''", "'not/a-zone'", "'EST'", "'posix/America/Chicago'"]) {
-      await query(`update public.email_settings set timezone=${value};`);
+      await assert.rejects(query(`update public.email_settings set timezone=${value};`), /Invalid business time zone/);
       assert.equal(await asRole('anon', 'select public.get_business_timezone();'), 'America/Chicago');
     }
     await query("delete from public.email_settings;");
@@ -177,6 +179,62 @@ test("business-time availability boundary in PostgreSQL", { timeout: 240000 }, a
       ['2026-07-16','00:00','2026-07-16T05:00:00Z','t'],
     ]) assert.equal(await query(`select private.slot_is_future('${date}','${time}','${now}');`), expected);
     assert.equal(await query("select private.slot_is_future('2026-07-15','invalid','2026-07-15T18:00:00Z');"), 'f');
+  });
+
+  await t.test('materialized instants are derived, maintained, and recomputed atomically', async () => {
+    const id = randomUUID();
+    await query(`insert into public.availability_slots(id,slot_date,slot_time,is_available,starts_at)
+      values ('${id}','2026-07-15','13:00',true,'2000-01-01T00:00:00Z');`);
+    assert.equal(await query(`select starts_at = '2026-07-15T18:00:00Z'::timestamptz
+      from public.availability_slots where id='${id}';`), 't');
+
+    const beforeAvailabilityUpdate = await query(`select starts_at from public.availability_slots where id='${id}';`);
+    await query(`update public.availability_slots set is_available=false where id='${id}';`);
+    assert.equal(await query(`select starts_at from public.availability_slots where id='${id}';`), beforeAvailabilityUpdate);
+
+    await query(`update public.availability_slots
+      set slot_date='2026-01-15', slot_time='13:00', starts_at='2000-01-01T00:00:00Z'
+      where id='${id}';`);
+    assert.equal(await query(`select starts_at = '2026-01-15T19:00:00Z'::timestamptz
+      from public.availability_slots where id='${id}';`), 't');
+
+    await query("update public.email_settings set timezone='America/New_York';");
+    assert.equal(await query(`select starts_at = '2026-01-15T18:00:00Z'::timestamptz
+      from public.availability_slots where id='${id}';`), 't');
+    const beforeFailure = await query(`select starts_at from public.availability_slots where id='${id}';`);
+    await assert.rejects(query("update public.email_settings set timezone='not/a-zone';"), /Invalid business time zone/);
+    assert.equal(await query(`select starts_at from public.availability_slots where id='${id}';`), beforeFailure);
+    await query("update public.email_settings set timezone='America/Chicago';");
+  });
+
+  await t.test('physical RLS path scales to a production-sized availability set', async () => {
+    // Trigger behavior is covered above. Seed a large, already-derived fixture
+    // directly so this test measures the public read path, not 1,000 serial
+    // timezone-setting lookups during test setup.
+    await query(`alter table public.availability_slots
+        disable trigger availability_slots_maintain_starts_at;
+      insert into public.availability_slots(slot_date,slot_time,is_available,starts_at)
+      select date '2030-01-01' + (value / 8)::integer,
+        lpad((8 + (value % 8))::text, 2, '0') || ':00', true,
+        ((date '2030-01-01' + (value / 8)::integer)
+          + (lpad((8 + (value % 8))::text, 2, '0') || ':00')::time)
+          at time zone 'America/Chicago'
+      from generate_series(0, 999) as value
+      on conflict (slot_date,slot_time) do nothing;
+      alter table public.availability_slots
+        enable trigger availability_slots_maintain_starts_at;`);
+    const returned = Number(await asRole('anon', `select count(*)
+      from (select * from public.availability_slots
+        where is_available is true order by slot_date,slot_time) slots;`));
+    assert.ok(returned >= 1000);
+    assert.equal(await query(`select count(*)
+      from public.availability_slots where starts_at is null;`), '0');
+    assert.equal(await query(`select pg_get_functiondef(
+      'public.slot_starts_at(public.availability_slots)'::regprocedure
+    ) !~ 'pg_timezone_names';`), 't');
+    assert.equal(await query(`select qual !~ 'slot_starts_at|slot_start_instant'
+      from pg_policies where schemaname='public' and tablename='availability_slots'
+        and policyname='Public can view future available slots';`), 't');
   });
 
   await t.test('RLS and both public creation paths reject elapsed starts and allow later starts', async () => {

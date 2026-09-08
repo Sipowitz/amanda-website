@@ -46,3 +46,10 @@ test("cleanup capability cannot authorize status, submit, initialize or lease", 
   assert.equal((await request({ ...body, paymentAccessToken: "a".repeat(64) })).status, 400);
   assert.equal((await request(body, "https://unrelated.test")).status, 403);
 });
+
+test("cleanup endpoint exposes only the safe stale-marker acknowledgement", async () => {
+  globalThis.edgeRpc = async () => ({ data: null, error: { code: "P0002", message: "Checkout cleanup authority is unavailable." } });
+  const response = await request(body);
+  assert.equal(response.status, 200);
+  assert.deepEqual(await response.json(), { stale: true });
+});

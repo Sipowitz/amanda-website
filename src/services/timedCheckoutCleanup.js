@@ -7,13 +7,25 @@ const secret = /^[0-9a-f]{64}$/i;
 export function readCleanupMarkers(storage) {
   if (!storage) return [];
   const markers = [];
-  for (let i = 0; i < storage.length; i++) {
-    const key = storage.key(i);
+  // Snapshot keys first: removing a malformed entry must not shift the
+  // Storage index and accidentally skip the next marker.
+  const keys = [];
+  for (let i = 0; i < storage.length; i++) keys.push(storage.key(i));
+  for (const key of keys) {
     if (!key?.startsWith(prefix)) continue;
-    const marker = JSON.parse(storage.getItem(key));
+    let marker;
+    try { marker = JSON.parse(storage.getItem(key)); } catch {
+      storage.removeItem(key);
+      continue;
+    }
     if (!uuid.test(marker?.bookingId || "") || !uuid.test(marker?.attemptId || "") ||
       !secret.test(marker?.cleanupCapability || "") || !Number.isFinite(Date.parse(marker?.expiresAt)) ||
-      key !== prefix + marker.bookingId) throw new Error("Previous checkout cleanup is unavailable.");
+      key !== prefix + marker.bookingId) {
+      // This marker cannot authorize any server operation. Remove only the
+      // malformed client record; never infer safety from a valid marker's age.
+      storage.removeItem(key);
+      continue;
+    }
     markers.push(marker);
   }
   return markers;
@@ -53,7 +65,12 @@ export async function resolveOutstandingTimedCleanups({ storage, cleanup, active
     for (const marker of readCleanupMarkers(storage)) {
       if (!active()) return false;
       const result = await cleanup(marker);
-      if (!active() || result?.abandoned !== true) return false;
+      if (!active()) return false;
+      if (result?.stale === true) {
+        clearCleanupMarker(storage, marker.bookingId, marker.attemptId);
+        continue;
+      }
+      if (result?.abandoned !== true) return false;
       // A different tab may have replaced this marker while the request ran.
       const current = readCleanupMarkers(storage).find((item) => item.bookingId === marker.bookingId);
       if (current && (current.attemptId !== marker.attemptId || current.cleanupCapability !== marker.cleanupCapability)) return false;

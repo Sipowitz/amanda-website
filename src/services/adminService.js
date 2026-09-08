@@ -72,7 +72,6 @@ export async function getAdminSlots() {
     .select(
       `
       *,
-      starts_at:slot_starts_at,
       bookings (
         id,
         slot_id,
@@ -136,7 +135,7 @@ export async function getAdminBookings() {
           slot_date,
           slot_time,
           is_available,
-          starts_at:slot_starts_at
+          starts_at
         )
       `).order("created_at", {
       ascending: false,
@@ -166,7 +165,7 @@ export async function getAdminBookings() {
 export async function getAvailableAdminSlots() {
   const { data, error } = await supabase
     .from("availability_slots")
-    .select("*, starts_at:slot_starts_at")
+    .select("*")
     .eq("is_available", true)
     .order("slot_date", {
       ascending: true,

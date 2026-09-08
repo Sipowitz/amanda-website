@@ -75,6 +75,7 @@ export default function Booking({ expectedMode, modal = false }) {
   const [loading, setLoading] = useState(true);
   const [cleanupBlocked, setCleanupBlocked] = useState(false);
   const [cleanupCheck, setCleanupCheck] = useState(0);
+  const [checkingCleanup, setCheckingCleanup] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
   const [paymentIdentity, setPaymentIdentity] = useState(null);
@@ -103,6 +104,7 @@ export default function Booking({ expectedMode, modal = false }) {
     async function loadBookingPage() {
       try {
         setLoading(true);
+        setCheckingCleanup(true);
         setCleanupBlocked(false);
         setError("");
         setService(null);
@@ -133,6 +135,7 @@ export default function Booking({ expectedMode, modal = false }) {
             });
             if (!active) return;
             setCleanupBlocked(!cleared);
+            setCheckingCleanup(false);
             if (!cleared) return;
           }
           if (storedIdentity && resolvedService.booking_mode === "timed") {
@@ -167,10 +170,13 @@ export default function Booking({ expectedMode, modal = false }) {
         console.error("Failed to load booking service:", loadError);
 
         if (active) {
-          setError(loadError.message || "This service is not available.");
+          // Availability failures must not masquerade as an empty calendar,
+          // and database/provider details must never be shown to customers.
+          setError("Appointments could not be loaded. Please try again shortly.");
         }
       } finally {
         if (active) {
+          setCheckingCleanup(false);
           setLoading(false);
         }
       }
@@ -346,7 +352,8 @@ export default function Booking({ expectedMode, modal = false }) {
     try {
       setSlots(await getAvailableSlots());
     } catch (slotsError) {
-      setError(slotsError.message || "Available appointments could not be refreshed.");
+      console.error("Failed to refresh available appointments:", slotsError);
+      setError("Available appointments could not be refreshed. Please try again shortly.");
     } finally {
       setLoading(false);
     }
@@ -438,8 +445,18 @@ export default function Booking({ expectedMode, modal = false }) {
         <div className="mx-auto flex w-full max-w-7xl flex-col gap-10">
           {loading && isTimed && <p role="status" className="text-center text-[#f1e8ca]/70">Loading booking...</p>}
           {cleanupBlocked && isTimed && <div role="status" className="text-center text-[#f1e8ca]/70">
-            <p>A previous checkout cannot yet be safely closed. Waiting for its inactivity period or payment verification.</p>
-            <button type="button" onClick={() => setCleanupCheck((value) => value + 1)}>Check previous checkout</button>
+            <p>We’re checking a previous booking session before showing new availability.</p>
+            <button
+              type="button"
+              disabled={checkingCleanup}
+              onClick={() => {
+                setCheckingCleanup(true);
+                setCleanupCheck((value) => value + 1);
+              }}
+              className="mx-auto mt-4 inline-flex min-h-11 items-center justify-center rounded-full border border-[#f1e8ca]/35 bg-[#f1e8ca]/10 px-5 py-2 text-sm text-[#f1e8ca] transition hover:border-[#f1e8ca]/60 hover:bg-[#f1e8ca]/18 disabled:cursor-wait disabled:opacity-60"
+            >
+              {checkingCleanup ? "Checking…" : "Check previous checkout"}
+            </button>
           </div>}
           {showingDirectPayment && (
             <div className="mx-auto flex w-full max-w-5xl flex-col gap-4 sm:gap-5">

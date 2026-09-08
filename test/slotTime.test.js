@@ -73,7 +73,9 @@ test('admin slots request authoritative instants without a UTC date filter; book
   assert.deepEqual(await service.getAdminSlots(), [future,history]);
   assert.deepEqual(await service.getAvailableAdminSlots(), [future]);
   assert.equal((await service.getAdminBookings()).length, 2);
-  assert.ok(calls.every(([,select]) => select.includes('starts_at:slot_starts_at')));
+  assert.ok(calls.some(([,select]) => select === '*'));
+  assert.ok(calls.some(([,select]) => select.includes('starts_at')));
+  assert.ok(calls.every(([,select]) => !select.includes('starts_at:slot_starts_at')));
 });
 
 test('forward migration retains guarded paths and limits new public information', async () => {
@@ -86,4 +88,20 @@ test('forward migration retains guarded paths and limits new public information'
   assert.match(migration, /perform private\.require_admin\(\)/);
   assert.doesNotMatch(migration, /grant .*on (?:table )?public\.email_settings/i);
   assert.doesNotMatch(migration, /create or replace function public\.(?:record_provider_payment_result|get_payment_status|abandon_timed_payment_booking)/);
+});
+
+test('materialized-start migration keeps RLS cheap and derived data protected', async () => {
+  const migration = await readFile(new URL('../supabase/migrations/20260908100000_materialize_availability_slot_starts_at.sql', import.meta.url), 'utf8');
+  assert.match(migration, /add column starts_at timestamptz/);
+  assert.match(migration, /alter column starts_at set not null/);
+  assert.match(migration, /before insert or update of slot_date, slot_time/);
+  assert.match(migration, /new\.starts_at := private\.slot_start_instant/);
+  assert.match(migration, /after update of timezone/);
+  assert.match(migration, /set starts_at = private\.slot_start_instant/);
+  assert.match(migration, /where slot\.starts_at < clock_timestamp\(\)/);
+  assert.match(migration, /using \(is_available is true and starts_at >= clock_timestamp\(\)\)/);
+  assert.match(migration, /as \$\$ select \$1\.starts_at; \$\$/);
+  assert.match(migration, /availability_slots_available_starts_at_idx/);
+  assert.doesNotMatch(migration, /grant .*on (?:table )?public\.email_settings/i);
+  assert.doesNotMatch(migration, /delete from public\.bookings/i);
 });

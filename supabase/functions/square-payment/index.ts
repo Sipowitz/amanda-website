@@ -204,6 +204,9 @@ Deno.serve(async (request) => {
         p_cleanup_capability: payload.cleanupCapability,
       });
       // Never return RPC errors, booking status, customer context or payment data.
+      if (error?.code === "P0002") {
+        return json(request, { stale: true }, 200);
+      }
       return json(request, { abandoned: !error && data === true }, error || data !== true ? 409 : 200);
     }
     if (payload.action === "lease") {
