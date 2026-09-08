@@ -19,7 +19,6 @@ import AdminDashboard from "./pages/admin/AdminDashboard";
 import AdminSlots from "./pages/admin/AdminSlots";
 import AdminBookings from "./pages/admin/AdminBookings";
 import AdminSettings from "./pages/admin/AdminSettings";
-import AdminEmailSettings from "./pages/admin/AdminEmailSettings";
 import AdminPaymentSettings from "./pages/admin/AdminPaymentSettings";
 
 export default function App() {
@@ -80,7 +79,7 @@ export default function App() {
 
           <Route
             path="/admin/settings/email"
-            element={<AdminEmailSettings />}
+            element={<Navigate to="/admin/settings" replace />}
           />
 
           <Route
