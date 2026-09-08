@@ -1,7 +1,11 @@
+import { useState } from "react";
+import { isSlotPast } from "../../utils/slotTime";
 import { motion } from "framer-motion";
 
-export default function SlotItem({ slot, onDelete, onDeleteBooking }) {
+export default function SlotItem({ slot, onDelete, onDeleteBooking, now }) {
+  const [mountedAt] = useState(() => Date.now());
   const booked = slot.bookings?.length > 0;
+  const past = isSlotPast(slot, now ?? mountedAt);
 
   const booking = booked ? slot.bookings[0] : null;
 
@@ -44,7 +48,7 @@ export default function SlotItem({ slot, onDelete, onDeleteBooking }) {
                 {/* Customer */}
                 <div className="min-w-0">
                   <p className="mb-2 text-sm uppercase tracking-[0.18em] text-[#202620]/45">
-                    Reserved
+                    {past ? "Past appointment" : "Reserved"}
                   </p>
 
                   <p className="break-words text-lg text-[#202620]">
@@ -83,7 +87,7 @@ export default function SlotItem({ slot, onDelete, onDeleteBooking }) {
               </div>
             ) : (
               <p className="pl-5 text-sm uppercase tracking-[0.18em] text-[#202620]/38">
-                Available
+                {past ? "Past slot" : slot.is_available ? "Available" : "Unavailable"}
               </p>
             )}
           </div>

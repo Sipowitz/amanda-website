@@ -22,6 +22,7 @@ const bundle = await rolldown({
       }));
     },
     resolveId(source) {
+      if (source.endsWith("/useBusinessClock")) return "\0clock";
       if (source.endsWith("services/bookingService")) return "\0transport";
       if (source === "react-router-dom") return "\0router";
       if (source === "framer-motion") return "\0motion";
@@ -32,6 +33,7 @@ const bundle = await rolldown({
       }
     },
     load(id) {
+      if (id === "\0clock") return `export default () => ({now: Date.parse("2026-09-07T12:00:00Z"), today: "2026-09-07", timezone: "America/Chicago"});`;
       if (id === "\0transport") return `
         const call = (name) => (...args) => globalThis.checkoutHarness[name](...args);
         export const getServiceBySlug = call('service'), getAvailableSlots = call('slots'),
@@ -98,7 +100,7 @@ export async function mount(t, { mode = "timed", state = "failed", navigation = 
     slug, service: async () => service,
     lease: async () => ({ cleanupCapability: "c".repeat(64), expiresAt: "2099-01-01T00:00:00Z", renewAfterSeconds: 60 }),
     cleanup: async () => { calls.push("cleanup"); return { abandoned: false }; },
-    slots: async () => { calls.push("slots"); return [{ id: "slot", slot_date: "2026-12-20", slot_time: "12:00" }]; },
+    slots: async () => { calls.push("slots"); return [{ id: "slot", slot_date: "2026-12-20", slot_time: "12:00", starts_at: "2026-12-20T18:00:00Z" }]; },
     status: async () => { calls.push("status"); return status(); },
     abandon: async (...args) => {
       calls.push(["abandon", ...args]);

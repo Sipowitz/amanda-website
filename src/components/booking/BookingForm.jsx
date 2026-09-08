@@ -42,7 +42,7 @@ export default function BookingForm({
   }
 
   const readableDate = selectedSlot
-    ? format(new Date(selectedSlot.slot_date), "EEEE, MMMM d")
+    ? format(new Date(`${selectedSlot.slot_date}T12:00:00`), "EEEE, MMMM d")
     : null;
 
   return (

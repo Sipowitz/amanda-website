@@ -474,7 +474,7 @@ test("timed checkout abandonment in PostgreSQL", { timeout: 600000 }, async (t) 
           return { ...await status(), attemptId: result.attempt_id };
         },
         submit: async () => query(auth + submit),
-        slots: async () => JSON.parse(await query("select coalesce(jsonb_agg(to_jsonb(s)), '[]') from public.availability_slots s where is_available;")),
+        slots: async () => JSON.parse(await query("select coalesce(jsonb_agg(to_jsonb(s) || jsonb_build_object('starts_at', (s.slot_date + s.slot_time::time) at time zone 'America/Chicago')), '[]') from public.availability_slots s where is_available;")),
       };
       const options = { state: "cancelled", transport, abandon: async ({ args, storage, key }) => {
         assert.deepEqual(args, [booking, token, attempt]);

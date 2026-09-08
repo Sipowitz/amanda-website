@@ -1,3 +1,5 @@
+import useBusinessClock from "../hooks/useBusinessClock";
+import { isSlotPast } from "../utils/slotTime";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { format } from "date-fns";
@@ -65,6 +67,7 @@ function formatPrice(amount, currency) {
 
 export default function Booking({ expectedMode, modal = false }) {
   const { serviceSlug } = useParams();
+  const { now, timezone, today } = useBusinessClock();
   const [service, setService] = useState(null);
   const [slots, setSlots] = useState([]);
   const [selectedDate, setSelectedDate] = useState(null);
@@ -193,14 +196,16 @@ export default function Booking({ expectedMode, modal = false }) {
     return () => window.removeEventListener("storage", changed);
   }, [expectedMode, paymentIdentity]);
 
+  const futureSlots = useMemo(() => timezone ? slots.filter((slot) => !isSlotPast(slot, now)) : [], [slots, timezone, now]);
+
   const uniqueDates = useMemo(
-    () => [...new Set(slots.map((slot) => slot.slot_date))],
-    [slots],
+    () => [...new Set(futureSlots.map((slot) => slot.slot_date))],
+    [futureSlots],
   );
 
   const filteredSlots = useMemo(
-    () => slots.filter((slot) => slot.slot_date === selectedDate),
-    [slots, selectedDate],
+    () => futureSlots.filter((slot) => slot.slot_date === selectedDate),
+    [futureSlots, selectedDate],
   );
 
   const formattedSelectedDate = useMemo(() => {
@@ -208,11 +213,11 @@ export default function Booking({ expectedMode, modal = false }) {
       return "";
     }
 
-    return format(new Date(selectedDate), "EEEE, MMMM d");
+    return format(new Date(`${selectedDate}T12:00:00`), "EEEE, MMMM d");
   }, [selectedDate]);
 
   async function handleBookingSubmit(formData) {
-    if ((expectedMode === "timed" && (loading || cleanupBlocked || paymentIdentity)) || !service || (service.booking_mode === "timed" && !selectedSlot)) {
+    if ((expectedMode === "timed" && (loading || cleanupBlocked || paymentIdentity)) || !service || (service.booking_mode === "timed" && (!timezone || !selectedSlot || isSlotPast(selectedSlot)))) {
       return;
     }
 
@@ -453,6 +458,7 @@ export default function Booking({ expectedMode, modal = false }) {
           {!loading && isTimed && !showingDirectPayment && !cleanupBlocked && (
             <>
               <DateSelector
+                todayDate={today}
                 loading={loading}
                 availableDates={uniqueDates}
                 selectedDate={selectedDate}
@@ -485,7 +491,7 @@ export default function Booking({ expectedMode, modal = false }) {
                     }}
                   />
 
-                  {selectedSlot && !success && (
+                  {selectedSlot && !isSlotPast(selectedSlot, now) && !success && (
                     <BookingForm
                       service={service}
                       selectedSlot={selectedSlot}

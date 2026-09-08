@@ -1,4 +1,5 @@
 import { supabase } from "../lib/supabase";
+import { isSlotPast, visibleAdminSlots } from "../utils/slotTime";
 
 export async function generateSlots({
   startDate,
@@ -15,7 +16,7 @@ export async function generateSlots({
   const finalDate = new Date(endDate);
 
   while (currentDate <= finalDate) {
-    const dayOfWeek = currentDate.getDay();
+    const dayOfWeek = currentDate.getUTCDay();
 
     if (selectedDays.includes(dayOfWeek)) {
       const [startHour, startMinute] = startTime.split(":").map(Number);
@@ -24,16 +25,17 @@ export async function generateSlots({
 
       const slotTime = new Date(currentDate);
 
-      slotTime.setHours(startHour, startMinute, 0, 0);
+      slotTime.setUTCHours(startHour, startMinute, 0, 0);
 
       const slotEndTime = new Date(currentDate);
 
-      slotEndTime.setHours(endHour, endMinute, 0, 0);
+      slotEndTime.setUTCHours(endHour, endMinute, 0, 0);
 
       while (slotTime < slotEndTime) {
         const formattedDate = currentDate.toISOString().split("T")[0];
 
-        const formattedTime = slotTime.toLocaleTimeString([], {
+        const formattedTime = slotTime.toLocaleTimeString("en-GB", {
+          timeZone: "UTC",
           hour: "2-digit",
           minute: "2-digit",
           hourCycle: "h23",
@@ -44,11 +46,11 @@ export async function generateSlots({
           slot_time: formattedTime,
         });
 
-        slotTime.setMinutes(slotTime.getMinutes() + Number(interval));
+        slotTime.setUTCMinutes(slotTime.getUTCMinutes() + Number(interval));
       }
     }
 
-    currentDate.setDate(currentDate.getDate() + 1);
+    currentDate.setUTCDate(currentDate.getUTCDate() + 1);
   }
 
   if (slots.length === 0) {
@@ -65,13 +67,12 @@ export async function generateSlots({
 }
 
 export async function getAdminSlots() {
-  const today = new Date().toISOString().split("T")[0];
-
   const { data, error } = await supabase
     .from("availability_slots")
     .select(
       `
       *,
+      starts_at:slot_starts_at,
       bookings (
         id,
         slot_id,
@@ -100,7 +101,6 @@ export async function getAdminSlots() {
       )
     `,
     )
-    .gte("slot_date", today)
     .order("slot_date", {
       ascending: true,
     })
@@ -112,7 +112,7 @@ export async function getAdminSlots() {
     throw error;
   }
 
-  return data;
+  return visibleAdminSlots(data || []);
 }
 
 export async function deletePastAvailabilitySlots() {
@@ -135,7 +135,8 @@ export async function getAdminBookings() {
           id,
           slot_date,
           slot_time,
-          is_available
+          is_available,
+          starts_at:slot_starts_at
         )
       `).order("created_at", {
       ascending: false,
@@ -163,13 +164,10 @@ export async function getAdminBookings() {
 }
 
 export async function getAvailableAdminSlots() {
-  const today = new Date().toISOString().split("T")[0];
-
   const { data, error } = await supabase
     .from("availability_slots")
-    .select("*")
+    .select("*, starts_at:slot_starts_at")
     .eq("is_available", true)
-    .gte("slot_date", today)
     .order("slot_date", {
       ascending: true,
     })
@@ -181,7 +179,7 @@ export async function getAvailableAdminSlots() {
     throw error;
   }
 
-  return data;
+  return (data || []).filter((slot) => !isSlotPast(slot));
 }
 
 export async function createAdminBooking({

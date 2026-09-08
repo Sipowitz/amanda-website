@@ -1,3 +1,5 @@
+import useBusinessClock from "../../hooks/useBusinessClock";
+import { isSlotPast, visibleAdminSlots } from "../../utils/slotTime";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { format } from "date-fns";
@@ -26,6 +28,8 @@ import {
 
 export default function AdminSlots() {
   const cleanupStartedRef = useRef(false);
+  const { now, timezone } = useBusinessClock();
+
 
   const [slots, setSlots] = useState([]);
 
@@ -65,7 +69,7 @@ export default function AdminSlots() {
         setSlots(data);
 
         if (data.length > 0) {
-          setSelectedDate(data[0].slot_date);
+          setSelectedDate((data.find((slot) => !isSlotPast(slot)) || data[0]).slot_date);
         }
       } catch (error) {
         console.error(error);
@@ -88,7 +92,7 @@ export default function AdminSlots() {
       setSlots(data);
 
       if (data.length > 0 && !selectedDate) {
-        setSelectedDate(data[0].slot_date);
+        setSelectedDate((data.find((slot) => !isSlotPast(slot)) || data[0]).slot_date);
       }
     } catch (error) {
       console.error(error);
@@ -208,7 +212,7 @@ export default function AdminSlots() {
   }
 
   const filteredSlots = useMemo(() => {
-    let result = [...slots];
+    let result = visibleAdminSlots(slots, now);
 
     if (viewMode === "bookings") {
       result = result.filter((slot) => getActiveBookings(slot).length > 0);
@@ -219,11 +223,11 @@ export default function AdminSlots() {
     }
 
     return result.sort((a, b) => a.slot_time.localeCompare(b.slot_time));
-  }, [slots, viewMode, selectedDate]);
+  }, [slots, viewMode, selectedDate, now]);
 
   const availableDates = useMemo(() => {
-    return [...new Set(slots.map((slot) => slot.slot_date))];
-  }, [slots]);
+    return [...new Set(visibleAdminSlots(slots, now).map((slot) => slot.slot_date))];
+  }, [slots, now]);
 
   const selectedDateStats = useMemo(() => {
     const total = filteredSlots.length;
@@ -249,6 +253,7 @@ export default function AdminSlots() {
         onLogout={handleLogout}
       />
 
+      <p className="text-sm text-[#202620]/60">Appointment timezone: {timezone || "loading…"}</p>
       <SlotGenerator onGenerate={handleGenerateSlots} loading={generating} />
 
       <section className="flex flex-col gap-8">
@@ -317,11 +322,11 @@ export default function AdminSlots() {
                   }`}
                 >
                   <p className="mb-1 text-xs uppercase tracking-[0.18em] text-[#202620]/40">
-                    {format(new Date(date), "EEE")}
+                    {format(new Date(`${date}T12:00:00`), "EEE")}
                   </p>
 
                   <p className="text-lg text-[#202620]">
-                    {format(new Date(date), "MMM d")}
+                    {format(new Date(`${date}T12:00:00`), "MMM d")}
                   </p>
                 </button>
               );
@@ -381,7 +386,7 @@ export default function AdminSlots() {
               </p>
 
               <h2 className="text-4xl text-[#202620]">
-                {format(new Date(selectedDate), "EEEE, MMMM d")}
+                {format(new Date(`${selectedDate}T12:00:00`), "EEEE, MMMM d")}
               </h2>
             </div>
 
@@ -392,6 +397,7 @@ export default function AdminSlots() {
                 return (
                   <SlotItem
                     key={slot.id}
+                    now={now}
                     slot={{
                       ...slot,
                       bookings: activeBookings,

@@ -23,16 +23,19 @@ export default function DateSelector({
   selectedDate,
   onSelectDate,
   loading = false,
+  todayDate,
 }) {
-  const today = startOfDay(new Date());
+  // Local Date objects below represent calendar cells only, not instants.
+  const today = parseISO(`${todayDate || availableDates[0] || "2000-01-01"}T12:00:00`);
 
   const earliestMonth = startOfMonth(today);
 
   const [currentMonth, setCurrentMonth] = useState(earliestMonth);
 
-  const monthStart = startOfMonth(currentMonth);
+  const displayMonth = currentMonth < earliestMonth ? earliestMonth : currentMonth;
+  const monthStart = startOfMonth(displayMonth);
 
-  const monthEnd = endOfMonth(currentMonth);
+  const monthEnd = endOfMonth(displayMonth);
 
   const days = eachDayOfInterval({
     start: monthStart,
@@ -66,11 +69,11 @@ export default function DateSelector({
     monthStart.getTime() > earliestMonth.getTime();
 
   function isPastDate(day) {
-    return isBefore(startOfDay(day), today);
+    return isBefore(startOfDay(day), startOfDay(today));
   }
 
   function hasAvailability(day) {
-    if (!day || day.empty || isPastDate(day)) {
+    if (!todayDate || !day || day.empty || isPastDate(day)) {
       return false;
     }
 
@@ -84,16 +87,18 @@ export default function DateSelector({
       return;
     }
 
-    setCurrentMonth((previousMonth) => subMonths(previousMonth, 1));
+    setCurrentMonth((previousMonth) => subMonths(previousMonth < earliestMonth ? earliestMonth : previousMonth, 1));
   }
 
   function handleNextMonth() {
-    setCurrentMonth((previousMonth) => addMonths(previousMonth, 1));
+    setCurrentMonth((previousMonth) => addMonths(previousMonth < earliestMonth ? earliestMonth : previousMonth, 1));
   }
 
   const monthLabel = useMemo(() => {
-    return format(currentMonth, "MMMM yyyy");
-  }, [currentMonth]);
+    return format(displayMonth, "MMMM yyyy");
+  }, [displayMonth]);
+
+  if (!todayDate) return <p role="status">Loading appointment timezone…</p>;
 
   return (
     <div

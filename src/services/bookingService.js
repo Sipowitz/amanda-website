@@ -1,4 +1,5 @@
 import { supabase } from "../lib/supabase";
+import { isSlotPast } from "../utils/slotTime";
 
 export async function getActiveServices() {
   const { data, error } = await supabase.rpc("get_active_services");
@@ -22,13 +23,10 @@ export async function getServiceBySlug(slug) {
 }
 
 export async function getAvailableSlots() {
-  const today = new Date().toISOString().split("T")[0];
-
   const { data, error } = await supabase
     .from("availability_slots")
-    .select("*")
+    .select("*, starts_at:slot_starts_at")
     .eq("is_available", true)
-    .gte("slot_date", today)
     .order("slot_date", {
       ascending: true,
     })
@@ -40,7 +38,7 @@ export async function getAvailableSlots() {
     throw error;
   }
 
-  return data;
+  return (data || []).filter((slot) => !isSlotPast(slot));
 }
 
 export async function createBooking({

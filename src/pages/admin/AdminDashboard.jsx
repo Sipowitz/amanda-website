@@ -1,3 +1,5 @@
+import useBusinessClock from "../../hooks/useBusinessClock";
+import { isSlotPast } from "../../utils/slotTime";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
@@ -9,10 +11,6 @@ import { useToast } from "../../contexts/ToastContext";
 import { useConfirm } from "../../contexts/ConfirmContext";
 import { getAdminBookings } from "../../services/adminService";
 
-function getLocalDateString(date) {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
-}
-
 function formatDate(dateString) {
   return new Intl.DateTimeFormat("en-GB", {
     weekday: "short", day: "numeric", month: "short", year: "numeric",
@@ -20,8 +18,7 @@ function formatDate(dateString) {
 }
 
 function appointmentTime(booking) {
-  const slot = booking.availability_slots;
-  return new Date(`${slot.slot_date}T${slot.slot_time}`).getTime();
+  return Date.parse(booking.availability_slots.starts_at);
 }
 
 export default function AdminDashboard() {
@@ -29,7 +26,7 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [reload, setReload] = useState(0);
-  const [now, setNow] = useState(() => new Date());
+  const { now, timezone, today } = useBusinessClock();
   const navigate = useNavigate();
   const { logout } = useAdminAuth();
   const toast = useToast();
@@ -47,18 +44,6 @@ export default function AdminDashboard() {
     return () => { active = false; };
   }, [reload]);
 
-  // Preserve the Dashboard's existing browser-local schedule interpretation.
-  // Refresh time while open so today's work does not become stranded at midnight.
-  useEffect(() => {
-    const updateTime = () => setNow(new Date());
-    const timer = window.setInterval(updateTime, 60_000);
-    window.addEventListener("focus", updateTime);
-    return () => {
-      window.clearInterval(timer);
-      window.removeEventListener("focus", updateTime);
-    };
-  }, []);
-
   async function handleLogout() {
     const accepted = await confirm({
       title: "Logout", message: "Are you sure you want to logout?", confirmText: "Logout",
@@ -73,7 +58,6 @@ export default function AdminDashboard() {
     }
   }
 
-  const today = getLocalDateString(now);
   const work = useMemo(() => {
     const confirmed = bookingRecords.filter((booking) =>
       isNormalAdminBooking(booking) && booking.status === "confirmed",
@@ -96,17 +80,17 @@ export default function AdminDashboard() {
       (booking.status === "confirmed" && ["unpaid", "part_paid"].includes(booking.payment_status))
     ),
   );
-  const hour = now.getHours();
+  const hour = timezone ? Number(new Intl.DateTimeFormat("en-US", { timeZone: timezone, hour: "numeric", hourCycle: "h23" }).format(new Date(now))) : null;
   const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
-  const currentDateLabel = new Intl.DateTimeFormat("en-GB", {
-    weekday: "long", day: "numeric", month: "long", year: "numeric",
-  }).format(now);
+  const currentDateLabel = timezone ? new Intl.DateTimeFormat("en-GB", {
+    weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: timezone,
+  }).format(now) : undefined;
   const openBookings = () => navigate("/admin/bookings", { state: { filter: "confirmed" } });
 
   function renderWorkRow(booking) {
     const slot = booking.availability_slots;
     const isTimed = booking.service_booking_mode_snapshot === "timed";
-    const overdue = isTimed && appointmentTime(booking) < now.getTime();
+    const overdue = isTimed && isSlotPast(slot, now);
     return (
       <button
         key={booking.id}
@@ -157,12 +141,12 @@ export default function AdminDashboard() {
   return (
     <div className="flex flex-col gap-10">
       <AdminHeader
-        title={`${greeting}, Amanda`}
+        title={timezone ? `${greeting}, Amanda` : "Amanda"}
         subtitle={currentDateLabel}
         description="Your appointments and Voice Memos awaiting completion."
         onLogout={handleLogout}
       />
-      {loading ? <AdminCard className="p-8"><p className="text-sm text-[#202620]/50">Loading dashboard...</p></AdminCard>
+      {loading || !timezone ? <AdminCard className="p-8"><p className="text-sm text-[#202620]/50">Loading dashboard...</p></AdminCard>
         : error ? <AdminCard className="p-8">
           <p role="alert" className="text-sm text-[#202620]">{error}</p>
           <button type="button" className="mt-4 text-sm text-[#365d3c]" onClick={() => {

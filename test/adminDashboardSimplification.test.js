@@ -14,6 +14,7 @@ const bundle = await rolldown({
   plugins: [{
     name: 'admin-test-boundaries',
     resolveId(source) {
+      if (source.endsWith('/businessTime')) return '\0timezone';
       if (source.endsWith('/adminService')) return '\0service';
       if (source.includes('/contexts/')) return '\0contexts';
       if (source === 'react-router-dom') return '\0router';
@@ -22,6 +23,7 @@ const bundle = await rolldown({
       }
     },
     load(id) {
+      if (id === '\0timezone') return `export const getBusinessTimezone = async () => 'UTC';`;
       if (id === '\0service') return `
         export const getAdminBookings = async () => { if (globalThis.dashboardTest.fail) throw Error("offline"); return globalThis.dashboardTest.bookings; };
       `;
@@ -47,9 +49,9 @@ const booking = (id, overrides = {}) => ({
   service_payment_flow_snapshot: 'direct_payment', status: 'confirmed',
   payment_status: 'paid', payment_method: 'square', payment_provider: 'square',
   payment_attempt_status: 'completed', created_at: '2026-09-01T12:00:00Z',
-  availability_slots: {slot_date: '2026-09-07', slot_time: '15:00'}, ...overrides,
+  availability_slots: {slot_date: '2026-09-07', slot_time: '15:00', starts_at: '2026-09-07T15:00:00Z'}, ...overrides,
 });
-const slot = (date, time = '15:00') => ({availability_slots: {slot_date: date, slot_time: time}});
+const slot = (date, time = '15:00') => ({availability_slots: {slot_date: date, slot_time: time, starts_at: `${date}T${time}:00Z`}});
 const memo = (id, fields = {}) => booking(id, {
   service_booking_mode_snapshot: 'untimed', service_name_snapshot: 'Voice Memo Reading',
   availability_slots: null, ...fields,
@@ -60,13 +62,14 @@ function text(node) {
 }
 const section = (root, name) => root.findAllByType('section').find((s) => s.props['aria-label'] === name);
 async function mount(t, bookings, {fail = false} = {}) {
-  t.mock.timers.enable({apis: ['Date'], now: new Date('2026-09-07T12:00:00').getTime()});
+  t.mock.timers.enable({apis: ['Date'], now: new Date('2026-09-07T12:00:00Z').getTime()});
   globalThis.dashboardTest = {bookings, calls: [], fail, navigate: (...args) => globalThis.dashboardTest.calls.push(args)};
   const listeners = new Map();
   const previousWindow = globalThis.window;
   globalThis.window = {
-    setInterval(callback) { listeners.set('interval', callback); return 1; },
-    clearInterval() { listeners.delete('interval'); },
+    setTimeout(callback) { Promise.resolve().then(callback); return 0; }, clearTimeout() {},
+    setInterval(callback, interval) { listeners.set(interval === 1000 ? 'interval' : 'config', callback); return interval; },
+    clearInterval(interval) { listeners.delete(interval === 1000 ? 'interval' : 'config'); },
     addEventListener(name, callback) { listeners.set(name, callback); },
     removeEventListener(name) { listeners.delete(name); },
   };
@@ -142,10 +145,10 @@ test('legacy exceptions have one modest review link without payment tasks', asyn
 test('clock refresh flags passed appointment times and moves yesterday into overdue', async (t) => {
   const {root, listeners} = await mount(t, [booking('Today')]);
   assert.doesNotMatch(text(section(root, 'Today’s appointments')), /Overdue/);
-  t.mock.timers.setTime(new Date('2026-09-07T16:00:00').getTime());
+  t.mock.timers.setTime(new Date('2026-09-07T16:00:00Z').getTime());
   await act(async () => listeners.get('interval')());
   assert.match(text(section(root, 'Today’s appointments')), /Overdue/);
-  t.mock.timers.setTime(new Date('2026-09-08T09:00:00').getTime());
+  t.mock.timers.setTime(new Date('2026-09-08T09:00:00Z').getTime());
   await act(async () => listeners.get('focus')());
   assert.match(text(section(root, 'Overdue appointments')), /Today/);
   assert.doesNotMatch(text(section(root, 'Today’s appointments')), /today@example/);
