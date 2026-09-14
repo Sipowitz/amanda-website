@@ -42,12 +42,13 @@ test("discount pricing coexists with effective direct-payment lifecycle", { time
     }
   }
 
-  const [security, phaseOne, current, supersession, discount] = await Promise.all([
+  const [security, phaseOne, current, supersession, discount, stageTwo] = await Promise.all([
     read("20260817185300_booking_security_admin_foundation.sql"),
     read("20260818001000_direct_payment_phase_one.sql"),
     read("20260908000000_business_timezone_slot_expiry.sql"),
     read("20260906000000_payment_failure_supersession.sql"),
     read("20260914000000_discount_pricing_foundation.sql"),
+    read("20260915000000_discount_aware_booking_creation.sql"),
   ]);
   const attempts = phaseOne.match(/create table private\.payment_attempts \([^]*?\n\);/)?.[0];
   const access = phaseOne.match(/create table private\.booking_payment_access \([^]*?\n\);/)?.[0];
@@ -105,6 +106,7 @@ test("discount pricing coexists with effective direct-payment lifecycle", { time
         ('private','Private Readings','timed',60,8500),
         ('wheel','Wheel of the Year','timed',60,6000);
     ${discount}
+    ${stageTwo}
   `);
 
   const ids = Object.fromEntries((await query("select slug || '=' || id from public.services order by slug;")).split("\n").map((row) => row.split("=")));
@@ -124,6 +126,46 @@ test("discount pricing coexists with effective direct-payment lifecycle", { time
     }
   });
 
+  await t.test("deployed six-argument named contract remains unambiguous and undiscounted", async () => {
+    const result = JSON.parse(await query(`select public.create_pending_payment_booking(
+      p_service_id => '${ids.voice}', p_customer_name => 'Customer', p_customer_email => 'customer@example.test',
+      p_customer_phone => null, p_customer_message => 'Question', p_slot_id => null);`));
+    assert.deepEqual(Object.keys(result).sort(), ["booking_id", "payment_access_token"]);
+    assert.equal(await query(`select bp.original_amount_minor || '|' || bp.discount_amount_minor || '|' || bp.final_amount_minor || '|' || b.amount_due || '|' || a.amount_minor from public.bookings b join private.booking_pricing bp on bp.booking_id=b.id join private.payment_attempts a on a.booking_id=b.id where b.id='${result.booking_id}';`), "2000|0|2000|20.0000000000000000|2000");
+  });
+
+  await t.test("discount validation failures are atomic and blank codes are no-code", async () => {
+    const timedSlot = await slot();
+    const before = await query("select count(*) from public.bookings;");
+    for (const code of ["UNKNOWN", "bad code!"]) {
+      await assert.rejects(query(`set request.jwt.claims = '{"role":"service_role"}'; select public.create_pending_payment_booking('${ids.private}','Customer','customer@example.test',null,'Question','${timedSlot}','${code}');`));
+      assert.equal(await query("select count(*) from public.bookings;"), before);
+      assert.equal(await query(`select is_available from public.availability_slots where id='${timedSlot}';`), "t");
+    }
+    const blank = JSON.parse(await query(`set request.jwt.claims = '{"role":"service_role"}'; select public.create_pending_payment_booking('${ids.voice}','Customer','customer@example.test',null,'Question',null,'   ');`));
+    assert.equal(await query(`select discount_amount_minor || '|' || final_amount_minor from private.booking_pricing where booking_id='${blank.booking_id}';`), "0|2000");
+  });
+
+  await t.test("disabled, expired, inactive, and selected-scope failures leave no artifacts", async () => {
+    const disabled = await query("insert into private.discount_codes(code,percentage_off,enabled,scope) values ('DISABLED10',10,false,'all') returning id;");
+    const expired = await query("insert into private.discount_codes(code,percentage_off,scope,expires_at) values ('EXPIRED10',10,'all',now()-interval '1 minute') returning id;");
+    await query(`with code as (insert into private.discount_codes(code,percentage_off,scope) values ('PRIVATEONLY',10,'selected') returning id) insert into private.discount_code_services(discount_code_id,service_id) select id,'${ids.private}' from code returning discount_code_id;`);
+    const cases = [["DISABLED10", "voice", false], ["EXPIRED10", "voice", false], ["PRIVATEONLY", "wheel", true]];
+    for (const [code, service, timed] of cases) {
+      const slotId = timed ? await slot() : null;
+      const before = await query("select count(*) from public.bookings;");
+      await assert.rejects(query(`set request.jwt.claims = '{"role":"service_role"}'; select public.create_pending_payment_booking('${ids[service]}','Customer','customer@example.test',null,'Question',${slotId ? `'${slotId}'` : 'null'},'${code}');`));
+      assert.equal(await query("select count(*) from public.bookings;"), before);
+      if (slotId) assert.equal(await query(`select is_available and not exists(select 1 from public.bookings where slot_id='${slotId}') from public.availability_slots where id='${slotId}';`), "t");
+    }
+    await query(`update public.services set is_active=false where id='${ids.voice}';`);
+    const before = await query("select count(*) from public.bookings;");
+    await assert.rejects(query(`set request.jwt.claims = '{"role":"service_role"}'; select public.create_pending_payment_booking('${ids.voice}','Customer','customer@example.test',null,'Question',null,'DISABLED10');`));
+    assert.equal(await query("select count(*) from public.bookings;"), before);
+    await query(`update public.services set is_active=true where id='${ids.voice}';`);
+    assert.match(disabled + expired, /[0-9a-f-]{36}/);
+  });
+
   await t.test("retry, processing, failure, completion, and linkage checks retain the same pricing", async () => {
     const voice = await create("voice");
     const first = await query(`select id from private.payment_attempts where booking_id='${voice.booking_id}';`);
@@ -141,5 +183,100 @@ test("discount pricing coexists with effective direct-payment lifecycle", { time
     await assert.rejects(query(`update private.payment_attempts set pricing_id='${voicePricing}' where id='${otherAttempt}';`), /does not match immutable/);
     await assert.rejects(query(`update private.payment_attempts set amount_minor=1 where id='${otherAttempt}';`), /does not match immutable/);
     await assert.rejects(query(`update private.payment_attempts set currency='EUR' where id='${otherAttempt}';`), /does not match immutable/);
+  });
+
+  await t.test("optional codes freeze authoritative discounted prices without changing the legacy RPC", async () => {
+    const codes = await query(`
+      insert into private.discount_codes(code,percentage_off,scope) values ('PRIVATE20',20,'all'),('VOICE25',25,'all'),('WHEEL33',33,'all')
+      returning code || '=' || id;`);
+    const codeIds = Object.fromEntries(codes.split("\n").map((row) => row.split("=")));
+    const createDiscounted = async (service, code, slotId = null) => JSON.parse(await query(
+      `select public.create_pending_payment_booking('${ids[service]}','Customer','customer@example.test',null,'Question',${slotId ? `'${slotId}'` : 'null'},'${code}');`,
+    ));
+    const privateReading = await createDiscounted("private", "PRIVATE20", await slot());
+    const voice = await createDiscounted("voice", "VOICE25");
+    const wheel = await createDiscounted("wheel", "WHEEL33", await slot());
+    for (const [booking, code, id, expected] of [
+      [privateReading.booking_id, "PRIVATE20", codeIds.PRIVATE20, "8500|1700|6800|68.0000000000000000"],
+      [voice.booking_id, "VOICE25", codeIds.VOICE25, "2000|500|1500|15.0000000000000000"],
+      [wheel.booking_id, "WHEEL33", codeIds.WHEEL33, "6000|1980|4020|40.2000000000000000"],
+    ]) {
+      const pricing = await query(`select original_amount_minor || '|' || discount_amount_minor || '|' || final_amount_minor || '|' || (select amount_due from public.bookings where id='${booking}') from private.booking_pricing where booking_id='${booking}';`);
+      assert.match(pricing, new RegExp(`^${expected.split("|").slice(0, 3).join("\\|")}\\|`));
+      assert.equal(await query(`select discount_code_id='${id}' and discount_code_snapshot='${code}' and discount_percentage_snapshot > 0 and discount_code_revision=1 from private.booking_pricing where booking_id='${booking}';`), "t");
+    }
+    await query("update private.discount_codes set percentage_off=99, enabled=false where code='VOICE25';");
+    const first = await query(`select id from private.payment_attempts where booking_id='${voice.booking_id}';`);
+    await query(`set request.jwt.claims = '{"role":"service_role"}'; select public.mark_payment_attempt_processing('${voice.booking_id}','${first}','sandbox'); select public.fail_payment_attempt('${voice.booking_id}','${first}','FAILED');`);
+    await query(`set request.jwt.claims = '{"role":"service_role"}'; select public.begin_payment_attempt('${voice.booking_id}','${voice.payment_access_token}','square');`);
+    assert.equal(await query(`select count(distinct pricing_id) || '|' || min(amount_minor) from private.payment_attempts where booking_id='${voice.booking_id}';`), "1|1500");
+  });
+
+  await t.test("discount overload is service-role-only and completion uses frozen final pricing", async () => {
+    await assert.rejects(query(`set role anon; select public.create_pending_payment_booking('${ids.voice}','Customer','customer@example.test',null,'Question',null,'VOICE25');`), /permission denied/);
+    await assert.rejects(query(`set role authenticated; select public.create_pending_payment_booking('${ids.voice}','Customer','customer@example.test',null,'Question',null,'VOICE25');`), /permission denied/);
+    const code = await query("insert into private.discount_codes(code,percentage_off,scope) values ('COMPLETE25',25,'all') returning id;");
+    const booking = JSON.parse(await query(`set request.jwt.claims = '{"role":"service_role"}'; select public.create_pending_payment_booking('${ids.voice}','Customer','customer@example.test',null,'Question',null,'COMPLETE25');`));
+    const attempt = await query(`select id from private.payment_attempts where booking_id='${booking.booking_id}';`);
+    await query(`set request.jwt.claims = '{"role":"service_role"}'; select public.mark_payment_attempt_processing('${booking.booking_id}','${attempt}','sandbox');`);
+    await assert.rejects(query(`set request.jwt.claims = '{"role":"service_role"}'; select public.record_provider_payment_result('square','wrong-${randomUUID()}','payment.updated','${booking.booking_id}','${attempt}','pay-wrong','sandbox','COMPLETED',2000,'USD');`), /details do not match/);
+    const payment = `pay-${randomUUID()}`;
+    await query(`set request.jwt.claims = '{"role":"service_role"}'; select public.record_provider_payment_result('square','ok-${randomUUID()}','payment.updated','${booking.booking_id}','${attempt}','${payment}','sandbox','COMPLETED',1500,'USD');`);
+    assert.equal(await query(`select amount_paid || '|' || status || '|' || payment_status from public.bookings where id='${booking.booking_id}';`), "15.0000000000000000|confirmed|paid");
+    const event = `late-${randomUUID()}`;
+    assert.equal(await query(`set request.jwt.claims = '{"role":"service_role"}'; select public.record_provider_payment_result('square','${event}','payment.updated','${booking.booking_id}','${attempt}','${payment}','sandbox','FAILED',1500,'USD');`), "f");
+    assert.equal(await query(`select processed_at is not null from private.payment_webhook_events where event_id='${event}';`), "t");
+    assert.match(code, /^[0-9a-f-]{36}$/);
+  });
+
+  await t.test("Private, Wheel, and Voice completion trust final pricing and delayed CANCELED is harmless", async () => {
+    await query("insert into private.discount_codes(code,percentage_off,scope) values ('P20X',20,'all'),('W33X',33,'all'),('V25X',25,'all');");
+    const cases = [["private", "P20X", 8500, 6800], ["wheel", "W33X", 6000, 4020], ["voice", "V25X", 2000, 1500]];
+    for (const [service, code, original, final] of cases) {
+      const slotId = service === "voice" ? null : await slot();
+      const booking = JSON.parse(await query(`set request.jwt.claims = '{"role":"service_role"}'; select public.create_pending_payment_booking('${ids[service]}','Customer','customer@example.test',null,'Question',${slotId ? `'${slotId}'` : 'null'},'${code}');`));
+      const attempt = await query(`select id from private.payment_attempts where booking_id='${booking.booking_id}';`);
+      await query(`set request.jwt.claims = '{"role":"service_role"}'; select public.mark_payment_attempt_processing('${booking.booking_id}','${attempt}','sandbox');`);
+      await assert.rejects(query(`set request.jwt.claims = '{"role":"service_role"}'; select public.record_provider_payment_result('square','bad-${randomUUID()}','payment.updated','${booking.booking_id}','${attempt}','bad-${randomUUID()}','sandbox','COMPLETED',${original},'USD');`));
+      await assert.rejects(query(`set request.jwt.claims = '{"role":"service_role"}'; select public.record_provider_payment_result('square','currency-${randomUUID()}','payment.updated','${booking.booking_id}','${attempt}','badcurrency-${randomUUID()}','sandbox','COMPLETED',${final},'EUR');`));
+      const payment = `pay-${randomUUID()}`;
+      await query(`set request.jwt.claims = '{"role":"service_role"}'; select public.record_provider_payment_result('square','webhook-${randomUUID()}','payment.updated','${booking.booking_id}','${attempt}','${payment}','sandbox','COMPLETED',${final},'USD');`);
+      assert.equal(await query(`select service_price_amount_snapshot || '|' || status || '|' || payment_status || '|' || (amount_due=amount_paid) from public.bookings where id='${booking.booking_id}';`), `${original}|confirmed|paid|true`);
+      assert.equal(await query(`select amount_due = ${final}::numeric / 100 from public.bookings where id='${booking.booking_id}';`), "t");
+      if (service === "voice") {
+        const event = `cancel-${randomUUID()}`;
+        assert.equal(await query(`set request.jwt.claims = '{"role":"service_role"}'; select public.record_provider_payment_result('square','${event}','payment.updated','${booking.booking_id}','${attempt}','${payment}','sandbox','CANCELED',${final},'USD');`), "f");
+        assert.equal(await query(`select processed_at is not null from private.payment_webhook_events where event_id='${event}';`), "t");
+      }
+    }
+  });
+
+  await t.test("two independent sessions serialize one timed Stage 2 creation", async () => {
+    const slotId = await slot();
+    const createSql = (name) => `set request.jwt.claims = '{"role":"service_role"}'; select public.create_pending_payment_booking('${ids.private}','${name}','${name}@example.test',null,'Question','${slotId}',null);`;
+    const sessionA = exec(["exec", "-i", container, "psql", "-h", "127.0.0.1", "-U", "postgres", "-XqAt", "-v", "ON_ERROR_STOP=1"], `begin; select id from public.availability_slots where id='${slotId}' for update; select pg_sleep(1); ${createSql("A")} commit;`);
+    await delay(150);
+    const sessionB = query(createSql("B")).then(
+      () => null,
+      (error) => error,
+    );
+    const winner = await sessionA;
+    assert.match(String(await sessionB), /no longer available/);
+    assert.match(winner, /booking_id/);
+    assert.equal(await query(`select count(*) || '|' || (select count(*) from private.booking_pricing bp join public.bookings b on b.id=bp.booking_id where b.slot_id='${slotId}') || '|' || (select count(*) from private.booking_payment_access a join public.bookings b on b.id=a.booking_id where b.slot_id='${slotId}') || '|' || (select count(*) from private.payment_attempts a join public.bookings b on b.id=a.booking_id where b.slot_id='${slotId}') || '|' || (select is_available from public.availability_slots where id='${slotId}') from public.bookings where slot_id='${slotId}';`), "1|1|1|1|false");
+  });
+
+  await t.test("settled Stage 1 Voice pricing remains a settled Stage 2 record", async () => {
+    const booking = await query(`insert into public.bookings(service_id,service_name_snapshot,service_booking_mode_snapshot,service_price_amount_snapshot,service_currency_snapshot,service_payment_flow_snapshot,status,payment_status,amount_due,amount_paid,customer_name,customer_email)
+      values ('${ids.voice}','Voice Memo Reading','untimed',2000,'USD','direct_payment','confirmed','paid',20,20,'Historical','historical@example.test') returning id;`);
+    const pricing = await query(`insert into private.booking_pricing(booking_id,service_id,original_amount_minor,discount_amount_minor,final_amount_minor,currency) values ('${booking}','${ids.voice}',2000,0,2000,'USD') returning id;`);
+    const accessToken = "h".repeat(64);
+    await query(`insert into private.booking_payment_access(booking_id,token_hash) values ('${booking}',extensions.digest('${accessToken}','sha256')); insert into private.payment_attempts(booking_id,provider,idempotency_key,amount_minor,currency,pricing_id,status,provider_payment_id,provider_location_id,submitted_at,completed_at) values ('${booking}','square','hist-${randomUUID()}',2000,'USD','${pricing}','completed','hist-payment','sandbox',now(),now());`);
+    const status = JSON.parse(await query(`set request.jwt.claims = '{"role":"service_role"}'; select public.get_payment_status('${booking}','${accessToken}');`));
+    assert.equal(`${status.paid}|${status.amount_minor}|${status.currency}`, "true|2000|USD");
+    const begin = JSON.parse(await query(`set request.jwt.claims = '{"role":"service_role"}'; select public.begin_payment_attempt('${booking}','${accessToken}','square');`));
+    assert.equal(`${begin.action}|${begin.amount_minor}|${begin.currency}`, "paid|2000|USD");
+    assert.equal(await query(`set request.jwt.claims = '{"role":"service_role"}'; select public.record_provider_payment_result('square',null,'api.create_payment','${booking}',(select id from private.payment_attempts where booking_id='${booking}'),'hist-payment','sandbox','COMPLETED',2000,'USD');`), "f");
+    assert.equal(await query(`select status || '|' || payment_status || '|' || amount_paid from public.bookings where id='${booking}';`), "confirmed|paid|20");
   });
 });
