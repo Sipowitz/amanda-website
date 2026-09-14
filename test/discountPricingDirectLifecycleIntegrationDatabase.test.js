@@ -42,13 +42,14 @@ test("discount pricing coexists with effective direct-payment lifecycle", { time
     }
   }
 
-  const [security, phaseOne, current, supersession, discount, stageTwo] = await Promise.all([
+  const [security, phaseOne, current, supersession, discount, stageTwo, stageThree] = await Promise.all([
     read("20260817185300_booking_security_admin_foundation.sql"),
     read("20260818001000_direct_payment_phase_one.sql"),
     read("20260908000000_business_timezone_slot_expiry.sql"),
     read("20260906000000_payment_failure_supersession.sql"),
     read("20260914000000_discount_pricing_foundation.sql"),
     read("20260915000000_discount_aware_booking_creation.sql"),
+    read("20260915001000_discount_revalidation_and_redemption.sql"),
   ]);
   const attempts = phaseOne.match(/create table private\.payment_attempts \([^]*?\n\);/)?.[0];
   const access = phaseOne.match(/create table private\.booking_payment_access \([^]*?\n\);/)?.[0];
@@ -107,6 +108,7 @@ test("discount pricing coexists with effective direct-payment lifecycle", { time
         ('wheel','Wheel of the Year','timed',60,6000);
     ${discount}
     ${stageTwo}
+    ${stageThree}
   `);
 
   const ids = Object.fromEntries((await query("select slug || '=' || id from public.services order by slug;")).split("\n").map((row) => row.split("=")));
@@ -251,6 +253,145 @@ test("discount pricing coexists with effective direct-payment lifecycle", { time
     }
   });
 
+  await t.test("Stage 3 revalidates only reserved discounts and records one redemption", async () => {
+    const createDiscounted = async (service, code, slotId = null) => JSON.parse(await query(
+      `set request.jwt.claims = '{"role":"service_role"}'; select public.create_pending_payment_booking('${ids[service]}','Customer','customer@example.test',null,'Question',${slotId ? `'${slotId}'` : "null"},'${code}');`,
+    ));
+    const attemptFor = (bookingId) => query(`select id from private.payment_attempts where booking_id='${bookingId}' order by created_at desc limit 1;`);
+    const mark = async (bookingId, attemptId) => JSON.parse(await query(
+      `set request.jwt.claims = '{"role":"service_role"}'; select public.mark_payment_attempt_processing('${bookingId}','${attemptId}','sandbox');`,
+    ));
+    const complete = (bookingId, attemptId, amount, event = `stage3-${randomUUID()}`) => query(
+      `set request.jwt.claims = '{"role":"service_role"}'; select public.record_provider_payment_result('square','${event}','payment.updated','${bookingId}','${attemptId}','payment-${randomUUID()}','sandbox','COMPLETED',${amount},'USD');`,
+    );
+
+    const undiscounted = await create("voice");
+    const undiscountedAttempt = await attemptFor(undiscounted.booking_id);
+    assert.equal((await mark(undiscounted.booking_id, undiscountedAttempt)).should_submit, true);
+    await complete(undiscounted.booking_id, undiscountedAttempt, 2000);
+    assert.equal(await query(`select count(*) from private.discount_redemptions where booking_id='${undiscounted.booking_id}';`), "0");
+
+    await query("insert into private.discount_codes(code,percentage_off,scope) values ('S3VALID20',20,'all');");
+    const valid = await createDiscounted("private", "S3VALID20", await slot());
+    const validAttempt = await attemptFor(valid.booking_id);
+    assert.deepEqual(await mark(valid.booking_id, validAttempt), {
+      should_submit: true, idempotency_key: await query(`select idempotency_key from private.payment_attempts where id='${validAttempt}';`), amount_minor: 6800, currency: "USD",
+    });
+    assert.equal(await query(`select service_price_amount_snapshot || '|' || amount_due || '|' || final_amount_minor from public.bookings join private.booking_pricing on booking_pricing.booking_id=bookings.id where bookings.id='${valid.booking_id}';`), "8500|68.0000000000000000|6800");
+    const validEvent = `stage3-valid-${randomUUID()}`;
+    const validPayment = `payment-${randomUUID()}`;
+    await query(`set request.jwt.claims = '{"role":"service_role"}'; select public.record_provider_payment_result('square','${validEvent}','payment.updated','${valid.booking_id}','${validAttempt}','${validPayment}','sandbox','COMPLETED',6800,'USD');`);
+    assert.equal(await query(`select count(*) from private.discount_redemptions where booking_id='${valid.booking_id}';`), "1");
+    assert.equal(await query(`set request.jwt.claims = '{"role":"service_role"}'; select public.record_provider_payment_result('square',null,'api.create_payment','${valid.booking_id}','${validAttempt}','${validPayment}','sandbox','COMPLETED',6800,'USD');`), "f");
+    assert.equal(await query(`set request.jwt.claims = '{"role":"service_role"}'; select public.record_provider_payment_result('square','${validEvent}','payment.updated','${valid.booking_id}','${validAttempt}','${validPayment}','sandbox','COMPLETED',6800,'USD');`), "f");
+    assert.equal(await query(`select count(*) from private.discount_redemptions where booking_id='${valid.booking_id}';`), "1");
+
+    await query("insert into private.discount_codes(code,percentage_off,scope) values ('S3APIFIRST20',20,'all'),('S3CANCEL20',20,'all');");
+    const apiFirst = await createDiscounted("voice", "S3APIFIRST20");
+    const apiFirstAttempt = await attemptFor(apiFirst.booking_id);
+    await mark(apiFirst.booking_id, apiFirstAttempt);
+    const apiFirstPayment = `payment-${randomUUID()}`;
+    assert.equal(await query(`set request.jwt.claims = '{"role":"service_role"}'; select public.record_provider_payment_result('square',null,'api.create_payment','${apiFirst.booking_id}','${apiFirstAttempt}','${apiFirstPayment}','sandbox','COMPLETED',1600,'USD');`), "t");
+    assert.equal(await query(`select status || '|' || payment_status from public.bookings where id='${apiFirst.booking_id}';`), "confirmed|paid");
+    assert.equal(await query(`select status from private.payment_attempts where id='${apiFirstAttempt}';`), "completed");
+    assert.equal(await query(`select count(*) from private.discount_redemptions where booking_id='${apiFirst.booking_id}';`), "1");
+    const apiFirstWebhook = `api-first-webhook-${randomUUID()}`;
+    assert.equal(await query(`set request.jwt.claims = '{"role":"service_role"}'; select public.record_provider_payment_result('square','${apiFirstWebhook}','payment.updated','${apiFirst.booking_id}','${apiFirstAttempt}','${apiFirstPayment}','sandbox','COMPLETED',1600,'USD');`), "f");
+    assert.equal(await query(`select count(*) || '|' || (min(processed_at) is not null) from private.payment_webhook_events where provider='square' and event_id='${apiFirstWebhook}';`), "1|true");
+    assert.equal(await query(`select count(*) from private.discount_redemptions where booking_id='${apiFirst.booking_id}';`), "1");
+
+    const canceled = await createDiscounted("voice", "S3CANCEL20");
+    const canceledAttempt = await attemptFor(canceled.booking_id);
+    await mark(canceled.booking_id, canceledAttempt);
+    assert.equal(await query(`set request.jwt.claims = '{"role":"service_role"}'; select public.record_provider_payment_result('square','cancel-before-settlement-${randomUUID()}','payment.updated','${canceled.booking_id}','${canceledAttempt}','payment-${randomUUID()}','sandbox','CANCELED',1600,'USD');`), "t");
+    assert.equal(await query(`select status || '|' || payment_status || '|' || amount_paid from public.bookings where id='${canceled.booking_id}';`), "payment_expired|unpaid|0");
+    assert.equal(await query(`select status from private.payment_attempts where id='${canceledAttempt}';`), "failed");
+    assert.equal(await query(`select count(*) from private.discount_redemptions where booking_id='${canceled.booking_id}';`), "0");
+
+    await query("insert into private.discount_codes(code,percentage_off,scope) values ('S3RACE20',20,'all');");
+    const race = await createDiscounted("voice", "S3RACE20");
+    const raceAttempt = await attemptFor(race.booking_id);
+    await mark(race.booking_id, raceAttempt);
+    const racePayment = `payment-${randomUUID()}`;
+    const raceResults = await Promise.all([
+      query(`set request.jwt.claims = '{"role":"service_role"}'; select public.record_provider_payment_result('square','race-a-${randomUUID()}','payment.updated','${race.booking_id}','${raceAttempt}','${racePayment}','sandbox','COMPLETED',1600,'USD');`),
+      query(`set request.jwt.claims = '{"role":"service_role"}'; select public.record_provider_payment_result('square','race-b-${randomUUID()}','payment.updated','${race.booking_id}','${raceAttempt}','${racePayment}','sandbox','COMPLETED',1600,'USD');`),
+    ]);
+    assert.deepEqual(raceResults.sort(), ["f", "t"]);
+    assert.equal(await query(`select count(*) from private.discount_redemptions where booking_id='${race.booking_id}';`), "1");
+
+    const invalidCases = [
+      ["S3DISABLED", "voice", async () => query("update private.discount_codes set enabled=false where code='S3DISABLED';")],
+      ["S3EXPIRED", "voice", async () => query("update private.discount_codes set expires_at=now()-interval '1 second' where code='S3EXPIRED';")],
+      ["S3INACTIVE", "voice", async () => query(`update public.services set is_active=false where id='${ids.voice}';`)],
+      ["S3SCOPE", "private", async () => query(`begin; delete from private.discount_code_services where discount_code_id=(select id from private.discount_codes where code='S3SCOPE'); insert into private.discount_code_services(discount_code_id,service_id) select id,'${ids.wheel}' from private.discount_codes where code='S3SCOPE'; commit;`)],
+    ];
+    await query(`
+      insert into private.discount_codes(code,percentage_off,scope,expires_at) values
+        ('S3DISABLED',20,'all',null), ('S3EXPIRED',20,'all',now()+interval '1 hour'),
+        ('S3INACTIVE',20,'all',null);
+      with c as (insert into private.discount_codes(code,percentage_off,scope) values ('S3SCOPE',20,'selected') returning id)
+      insert into private.discount_code_services(discount_code_id,service_id) select id,'${ids.private}' from c;
+    `);
+    for (const [code, service, mutate] of invalidCases) {
+      const slotId = service === "private" ? await slot() : null;
+      const booking = await createDiscounted(service, code, slotId);
+      const attempt = await attemptFor(booking.booking_id);
+      await mutate();
+      const result = await mark(booking.booking_id, attempt);
+      assert.deepEqual(result, { should_submit: false, attempt_status: "expired", failure_code: "DISCOUNT_NO_LONGER_VALID", price_review: true });
+      assert.equal(await query(`select status || '|' || payment_status from public.bookings where id='${booking.booking_id}';`), "payment_expired|unpaid");
+      assert.equal(await query(`select status || '|' || (submitted_at is null) from private.payment_attempts where id='${attempt}';`), "expired|true");
+      assert.equal(await query(`select count(*) from private.discount_redemptions where booking_id='${booking.booking_id}';`), "0");
+      if (slotId) assert.equal(await query(`select is_available and not exists(select 1 from public.bookings where slot_id='${slotId}' and status='pending_payment') from public.availability_slots where id='${slotId}';`), "t");
+      if (code === "S3INACTIVE") await query(`update public.services set is_active=true where id='${ids.voice}';`);
+    }
+
+    await query("insert into private.discount_codes(code,percentage_off,scope,enabled) values ('S3PERCENT',20,'all',true),('S3REENABLE',20,'all',true),('S3INFLIGHT',20,'all',true),('S3RETRY',20,'all',true),('S3FAILED',20,'all',true);");
+    const percentage = await createDiscounted("voice", "S3PERCENT");
+    const percentageAttempt = await attemptFor(percentage.booking_id);
+    await query("update private.discount_codes set percentage_off=25, revision=revision+1 where code='S3PERCENT';");
+    assert.equal((await mark(percentage.booking_id, percentageAttempt)).amount_minor, 1600);
+    // The payment amount remains the original frozen 20% amount, not 25%.
+    assert.equal(await query(`select final_amount_minor from private.booking_pricing where booking_id='${percentage.booking_id}';`), "1600");
+
+    const reenabled = await createDiscounted("voice", "S3REENABLE");
+    const reenabledAttempt = await attemptFor(reenabled.booking_id);
+    await query("update private.discount_codes set enabled=false where code='S3REENABLE';");
+    await query("update private.discount_codes set enabled=true where code='S3REENABLE';");
+    assert.equal((await mark(reenabled.booking_id, reenabledAttempt)).should_submit, true);
+
+    const inFlight = await createDiscounted("voice", "S3INFLIGHT");
+    const inFlightAttempt = await attemptFor(inFlight.booking_id);
+    assert.equal((await mark(inFlight.booking_id, inFlightAttempt)).should_submit, true);
+    await query("update private.discount_codes set enabled=false where code='S3INFLIGHT';");
+    await complete(inFlight.booking_id, inFlightAttempt, 1600);
+    assert.equal(await query(`select count(*) from private.discount_redemptions where booking_id='${inFlight.booking_id}';`), "1");
+
+    const failed = await createDiscounted("voice", "S3FAILED");
+    const failedAttempt = await attemptFor(failed.booking_id);
+    await mark(failed.booking_id, failedAttempt);
+    await query(`set request.jwt.claims = '{"role":"service_role"}'; select public.record_provider_payment_result('square','failed-${randomUUID()}','payment.updated','${failed.booking_id}','${failedAttempt}','payment-${randomUUID()}','sandbox','FAILED',1600,'USD');`);
+    assert.equal(await query(`select count(*) from private.discount_redemptions where booking_id='${failed.booking_id}';`), "0");
+
+    const retry = await createDiscounted("voice", "S3RETRY");
+    const retryFirst = await attemptFor(retry.booking_id);
+    await mark(retry.booking_id, retryFirst);
+    await query(`set request.jwt.claims = '{"role":"service_role"}'; select public.record_provider_payment_result('square','retry-failed-${randomUUID()}','payment.updated','${retry.booking_id}','${retryFirst}','payment-${randomUUID()}','sandbox','FAILED',1600,'USD');`);
+    const retryAttempt = JSON.parse(await query(`set request.jwt.claims = '{"role":"service_role"}'; select public.begin_payment_attempt('${retry.booking_id}','${retry.payment_access_token}','square');`)).attempt_id;
+    await mark(retry.booking_id, retryAttempt);
+    await complete(retry.booking_id, retryAttempt, 1600);
+    assert.equal(await query(`select count(*) from private.discount_redemptions where booking_id='${retry.booking_id}';`), "1");
+  });
+
+  await t.test("Stage 3 helpers remain private and only service role can submit", async () => {
+    const booking = await create("voice");
+    const attempt = await query(`select id from private.payment_attempts where booking_id='${booking.booking_id}';`);
+    await assert.rejects(query(`set role anon; select private.discount_pricing_is_currently_redeemable((select pricing_id from private.payment_attempts where id='${attempt}'));`), /permission denied/);
+    await assert.rejects(query(`set role authenticated; select public.mark_payment_attempt_processing('${booking.booking_id}','${attempt}','sandbox');`), /permission denied|Service-role/);
+    await query(`set request.jwt.claims = '{"role":"service_role"}'; select public.mark_payment_attempt_processing('${booking.booking_id}','${attempt}','sandbox');`);
+  });
+
   await t.test("two independent sessions serialize one timed Stage 2 creation", async () => {
     const slotId = await slot();
     const createSql = (name) => `set request.jwt.claims = '{"role":"service_role"}'; select public.create_pending_payment_booking('${ids.private}','${name}','${name}@example.test',null,'Question','${slotId}',null);`;
@@ -278,5 +419,6 @@ test("discount pricing coexists with effective direct-payment lifecycle", { time
     assert.equal(`${begin.action}|${begin.amount_minor}|${begin.currency}`, "paid|2000|USD");
     assert.equal(await query(`set request.jwt.claims = '{"role":"service_role"}'; select public.record_provider_payment_result('square',null,'api.create_payment','${booking}',(select id from private.payment_attempts where booking_id='${booking}'),'hist-payment','sandbox','COMPLETED',2000,'USD');`), "f");
     assert.equal(await query(`select status || '|' || payment_status || '|' || amount_paid from public.bookings where id='${booking}';`), "confirmed|paid|20");
+    assert.equal(await query(`select count(*) from private.discount_redemptions where booking_id='${booking}';`), "0");
   });
 });
