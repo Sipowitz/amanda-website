@@ -2,7 +2,6 @@ import { Routes, Route, Navigate } from "react-router-dom";
 
 import MainLayout from "./layouts/MainLayout";
 
-import Home from "./pages/Home";
 import About from "./pages/About";
 import Services from "./pages/Services";
 import BookingModal from "./components/booking/BookingModal";
@@ -26,7 +25,7 @@ export default function App() {
     <Routes>
       {/* Public Website */}
       <Route element={<MainLayout />}>
-        <Route path="/" element={<Home />} />
+        <Route path="/" element={<Navigate to="/services" replace />} />
         <Route path="/about" element={<About />} />
         <Route path="/services" element={<Services />}>
           <Route

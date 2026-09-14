@@ -1,40 +1,32 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { Link, useLocation, useNavigate } from "react-router-dom";
 
 import { motion } from "framer-motion";
 
+import useTripleActivation from "../hooks/useTripleActivation";
+
 export default function Navbar() {
   const [menuOpen, setMenuOpen] = useState(false);
-
-  const [menuClicks, setMenuClicks] = useState(0);
 
   const location = useLocation();
 
   const navigate = useNavigate();
 
   const links = [
-  {
-    name: "Home",
-    path: "/",
-  },
-  {
-    name: "About",
-    path: "/about",
-  },
-  {
-    name: "Services",
-    path: "/services",
-  },
-  // {
-  //   name: "Events",
-  //   path: "/events",
-  // },
-  {
-    name: "Contact",
-    path: "/contact",
-  },
-];
+    {
+      name: "Services",
+      path: "/services",
+    },
+    {
+      name: "About",
+      path: "/about",
+    },
+    {
+      name: "Contact",
+      path: "/contact",
+    },
+  ];
 
   useEffect(() => {
     if (menuOpen) {
@@ -48,34 +40,28 @@ export default function Navbar() {
     };
   }, [menuOpen]);
 
-  function handleSecretAdminAccess() {
-    const nextClicks = menuClicks + 1;
+  const openAdmin = useCallback(() => {
+    navigate("/admin");
+  }, [navigate]);
 
-    setMenuClicks(nextClicks);
-
-    if (nextClicks >= 3) {
-      setMenuClicks(0);
-
-      navigate("/admin");
-
-      return true;
-    }
-
-    setTimeout(() => {
-      setMenuClicks(0);
-    }, 1200);
-
-    return false;
-  }
+  const handleSecretAdminAccess = useTripleActivation(openAdmin);
 
   function handleMenuButtonClick() {
+    setMenuOpen((prev) => !prev);
+  }
+
+  function handleServicesClick(event) {
     const openedAdmin = handleSecretAdminAccess();
 
     if (openedAdmin) {
-      return;
+      event.preventDefault();
     }
+  }
 
-    setMenuOpen((prev) => !prev);
+  function handleMobileServicesClick(event) {
+    handleServicesClick(event);
+
+    setMenuOpen(false);
   }
 
   return (
@@ -87,21 +73,17 @@ export default function Navbar() {
           {/* Desktop Nav */}
           <nav className="hidden items-center gap-12 md:flex">
             {links.map((link) => {
-              const active = location.pathname === link.path;
+              const active = link.path === "/services"
+                ? location.pathname === link.path || location.pathname.startsWith("/services/")
+                : location.pathname === link.path;
 
               return (
                 <Link
                   key={link.path}
                   to={link.path}
                   onClick={
-                    link.path === "/"
-                      ? (event) => {
-                          const openedAdmin = handleSecretAdminAccess();
-
-                          if (openedAdmin) {
-                            event.preventDefault();
-                          }
-                        }
+                    link.path === "/services"
+                      ? handleServicesClick
                       : undefined
                   }
                   className={`relative text-[0.95rem] font-medium uppercase tracking-[0.18em] transition-colors duration-300 ${
@@ -179,13 +161,19 @@ export default function Navbar() {
         <div className="flex min-h-screen flex-col justify-center px-10">
           <nav className="flex flex-col gap-8">
             {links.map((link) => {
-              const active = location.pathname === link.path;
+              const active = link.path === "/services"
+                ? location.pathname === link.path || location.pathname.startsWith("/services/")
+                : location.pathname === link.path;
 
               return (
                 <Link
                   key={link.path}
                   to={link.path}
-                  onClick={() => setMenuOpen(false)}
+                  onClick={
+                    link.path === "/services"
+                      ? handleMobileServicesClick
+                      : () => setMenuOpen(false)
+                  }
                   className={`text-3xl uppercase tracking-[0.18em] transition-colors duration-300 ${
                     active
                       ? "text-[#f1e8ca]"
