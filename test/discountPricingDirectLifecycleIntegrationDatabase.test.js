@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
-import { randomUUID } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { setTimeout as delay } from "node:timers/promises";
 import test from "node:test";
@@ -42,7 +42,7 @@ test("discount pricing coexists with effective direct-payment lifecycle", { time
     }
   }
 
-  const [security, phaseOne, current, supersession, discount, stageTwo, stageThree] = await Promise.all([
+  const [security, phaseOne, current, supersession, discount, stageTwo, stageThree, stageFour] = await Promise.all([
     read("20260817185300_booking_security_admin_foundation.sql"),
     read("20260818001000_direct_payment_phase_one.sql"),
     read("20260908000000_business_timezone_slot_expiry.sql"),
@@ -50,6 +50,7 @@ test("discount pricing coexists with effective direct-payment lifecycle", { time
     read("20260914000000_discount_pricing_foundation.sql"),
     read("20260915000000_discount_aware_booking_creation.sql"),
     read("20260915001000_discount_revalidation_and_redemption.sql"),
+    read("20260915002000_discount_customer_quote_api.sql"),
   ]);
   const attempts = phaseOne.match(/create table private\.payment_attempts \([^]*?\n\);/)?.[0];
   const access = phaseOne.match(/create table private\.booking_payment_access \([^]*?\n\);/)?.[0];
@@ -109,6 +110,7 @@ test("discount pricing coexists with effective direct-payment lifecycle", { time
     ${discount}
     ${stageTwo}
     ${stageThree}
+    ${stageFour}
   `);
 
   const ids = Object.fromEntries((await query("select slug || '=' || id from public.services order by slug;")).split("\n").map((row) => row.split("=")));
@@ -390,6 +392,157 @@ test("discount pricing coexists with effective direct-payment lifecycle", { time
     await assert.rejects(query(`set role anon; select private.discount_pricing_is_currently_redeemable((select pricing_id from private.payment_attempts where id='${attempt}'));`), /permission denied/);
     await assert.rejects(query(`set role authenticated; select public.mark_payment_attempt_processing('${booking.booking_id}','${attempt}','sandbox');`), /permission denied|Service-role/);
     await query(`set request.jwt.claims = '{"role":"service_role"}'; select public.mark_payment_attempt_processing('${booking.booking_id}','${attempt}','sandbox');`);
+  });
+
+  await t.test("Stage 4 browser quotes and reviewed creation are authoritative and atomic", async () => {
+    const quote = async (service, code, role = "anon") => JSON.parse(await query(
+      `set role ${role}; select row_to_json(result) from public.quote_direct_payment_discount('${ids[service]}','${code}') result;`,
+    ));
+    const createReviewed = async (service, code, guard, slotId = null, role = "anon") => JSON.parse(await query(
+      `set role ${role}; select public.create_discounted_pending_payment_booking('${ids[service]}','Customer','customer@example.test',null,'Question',${slotId ? `'${slotId}'` : "null"},'${code}','${guard}');`,
+    ));
+    const counts = () => query("select (select count(*) from public.bookings) || '|' || (select count(*) from private.booking_pricing) || '|' || (select count(*) from private.booking_payment_access) || '|' || (select count(*) from private.payment_attempts) || '|' || (select count(*) from private.discount_redemptions);");
+    const assertRejectedGuard = async (guard) => {
+      const slotId = await slot();
+      const quoted = await quote("private", "S4ALL25");
+      const before = await counts();
+      assert.deepEqual(await createReviewed("private", "S4ALL25", guard, slotId), { created: false, code: "PRICE_REVIEW_REQUIRED" });
+      assert.equal(await counts(), before);
+      assert.equal(await query(`select is_available and not exists(select 1 from public.bookings where slot_id='${slotId}') from public.availability_slots where id='${slotId}';`), "t");
+      assert.match(quoted.review_guard, /^[0-9a-f]{64}$/);
+    };
+
+    await query(`
+      insert into private.discount_codes(code,percentage_off,scope,expires_at) values
+        ('S4ALL25',25,'all',null), ('S4WHEEL33',33,'all',null),
+        ('S4DISABLED',20,'all',null), ('S4EXPIRED',20,'all',now()-interval '1 minute'),
+        ('S4CHANGE',20,'all',null), ('S4PRICE',20,'all',null), ('S4SCOPE',20,'all',null),
+        ('S4HALF50',50,'all',null);
+      update private.discount_codes set enabled=false where code='S4DISABLED';
+      with c as (insert into private.discount_codes(code,percentage_off,scope) values ('S4SELECT20',20,'selected') returning id)
+      insert into private.discount_code_services(discount_code_id,service_id) select id,'${ids.private}' from c;
+      begin;
+      insert into private.discount_code_services(discount_code_id,service_id)
+      select id,'${ids.private}' from private.discount_codes where code='S4SCOPE';
+      update private.discount_codes set scope='selected' where code='S4SCOPE';
+      commit;
+    `);
+
+    const beforeQuote = await counts();
+    const voiceQuote = await quote("voice", "  s4all25 ");
+    assert.deepEqual(voiceQuote, {
+      accepted: true, error_code: null, canonical_code: "S4ALL25",
+      original_amount_minor: 2000, discount_percentage: 25,
+      discount_amount_minor: 500, final_amount_minor: 1500, currency: "USD",
+      review_guard: voiceQuote.review_guard,
+    });
+    assert.match(voiceQuote.review_guard, /^[0-9a-f]{64}$/);
+    assert.equal(await counts(), beforeQuote);
+    assert.equal((await quote("voice", "S4ALL25", "authenticated")).accepted, true);
+    const selectedQuote = await quote("private", "s4select20");
+    assert.equal(`${selectedQuote.accepted}|${selectedQuote.original_amount_minor}|${selectedQuote.discount_amount_minor}|${selectedQuote.final_amount_minor}|${selectedQuote.currency}`, "true|8500|1700|6800|USD");
+    const wheelQuote = await quote("wheel", "S4WHEEL33");
+    assert.equal(`${wheelQuote.original_amount_minor}|${wheelQuote.discount_percentage}|${wheelQuote.discount_amount_minor}|${wheelQuote.final_amount_minor}`, "6000|33|1980|4020");
+    const roundingService = await query("insert into public.services(slug,name,booking_mode,price_amount) values ('rounding','Rounding','untimed',2005) returning id;");
+    const halfCentQuote = JSON.parse(await query(`set role anon; select row_to_json(result) from public.quote_direct_payment_discount('${roundingService}','S4HALF50') result;`));
+    assert.equal(`${halfCentQuote.original_amount_minor}|${halfCentQuote.discount_percentage}|${halfCentQuote.discount_amount_minor}|${halfCentQuote.final_amount_minor}`, "2005|50|1003|1002");
+
+    for (const [service, code] of [["voice", "UNKNOWN"], ["voice", "bad code!"], ["voice", "S4DISABLED"], ["voice", "S4EXPIRED"], ["wheel", "S4SELECT20"]]) {
+      const result = await quote(service, code);
+      assert.deepEqual(result, {
+        accepted: false, error_code: "DISCOUNT_UNAVAILABLE", canonical_code: null,
+        original_amount_minor: null, discount_percentage: null, discount_amount_minor: null,
+        final_amount_minor: null, currency: null, review_guard: null,
+      });
+    }
+    await query(`update public.services set is_active=false where id='${ids.voice}';`);
+    assert.equal((await quote("voice", "S4ALL25")).error_code, "DISCOUNT_UNAVAILABLE");
+    await query(`update public.services set is_active=true where id='${ids.voice}';`);
+    await query(`update public.services set payment_flow='payment_link' where id='${ids.voice}';`);
+    assert.equal((await quote("voice", "S4ALL25")).error_code, "DISCOUNT_UNAVAILABLE");
+    await query(`update public.services set payment_flow='direct_payment' where id='${ids.voice}';`);
+
+    const privateSlot = await slot();
+    const privateQuote = await quote("private", "S4ALL25");
+    const createdPrivate = await createReviewed("private", "S4ALL25", privateQuote.review_guard, privateSlot);
+    assert.equal(createdPrivate.created, true);
+    assert.equal(await query(`select service_price_amount_snapshot || '|' || amount_due || '|' || bp.original_amount_minor || '|' || bp.discount_amount_minor || '|' || bp.final_amount_minor || '|' || a.amount_minor from public.bookings b join private.booking_pricing bp on bp.booking_id=b.id join private.payment_attempts a on a.booking_id=b.id where b.id='${createdPrivate.booking_id}';`), "8500|63.7500000000000000|8500|2125|6375|6375");
+    const createdVoice = await createReviewed("voice", "S4ALL25", voiceQuote.review_guard);
+    assert.equal(createdVoice.created, true);
+    assert.equal(await query(`select final_amount_minor from private.booking_pricing where booking_id='${createdVoice.booking_id}';`), "1500");
+    const wheelSlot = await slot();
+    const createdWheel = await createReviewed("wheel", "S4WHEEL33", wheelQuote.review_guard, wheelSlot);
+    assert.equal(createdWheel.created, true);
+    assert.equal(await query(`select original_amount_minor || '|' || discount_amount_minor || '|' || final_amount_minor from private.booking_pricing where booking_id='${createdWheel.booking_id}';`), "6000|1980|4020");
+
+    const guardForComparison = (await quote("private", "S4ALL25")).review_guard;
+    const tamperAt = (guard, index) => `${guard.slice(0, index)}${guard[index] === "0" ? "1" : "0"}${guard.slice(index + 1)}`;
+    let randomWrongGuard;
+    do { randomWrongGuard = randomBytes(32).toString("hex"); } while (randomWrongGuard === guardForComparison);
+    for (const guard of [
+      tamperAt(guardForComparison, 0),
+      tamperAt(guardForComparison, 32),
+      tamperAt(guardForComparison, 63),
+      guardForComparison.slice(0, -1),
+      `${guardForComparison}0`,
+      `z${guardForComparison.slice(1)}`,
+      randomWrongGuard,
+    ]) {
+      await assertRejectedGuard(guard);
+    }
+
+    const rejectReview = async (code, mutate) => {
+      const quoted = await quote("voice", code);
+      const before = await counts();
+      await mutate();
+      const result = await createReviewed("voice", code, quoted.review_guard);
+      assert.deepEqual(result, { created: false, code: "PRICE_REVIEW_REQUIRED" });
+      assert.equal(await counts(), before);
+    };
+    const staleQuote = await quote("private", "S4CHANGE");
+    const staleSlot = await slot();
+    const beforeStale = await counts();
+    await query("update private.discount_codes set percentage_off=25, revision=revision+1 where code='S4CHANGE';");
+    assert.deepEqual(await createReviewed("private", "S4CHANGE", staleQuote.review_guard, staleSlot), { created: false, code: "PRICE_REVIEW_REQUIRED" });
+    assert.equal(await counts(), beforeStale);
+    assert.equal(await query(`select is_available and not exists(select 1 from public.bookings where slot_id='${staleSlot}') from public.availability_slots where id='${staleSlot}';`), "t");
+    await rejectReview("S4PRICE", () => query(`update public.services set price_amount=2100 where id='${ids.voice}';`));
+    await query(`update public.services set price_amount=2000 where id='${ids.voice}';`);
+    // Quote while valid, then disable it before Continue.
+    await query("update private.discount_codes set enabled=true where code='S4CHANGE';");
+    const disableQuote = await quote("voice", "S4CHANGE");
+    const beforeDisable = await counts();
+    await query("update private.discount_codes set enabled=false where code='S4CHANGE';");
+    assert.deepEqual(await createReviewed("voice", "S4CHANGE", disableQuote.review_guard), { created: false, code: "PRICE_REVIEW_REQUIRED" });
+    assert.equal(await counts(), beforeDisable);
+    const scopeQuote = await quote("private", "S4SCOPE");
+    const scopeSlot = await slot();
+    const beforeScope = await counts();
+    await query(`begin; delete from private.discount_code_services where discount_code_id=(select id from private.discount_codes where code='S4SCOPE'); insert into private.discount_code_services(discount_code_id,service_id) select id,'${ids.wheel}' from private.discount_codes where code='S4SCOPE'; commit;`);
+    assert.deepEqual(await createReviewed("private", "S4SCOPE", scopeQuote.review_guard, scopeSlot), { created: false, code: "PRICE_REVIEW_REQUIRED" });
+    assert.equal(await counts(), beforeScope);
+    assert.equal(await query(`select is_available and not exists(select 1 from public.bookings where slot_id='${scopeSlot}') from public.availability_slots where id='${scopeSlot}';`), "t");
+    await assert.rejects(query(`set role anon; select private.calculate_discount_pricing('${ids.voice}','S4ALL25');`), /permission denied/);
+    await assert.rejects(query("set role anon; select private.discount_review_guard_digests_equal(decode(repeat('00',32),'hex'),decode(repeat('00',32),'hex'));"), /permission denied/);
+    await assert.rejects(query(`set role authenticated; select private.create_pending_payment_booking_with_review_guard('${ids.voice}','Customer','customer@example.test',null,'Question',null,'S4ALL25','${voiceQuote.review_guard}');`), /permission denied/);
+    await assert.rejects(query(`set role anon; select public.create_pending_payment_booking('${ids.voice}','Customer','customer@example.test',null,'Question',null,'S4ALL25');`), /permission denied/);
+  });
+
+  await t.test("two independent browser sessions serialize one reviewed discounted timed booking", async () => {
+    await query("insert into private.discount_codes(code,percentage_off,scope) values ('S4RACE25',25,'all');");
+    const reviewed = JSON.parse(await query(`set role anon; select row_to_json(result) from public.quote_direct_payment_discount('${ids.private}','S4RACE25') result;`));
+    const slotId = await slot();
+    const createSql = (name) => `set role anon; select public.create_discounted_pending_payment_booking('${ids.private}','${name}','${name}@example.test',null,'Question','${slotId}','S4RACE25','${reviewed.review_guard}');`;
+    const sessionA = exec(["exec", "-i", container, "psql", "-h", "127.0.0.1", "-U", "postgres", "-XqAt", "-v", "ON_ERROR_STOP=1"], `begin; select id from public.availability_slots where id='${slotId}' for update; select pg_sleep(1); ${createSql("DiscountWinner")} commit;`);
+    await delay(150);
+    const sessionB = query(createSql("DiscountLoser")).then(
+      () => null,
+      (error) => error,
+    );
+    const winner = await sessionA;
+    assert.match(winner, /booking_id/);
+    assert.match(String(await sessionB), /no longer available/);
+    assert.equal(await query(`select count(*) || '|' || (select count(*) from private.booking_pricing bp join public.bookings b on b.id=bp.booking_id where b.slot_id='${slotId}') || '|' || (select count(*) from private.booking_payment_access a join public.bookings b on b.id=a.booking_id where b.slot_id='${slotId}') || '|' || (select count(*) from private.payment_attempts a join public.bookings b on b.id=a.booking_id where b.slot_id='${slotId}') || '|' || (select is_available from public.availability_slots where id='${slotId}') from public.bookings where slot_id='${slotId}';`), "1|1|1|1|false");
   });
 
   await t.test("two independent sessions serialize one timed Stage 2 creation", async () => {
