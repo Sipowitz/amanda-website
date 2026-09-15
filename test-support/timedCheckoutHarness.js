@@ -39,7 +39,8 @@ const bundle = await rolldown({
         export const getServiceBySlug = call('service'), getAvailableSlots = call('slots'),
           getDirectPaymentStatus = call('status'), renewTimedCheckoutLease = call('lease'), cleanupTimedCheckout = call('cleanup'), abandonTimedPaymentBooking = call('abandon'),
           initializeDirectPayment = call('initialize'), submitSquarePayment = call('submit'),
-          createBooking = call('create'), createPendingPaymentBooking = call('create');`;
+          createBooking = call('create'), createPendingPaymentBooking = call('create'),
+          quoteDirectPaymentDiscount = call('quote'), createDiscountedPendingPaymentBooking = call('createDiscounted');`;
       if (id === "\0router") return `import React from 'react'; export const useParams = () => ({serviceSlug: globalThis.checkoutHarness.slug}); export const Link = (p) => React.createElement('a', p);`;
       if (id === "\0motion") return `export const motion = { div: 'div', form: 'form' };`;
       if (id === "\0dates") return `import React from 'react'; export default function Dates(p) { return React.createElement('button', {onClick: () => p.onSelectDate('2026-12-20')}, 'Select date'); }`;
@@ -56,8 +57,8 @@ const retryId = "123e4567-e89b-42d3-a456-426614174003";
 let moduleId = 0;
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
-export async function mount(t, { mode = "timed", state = "failed", navigation = "reload", abandon, transport = {}, square, nodeMock, strict = true, emptySession = false, persistent = new Map() } = {}) {
-  const slug = mode === "timed" ? "private-readings" : "voice-memo-reading";
+export async function mount(t, { mode = "timed", serviceSlug, state = "failed", navigation = "reload", abandon, transport = {}, square, nodeMock, strict = true, emptySession = false, persistent = new Map() } = {}) {
+  const slug = serviceSlug || (mode === "timed" ? "private-readings" : "voice-memo-reading");
   const identity = { bookingId, paymentAccessToken: "a".repeat(64), serviceId: "service" };
   const key = `amanda:direct-payment:${slug}`;
   const storage = new Map(emptySession ? [] : [[key, JSON.stringify(identity)]]);
@@ -114,6 +115,8 @@ export async function mount(t, { mode = "timed", state = "failed", navigation = 
     initialize: async () => { calls.push("initialize"); if (authoritative !== "reserved") currentAttempt = retryId; authoritative = "reserved"; return { ...context, attemptId: currentAttempt, attemptStatus: "reserved" }; },
     submit: async () => { calls.push("submit"); return {}; },
     create: async () => { calls.push("create"); throw new Error("Replacement creation must require a new form submission"); },
+    quote: async () => ({ accepted: false, error_code: "DISCOUNT_UNAVAILABLE" }),
+    createDiscounted: async () => { calls.push("createDiscounted"); throw new Error("Replacement creation must require a new form submission"); },
   };
   Object.assign(globalThis.checkoutHarness, transport);
   const { default: Booking } = await import(`data:text/javascript;base64,${Buffer.from(compiledPage + `\n//# sourceURL=checkout-test-${moduleId}.mjs`).toString("base64")}#${moduleId++}`);

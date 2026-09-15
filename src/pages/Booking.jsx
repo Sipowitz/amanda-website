@@ -18,9 +18,11 @@ import {
   cleanupTimedCheckout,
   getDirectPaymentStatus,
   createBooking,
+  createDiscountedPendingPaymentBooking,
   createPendingPaymentBooking,
   getAvailableSlots,
   getServiceBySlug,
+  quoteDirectPaymentDiscount,
 } from "../services/bookingService";
 import {
   clearPaymentIdentity,
@@ -86,8 +88,13 @@ export default function Booking({ expectedMode, modal = false }) {
     phone: "",
     message: "",
   });
+  const [discountCode, setDiscountCode] = useState("");
+  const [appliedDiscountQuote, setAppliedDiscountQuote] = useState(null);
+  const [discountState, setDiscountState] = useState("idle");
+  const [discountMessage, setDiscountMessage] = useState("");
   const [error, setError] = useState("");
   const entryRef = useRef(null);
+  const discountRequestRef = useRef(0);
 
   useEffect(() => {
     let active = true;
@@ -115,6 +122,11 @@ export default function Booking({ expectedMode, modal = false }) {
         setPaymentIdentity(null);
         setRecoveredBookingDetails(null);
         setBookingFormData({ name: "", email: "", phone: "", message: "" });
+        ++discountRequestRef.current;
+        setDiscountCode("");
+        setAppliedDiscountQuote(null);
+        setDiscountState("idle");
+        setDiscountMessage("");
 
         const resolvedService = await getServiceBySlug(serviceSlug);
 
@@ -222,6 +234,55 @@ export default function Booking({ expectedMode, modal = false }) {
     return format(new Date(`${selectedDate}T12:00:00`), "EEEE, MMMM d");
   }, [selectedDate]);
 
+  const invalidateDiscountQuote = useCallback(({ clearCode = false, message = "" } = {}) => {
+    ++discountRequestRef.current;
+    if (clearCode) setDiscountCode("");
+    setAppliedDiscountQuote(null);
+    setDiscountState(message ? "rejected" : "idle");
+    setDiscountMessage(message);
+  }, []);
+
+  const handleDiscountCodeChange = useCallback((value) => {
+    ++discountRequestRef.current;
+    setDiscountCode(value);
+    setAppliedDiscountQuote(null);
+    setDiscountState("idle");
+    setDiscountMessage("");
+  }, []);
+
+  const applyDiscountCode = useCallback(async () => {
+    if (!service || service.payment_flow !== "direct_payment") return;
+    const request = ++discountRequestRef.current;
+    const code = discountCode.trim();
+    setAppliedDiscountQuote(null);
+    if (!code) {
+      setDiscountState("idle");
+      setDiscountMessage("");
+      return;
+    }
+    setDiscountState("applying");
+    setDiscountMessage("");
+    try {
+      const quote = await quoteDirectPaymentDiscount({
+        serviceId: service.id,
+        discountCode: code,
+      });
+      if (request !== discountRequestRef.current) return;
+      if (quote.accepted) {
+        setDiscountCode(quote.canonical_code);
+        setAppliedDiscountQuote(quote);
+        setDiscountState("applied");
+        return;
+      }
+      setDiscountState("rejected");
+      setDiscountMessage("This code is unavailable.");
+    } catch {
+      if (request !== discountRequestRef.current) return;
+      setDiscountState("rejected");
+      setDiscountMessage("This code is unavailable.");
+    }
+  }, [discountCode, service]);
+
   async function handleBookingSubmit(formData) {
     if ((expectedMode === "timed" && (loading || cleanupBlocked || paymentIdentity)) || !service || (service.booking_mode === "timed" && (!timezone || !selectedSlot || isSlotPast(selectedSlot)))) {
       return;
@@ -248,8 +309,18 @@ export default function Booking({ expectedMode, modal = false }) {
 
         setSuccess(true);
       } else {
-        const { bookingId, paymentAccessToken } =
-          await createPendingPaymentBooking({
+        const creation = appliedDiscountQuote?.accepted
+          ? await createDiscountedPendingPaymentBooking({
+            serviceId: service.id,
+            slotId: selectedSlot?.id || null,
+            name: formData.name,
+            email: formData.email,
+            phone: formData.phone,
+            message: formData.message,
+            discountCode: appliedDiscountQuote.canonical_code,
+            reviewGuard: appliedDiscountQuote.review_guard,
+          })
+          : await createPendingPaymentBooking({
             serviceId: service.id,
             slotId: selectedSlot?.id || null,
             name: formData.name,
@@ -257,6 +328,14 @@ export default function Booking({ expectedMode, modal = false }) {
             phone: formData.phone,
             message: formData.message,
           });
+
+        if (creation.created === false && creation.code === "PRICE_REVIEW_REQUIRED") {
+          invalidateDiscountQuote({
+            message: "The discount changed. Please apply your code again before continuing.",
+          });
+          return;
+        }
+        const { bookingId, paymentAccessToken } = creation;
 
         const identity = {
           bookingId,
@@ -344,6 +423,7 @@ export default function Booking({ expectedMode, modal = false }) {
     setPaymentIdentity(null);
     setRecoveredBookingDetails(null);
     setBookingFormData({ name: "", email: "", phone: "", message: "" });
+    invalidateDiscountQuote({ clearCode: true });
     setSelectedDate(null);
     setSelectedSlot(null);
     setSlots([]);
@@ -357,7 +437,7 @@ export default function Booking({ expectedMode, modal = false }) {
     } finally {
       setLoading(false);
     }
-  }, [paymentIdentity, service, serviceSlug]);
+  }, [invalidateDiscountQuote, paymentIdentity, service, serviceSlug]);
 
   if (!loading && !service) {
     return (
@@ -484,6 +564,7 @@ export default function Booking({ expectedMode, modal = false }) {
                   setSelectedSlot(null);
                   setSuccess(false);
                   setError("");
+                  invalidateDiscountQuote({ clearCode: true });
                 }}
               />
 
@@ -516,8 +597,17 @@ export default function Booking({ expectedMode, modal = false }) {
                       onCancel={() => {
                         setSelectedSlot(null);
                         setSuccess(false);
+                        invalidateDiscountQuote({ clearCode: true });
                       }}
                       loading={submitting}
+                      showDiscountCode={usesDirectPayment}
+                      discountCode={discountCode}
+                      appliedDiscountQuote={appliedDiscountQuote}
+                      discountState={discountState}
+                      discountMessage={discountMessage}
+                      onDiscountCodeChange={handleDiscountCodeChange}
+                      onApplyDiscount={applyDiscountCode}
+                      onRemoveDiscount={() => invalidateDiscountQuote({ clearCode: true })}
                       submitLabel={usesDirectPayment ? "Continue to payment" : undefined}
                       formData={bookingFormData}
                       onFormDataChange={setBookingFormData}
@@ -544,6 +634,14 @@ export default function Booking({ expectedMode, modal = false }) {
                       loading={submitting}
                       disabled={loading || !service}
                       animateOnMount={false}
+                      showDiscountCode={usesDirectPayment}
+                      discountCode={discountCode}
+                      appliedDiscountQuote={appliedDiscountQuote}
+                      discountState={discountState}
+                      discountMessage={discountMessage}
+                      onDiscountCodeChange={handleDiscountCodeChange}
+                      onApplyDiscount={applyDiscountCode}
+                      onRemoveDiscount={() => invalidateDiscountQuote({ clearCode: true })}
                       submitLabel={
                         service?.payment_flow === "direct_payment"
                           ? "Continue to payment"

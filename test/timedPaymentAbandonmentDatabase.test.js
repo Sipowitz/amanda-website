@@ -502,7 +502,7 @@ test("timed checkout abandonment in PostgreSQL", { timeout: 600000 }, async (t) 
       assert.equal(run.storage.has(run.key), false);
       assert.equal(run.calls.filter((call) => call === "clear").length, 1);
       await run.click("Select date"); await run.click("Select slot");
-      assert.deepEqual(Object.fromEntries([...run.root.root.findAllByType("input"), ...run.root.root.findAllByType("textarea")].map((f) => [f.props.name, f.props.value])), { name: "", email: "", phone: "", message: "" });
+      assert.deepEqual(Object.fromEntries([...run.root.root.findAllByType("input"), ...run.root.root.findAllByType("textarea")].map((f) => [f.props.name, f.props.value])), { "discount-code": "", name: "", email: "", phone: "", message: "" });
       assert.equal(JSON.stringify(run.root.toJSON()).includes("Old private topic"), false);
       assert.equal(await snapshot(), before);
       assert.equal(await query("select count(*) from public.test_slot_writes;"), writes);

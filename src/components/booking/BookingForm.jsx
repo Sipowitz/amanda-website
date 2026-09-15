@@ -14,6 +14,14 @@ export default function BookingForm({
   submitLabel,
   formData,
   onFormDataChange,
+  showDiscountCode = false,
+  discountCode = "",
+  appliedDiscountQuote = null,
+  discountState = "idle",
+  discountMessage = "",
+  onDiscountCodeChange,
+  onApplyDiscount,
+  onRemoveDiscount,
 }) {
   const isTimed = (service?.booking_mode || bookingMode) === "timed";
   const displayName = service?.name || presentation?.name;
@@ -39,6 +47,13 @@ export default function BookingForm({
   function handleSubmit(event) {
     event.preventDefault();
     onSubmit(formData);
+  }
+
+  function handleDiscountKeyDown(event) {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      if (!loading && !disabled && discountCode.trim()) onApplyDiscount?.();
+    }
   }
 
   const readableDate = selectedSlot
@@ -93,6 +108,54 @@ export default function BookingForm({
           </button>
         )}
       </div>
+
+      {showDiscountCode && (
+        <section aria-labelledby="discount-code-heading" className="rounded-2xl border border-white/10 bg-black/10 p-4 sm:p-5">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+            <div className="min-w-0 flex-1">
+              <label id="discount-code-heading" htmlFor="discount-code" className="text-sm font-medium text-[#f1e8ca]">
+                Discount code <span className="text-[#f1e8ca]/55">(optional)</span>
+              </label>
+              <input
+                id="discount-code"
+                name="discount-code"
+                type="text"
+                autoComplete="off"
+                value={discountCode}
+                onChange={(event) => onDiscountCodeChange?.(event.target.value)}
+                onKeyDown={handleDiscountKeyDown}
+                disabled={loading || disabled}
+                className="mt-2 w-full rounded-xl border border-white/10 bg-black/10 px-4 py-3 text-[#f1e8ca] placeholder:text-[#f1e8ca]/35 outline-none transition focus:border-[#f1e8ca]/40 disabled:opacity-55"
+                placeholder="Enter code"
+              />
+            </div>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={onApplyDiscount}
+                disabled={loading || disabled || discountState === "applying" || !discountCode.trim()}
+                className="min-h-11 rounded-xl border border-[#f1e8ca]/25 px-5 py-2.5 text-sm font-medium text-[#f1e8ca] transition hover:bg-white/10 disabled:cursor-wait disabled:opacity-55"
+              >
+                {discountState === "applying" ? "Applying…" : "Apply"}
+              </button>
+              {appliedDiscountQuote && (
+                <button type="button" onClick={onRemoveDiscount} disabled={loading || disabled} className="min-h-11 rounded-xl px-3 py-2 text-sm text-[#f1e8ca]/70 transition hover:text-[#f1e8ca] disabled:opacity-55">
+                  Remove
+                </button>
+              )}
+            </div>
+          </div>
+
+          {discountMessage && <p role="status" className="mt-3 text-sm text-[#f1e8ca]/75">{discountMessage}</p>}
+          {appliedDiscountQuote && (
+            <div className="mt-4 space-y-1.5 border-t border-white/10 pt-4 text-sm text-[#f1e8ca]/80">
+              <div className="flex items-center justify-between gap-4"><span>Original price</span><span>{(appliedDiscountQuote.original_amount_minor / 100).toLocaleString("en-US", { style: "currency", currency: appliedDiscountQuote.currency })}</span></div>
+              <div className="flex items-center justify-between gap-4 text-[#f1e8ca]"><span>Discount ({appliedDiscountQuote.canonical_code})</span><span>−{(appliedDiscountQuote.discount_amount_minor / 100).toLocaleString("en-US", { style: "currency", currency: appliedDiscountQuote.currency })}</span></div>
+              <div className="flex items-center justify-between gap-4 border-t border-white/10 pt-2 font-medium text-[#f1e8ca]"><span>Final amount due</span><span>{(appliedDiscountQuote.final_amount_minor / 100).toLocaleString("en-US", { style: "currency", currency: appliedDiscountQuote.currency })}</span></div>
+            </div>
+          )}
+        </section>
+      )}
 
       <div className="grid gap-5 md:grid-cols-2">
         <input

@@ -17,7 +17,7 @@ for (const state of ["failed", "expired", "cancelled"]) {
     await run.click("Select date");
     await run.click("Select slot");
     const fields = [...run.root.root.findAllByType("input"), ...run.root.root.findAllByType("textarea")];
-    assert.deepEqual(Object.fromEntries(fields.map((node) => [node.props.name, node.props.value])), { name: "", email: "", phone: "", message: "" });
+    assert.deepEqual(Object.fromEntries(fields.map((node) => [node.props.name, node.props.value])), { "discount-code": "", name: "", email: "", phone: "", message: "" });
     assert.equal(JSON.stringify(run.root.toJSON()).includes("Old private topic"), false);
     const operation = run.calls.find((call) => Array.isArray(call));
     assert.equal(operation[3], attemptId);

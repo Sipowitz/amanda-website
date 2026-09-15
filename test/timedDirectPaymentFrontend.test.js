@@ -99,7 +99,7 @@ test("recovered payment states remain delegated to SquareCardPayment", async () 
 test("choosing a new appointment clears identity and refreshes availability", async () => {
   const source = await bookingPage();
   const handler = source.match(
-    /const handleChooseNewAppointment[^]*?\n {2}\}, \[paymentIdentity, service, serviceSlug\]\);/,
+    /const handleChooseNewAppointment[^]*?\n {2}\}, \[[^\]]*paymentIdentity, service, serviceSlug\]\);/,
   )?.[0] ?? "";
   assert.match(handler, /clearPaymentIdentity/);
   assert.match(handler, /setPaymentIdentity\(null\)/);
@@ -126,4 +126,12 @@ test("Voice Memo continues through the same direct-payment implementation", asyn
   assert.match(form, /required=\{!isTimed\}/);
   assert.match(form, /Tell Amanda the topic or question/);
   assert.match(page, /payment_flow === "direct_payment"/);
+});
+
+test("timed and untimed direct-payment forms receive the same optional discount entry before creation", async () => {
+  const page = await bookingPage();
+  assert.equal((page.match(/showDiscountCode=\{usesDirectPayment\}/g) ?? []).length, 2);
+  assert.match(page, /onSelectDate=\{\(date\) => \{[\s\S]*invalidateDiscountQuote\(\{ clearCode: true \}\)/);
+  assert.match(page, /onCancel=\{\(\) => \{[\s\S]*invalidateDiscountQuote\(\{ clearCode: true \}\)/);
+  assert.match(page, /handleChooseNewAppointment[^]*?invalidateDiscountQuote\(\{ clearCode: true \}\)/);
 });
