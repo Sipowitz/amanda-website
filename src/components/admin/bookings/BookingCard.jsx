@@ -6,6 +6,7 @@ import BookingPaymentEditor from "./BookingPaymentEditor";
 import {
   formatBookingDate,
   formatCurrency,
+  formatMinorCurrency,
   formatTimestamp,
   getPaymentLabel,
   getPaymentMethodLabel,
@@ -60,6 +61,8 @@ export default function BookingCard({
     Number(booking.amount_due || 0) - Number(booking.amount_paid || 0),
     0,
   );
+  const pricing = booking.booking_pricing;
+  const hasDiscount = Number(pricing?.discount_amount_minor || 0) > 0;
 
   const accentClass =
     booking.status === "confirmed"
@@ -198,7 +201,12 @@ export default function BookingCard({
 
                   <div className="space-y-1.5 text-sm text-[#445047]">
                     {isDirectPayment ? <>
-                      <p>Amount: {formatCurrency(booking.amount_paid)}</p>
+                      {hasDiscount ? <>
+                        <p>Original price: {formatMinorCurrency(pricing.original_amount_minor, pricing.currency)}</p>
+                        <p>Discount: {pricing.discount_code_snapshot} ({pricing.discount_percentage_snapshot}%)</p>
+                        <p>Discount amount: −{formatMinorCurrency(pricing.discount_amount_minor, pricing.currency)}</p>
+                        <p className="font-medium text-[#1f2922]">Paid: {formatMinorCurrency(pricing.final_amount_minor, pricing.currency)}</p>
+                      </> : <p>Amount: {formatCurrency(booking.amount_paid)}</p>}
                       {booking.paid_at && <p>Paid on: {formatTimestamp(booking.paid_at)}</p>}
                     </> : <>
                     <p>Due: {formatCurrency(booking.amount_due)}</p>

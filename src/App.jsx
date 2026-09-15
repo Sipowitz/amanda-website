@@ -19,6 +19,7 @@ import AdminSlots from "./pages/admin/AdminSlots";
 import AdminBookings from "./pages/admin/AdminBookings";
 import AdminSettings from "./pages/admin/AdminSettings";
 import AdminPaymentSettings from "./pages/admin/AdminPaymentSettings";
+import AdminDiscounts from "./pages/admin/AdminDiscounts";
 
 export default function App() {
   return (
@@ -70,6 +71,8 @@ export default function App() {
             path="/admin/availability"
             element={<AdminSlots />}
           />
+
+          <Route path="/admin/discounts" element={<AdminDiscounts />} />
 
           <Route
             path="/admin/settings"

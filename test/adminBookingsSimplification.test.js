@@ -24,6 +24,7 @@ const bundle = await rolldown({
     load(id) {
       if (id === '\0service') return `
         export const getAdminBookings = async () => globalThis.adminTest.bookings;
+        export const getAdminBookingPricing = async () => [];
         export const updateBookingStatus = async (...args) => globalThis.adminTest.calls.push(args);
         export const updateBookingPayment = async () => {};
         export const cancelBooking = async () => {};

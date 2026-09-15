@@ -154,6 +154,84 @@ export async function getAdminBookingPricing() {
   return data || [];
 }
 
+export async function getAdminDiscountCodes() {
+  const { data, error } = await supabase.rpc("get_admin_discount_codes");
+
+  if (error) throw error;
+
+  return data || [];
+}
+
+export async function createAdminDiscountCode({
+  code,
+  percentageOff,
+  scope,
+  selectedServiceIds,
+  enabled,
+  expiresAt,
+}) {
+  const { data, error } = await supabase.rpc("create_admin_discount_code", {
+    p_code: code,
+    p_percentage_off: percentageOff,
+    p_scope: scope,
+    p_selected_service_ids: selectedServiceIds,
+    p_enabled: enabled,
+    p_expires_at: expiresAt,
+  });
+
+  if (error) throw error;
+
+  return data;
+}
+
+export async function updateAdminDiscountCode({
+  discountCodeId,
+  percentageOff,
+  scope,
+  selectedServiceIds,
+  enabled,
+  expiresAt,
+}) {
+  const { data, error } = await supabase.rpc("update_admin_discount_code", {
+    p_discount_code_id: discountCodeId,
+    p_percentage_off: percentageOff,
+    p_scope: scope,
+    p_selected_service_ids: selectedServiceIds,
+    p_enabled: enabled,
+    p_expires_at: expiresAt,
+  });
+
+  if (error) throw error;
+
+  return data;
+}
+
+export async function setAdminDiscountCodeEnabled(discountCodeId, enabled) {
+  const { data, error } = await supabase.rpc("set_admin_discount_code_enabled", {
+    p_discount_code_id: discountCodeId,
+    p_enabled: enabled,
+  });
+
+  if (error) throw error;
+
+  return data;
+}
+
+export async function getEligibleDiscountServices() {
+  const { data, error } = await supabase.rpc("get_active_services");
+
+  if (error) throw error;
+
+  // get_active_services is the reusable catalogue projection and returns only
+  // active services. The remaining conditions mirror the customer quote API.
+  return (data || []).filter((service) =>
+    service.payment_required === true &&
+    service.payment_flow === "direct_payment" &&
+    Number(service.price_amount) > 0 &&
+    service.currency === "USD",
+  );
+}
+
 export async function getAvailableAdminSlots() {
   const { data, error } = await supabase
     .from("availability_slots")

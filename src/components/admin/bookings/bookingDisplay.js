@@ -82,11 +82,15 @@ export function getPaymentStyles(status) {
   }[status] || "border-[#f0cfc0] bg-[#fae8df] text-[#b23f1f]";
 }
 
-export function formatCurrency(value) {
+export function formatCurrency(value, currency = "USD") {
   return new Intl.NumberFormat("en-US", {
     style: "currency",
-    currency: "USD",
+    currency,
   }).format(Number(value || 0));
+}
+
+export function formatMinorCurrency(value, currency) {
+  return formatCurrency(Number(value || 0) / 100, currency || "USD");
 }
 
 export function formatTimestamp(timestamp) {

@@ -11,6 +11,7 @@ import { useConfirm } from "../../contexts/ConfirmContext";
 
 import {
   cancelBooking,
+  getAdminBookingPricing,
   getAdminBookings,
   updateBookingPayment,
   updateBookingStatus,
@@ -47,7 +48,17 @@ export default function AdminBookings() {
   async function loadData() {
     try {
       setLoading(true);
-      setBookings(await getAdminBookings());
+      const [bookings, pricingRows] = await Promise.all([
+        getAdminBookings(),
+        getAdminBookingPricing(),
+      ]);
+      const pricingByBooking = new Map(
+        pricingRows.map((pricing) => [pricing.booking_id, pricing]),
+      );
+      setBookings(bookings.map((booking) => ({
+        ...booking,
+        booking_pricing: pricingByBooking.get(booking.id) || null,
+      })));
     } catch (error) {
       console.error(error);
       toast.error("Failed to load bookings");
