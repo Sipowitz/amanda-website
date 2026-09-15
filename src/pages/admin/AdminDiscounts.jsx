@@ -72,7 +72,12 @@ export default function AdminDiscounts() {
 
   useEffect(() => {
     let cancelled = false;
-    load()
+    Promise.all([getAdminDiscountCodes(), getEligibleDiscountServices()])
+      .then(([codes, eligibleServices]) => {
+        if (cancelled) return;
+        setDiscounts(codes);
+        setServices(eligibleServices);
+      })
       .catch((error) => {
         console.error(error);
         if (!cancelled) toast.error(friendlyError(error, "Unable to load discount codes."));
