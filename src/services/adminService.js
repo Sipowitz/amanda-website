@@ -144,6 +144,16 @@ export async function getAdminBookings() {
   }));
 }
 
+export async function getAdminBookingPricing() {
+  const { data, error } = await supabase.rpc("get_admin_booking_pricing");
+
+  if (error) {
+    throw error;
+  }
+
+  return data || [];
+}
+
 export async function getAvailableAdminSlots() {
   const { data, error } = await supabase
     .from("availability_slots")

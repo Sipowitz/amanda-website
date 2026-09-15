@@ -33,9 +33,10 @@ test("discount pricing foundation is authoritative, immutable, and admin-guarded
     }
   }
 
-  const [security, migration] = await Promise.all([
+  const [security, migration, adminPricingProjection] = await Promise.all([
     read("20260817185300_booking_security_admin_foundation.sql"),
     read("20260914000000_discount_pricing_foundation.sql"),
+    read("20260915003000_admin_booking_pricing_projection.sql"),
   ]);
   const adminId = randomUUID();
   const userId = randomUUID();
@@ -87,12 +88,15 @@ test("discount pricing foundation is authoritative, immutable, and admin-guarded
   await assert.rejects(query(`begin; ${migration} commit;`), /Cannot safely backfill pricing for every direct-payment booking/);
   assert.equal(await query("select to_regclass('private.booking_pricing') is null and to_regclass('private.discount_codes') is null;"), "t");
   await query("delete from public.bookings where amount_due = 85.004;");
-  await query(`begin; ${migration} commit;`);
+  await query(`begin; ${migration} commit; ${adminPricingProjection}`);
 
   const ids = Object.fromEntries((await query("select slug || '=' || id from public.services order by slug;")).split("\n").map((line) => line.split("=")));
+  const initialUndiscountedBooking = await query(`select booking_id from private.booking_pricing
+    where original_amount_minor = 8500 and discount_amount_minor = 0 limit 1;`);
   const admin = (sql) => query(`set role authenticated; set request.jwt.claims = '${JSON.stringify({ role: "authenticated", sub: adminId })}'; ${sql}`);
   const ordinary = (sql) => query(`set role authenticated; set request.jwt.claims = '${JSON.stringify({ role: "authenticated", sub: userId })}'; ${sql}`);
   const anonymous = (sql) => query(`set role anon; set request.jwt.claims = '{"role":"anon"}'; ${sql}`);
+  const serviceRole = (sql) => query(`set role service_role; set request.jwt.claims = '{"role":"service_role"}'; ${sql}`);
 
   await t.test("canonical codes, percentage bounds, and scope validation are enforced", async () => {
     const welcome = await admin(`select public.create_admin_discount_code('  welcome20  ',20,'selected',array['${ids["private-readings"]}'::uuid]);`);
@@ -155,6 +159,36 @@ test("discount pricing foundation is authoritative, immutable, and admin-guarded
     assert.equal(await query(`select discount_code_snapshot || '|' || discount_percentage_snapshot || '|' || final_amount_minor from private.booking_pricing where booking_id='${booking}';`), "HISTORY20|20|6800");
     assert.equal(await query(`select code || '|' || percentage_off || '|' || enabled || '|' || revision from private.discount_codes where id='${code}';`), "HISTORY20|30|false|2");
     await assert.rejects(query(`select * from private.calculate_discount_pricing('${ids["private-readings"]}','HISTORY20');`), /unavailable/);
+  });
+
+  await t.test("admin booking pricing is a minimal immutable protected projection", async () => {
+    const discountedCode = await admin("select public.create_admin_discount_code('ADMINHISTORY20',20,'all');");
+    const discountedBooking = await query(`insert into public.bookings(service_id,service_name_snapshot,service_booking_mode_snapshot,service_price_amount_snapshot,service_currency_snapshot,service_payment_flow_snapshot,status,payment_status,amount_due)
+      values ('${ids["private-readings"]}','Private Reading','timed',8500,'USD','payment_link','confirmed','paid',68) returning id;`);
+    await query(`insert into private.booking_pricing(booking_id,service_id,original_amount_minor,discount_amount_minor,final_amount_minor,currency,discount_code_id,discount_code_snapshot,discount_percentage_snapshot,discount_code_revision)
+      values ('${discountedBooking}','${ids["private-readings"]}',8500,1700,6800,'USD','${discountedCode}','ADMINHISTORY20',20,1);`);
+
+    await assert.rejects(anonymous("select * from public.get_admin_booking_pricing();"), /permission denied/);
+    await assert.rejects(ordinary("select * from public.get_admin_booking_pricing();"), /Administrator access is required/);
+
+    const columns = await admin(`select string_agg(key, '|' order by key)
+      from jsonb_object_keys(to_jsonb((select result from public.get_admin_booking_pricing() result limit 1))) as key;`);
+    assert.equal(columns, "booking_id|currency|discount_amount_minor|discount_code_snapshot|discount_percentage_snapshot|final_amount_minor|original_amount_minor");
+
+    const projection = await admin(`select original_amount_minor || '|' || discount_code_snapshot || '|' || discount_percentage_snapshot || '|' || discount_amount_minor || '|' || final_amount_minor || '|' || currency
+      from public.get_admin_booking_pricing() where booking_id='${discountedBooking}';`);
+    assert.equal(projection, "8500|ADMINHISTORY20|20|1700|6800|USD");
+    assert.equal(await serviceRole(`select final_amount_minor from public.get_admin_booking_pricing() where booking_id='${discountedBooking}';`), "6800");
+
+    await query(`update public.services set price_amount=9900 where id='${ids["private-readings"]}';`);
+    await admin(`select public.update_admin_discount_code('${discountedCode}',35,'all',array[]::uuid[],false);`);
+    const afterChanges = await admin(`select original_amount_minor || '|' || discount_code_snapshot || '|' || discount_percentage_snapshot || '|' || discount_amount_minor || '|' || final_amount_minor || '|' || currency
+      from public.get_admin_booking_pricing() where booking_id='${discountedBooking}';`);
+    assert.equal(afterChanges, "8500|ADMINHISTORY20|20|1700|6800|USD");
+
+    const undiscounted = await admin(`select original_amount_minor || '|' || coalesce(discount_code_snapshot, 'NULL') || '|' || coalesce(discount_percentage_snapshot::text, 'NULL') || '|' || discount_amount_minor || '|' || final_amount_minor || '|' || currency
+      from public.get_admin_booking_pricing() where booking_id='${initialUndiscountedBooking}';`);
+    assert.equal(undiscounted, "8500|NULL|NULL|0|8500|USD");
   });
 
   await t.test("private definitions and records remain inaccessible to browser roles", async () => {
