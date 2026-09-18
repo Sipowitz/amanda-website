@@ -3,7 +3,18 @@ import test from 'node:test';
 import { Buffer } from 'node:buffer';
 import { readFile } from 'node:fs/promises';
 import { rolldown } from 'rolldown';
-import { businessDate, isSlotPast, visibleAdminSlots } from '../src/utils/slotTime.js';
+import { businessDate, formatSlotTime, isSlotPast, visibleAdminSlots } from '../src/utils/slotTime.js';
+
+test('slot wall times use a 12-hour AM/PM display without changing their stored values', () => {
+  for (const [stored, display] of [
+    ['00:00', '12:00 AM'],
+    ['09:00', '9:00 AM'],
+    ['12:00', '12:00 PM'],
+    ['13:30', '1:30 PM'],
+    ['23:45', '11:45 PM'],
+  ]) assert.equal(formatSlotTime(stored), display);
+  assert.equal(formatSlotTime('not-a-time'), 'not-a-time');
+});
 
 const now = Date.parse('2026-07-16T04:30:00Z'); // July 15, 23:30 in Chicago
 const slot = (starts_at, overrides = {}) => ({starts_at, is_available: true, bookings: [], ...overrides});

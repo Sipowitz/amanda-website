@@ -1,4 +1,5 @@
 import { motion } from "framer-motion";
+import { formatSlotTime } from "../../utils/slotTime";
 
 export default function SlotItem({ slot, onDelete }) {
   const booked = (slot.bookings || []).length > 0;
@@ -21,7 +22,7 @@ export default function SlotItem({ slot, onDelete }) {
       <div className="flex items-center justify-between gap-5">
         <div className="flex min-w-0 items-center gap-3">
           <span className={`h-2.5 w-2.5 flex-shrink-0 rounded-full ${booked ? "bg-[#789478]" : slot.is_available ? "bg-[#b9c9b7]" : "bg-[#202620]/25"}`} aria-hidden="true" />
-          <p className="text-xl text-[#202620]">{slot.slot_time}</p>
+          <p className="text-xl text-[#202620]">{formatSlotTime(slot.slot_time)}</p>
           <span className="text-sm text-[#202620]/55">{status}</span>
         </div>
         {canDelete && (

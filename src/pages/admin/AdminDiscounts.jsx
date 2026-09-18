@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { formatLocalTimestamp } from "../../utils/slotTime";
 
 import AdminCard from "../../components/admin/AdminCard";
 import AdminHeader from "../../components/admin/AdminHeader";
@@ -31,7 +32,7 @@ function localDateTime(value) {
 }
 
 function formatExpiry(value) {
-  return value ? new Date(value).toLocaleString("en-GB") : "No expiry";
+  return value ? formatLocalTimestamp(value) : "No expiry";
 }
 
 function friendlyError(error, fallback) {

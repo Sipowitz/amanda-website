@@ -1,5 +1,6 @@
 import { motion } from "framer-motion";
 import { format } from "date-fns";
+import { formatSlotTime } from "../../utils/slotTime";
 
 export default function BookingForm({
   service,
@@ -93,7 +94,7 @@ export default function BookingForm({
 
           {selectedSlot && (
             <p className="mt-3 text-[#f1e8ca]/70">
-              {readableDate} - {selectedSlot.slot_time}
+              {readableDate} - {formatSlotTime(selectedSlot.slot_time)}
             </p>
           )}
         </div>

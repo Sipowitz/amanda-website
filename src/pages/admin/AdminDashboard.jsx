@@ -1,5 +1,5 @@
 import useBusinessClock from "../../hooks/useBusinessClock";
-import { isSlotPast } from "../../utils/slotTime";
+import { formatSlotTime, isSlotPast } from "../../utils/slotTime";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
@@ -101,7 +101,7 @@ export default function AdminDashboard() {
         <div className="shrink-0 sm:w-36">
           {isTimed ? <>
             <p className="text-sm text-[#202620]/65">{formatDate(slot.slot_date)}</p>
-            <p className="mt-1 text-xl font-light text-[#202620]">{slot.slot_time}</p>
+            <p className="mt-1 text-xl font-light text-[#202620]">{formatSlotTime(slot.slot_time)}</p>
           </> : <p className="text-sm text-[#202620]/65">Untimed request</p>}
         </div>
         <div className="min-w-0 flex-1">

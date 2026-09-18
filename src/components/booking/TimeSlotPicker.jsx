@@ -1,4 +1,5 @@
 import { motion } from "framer-motion";
+import { formatSlotTime } from "../../utils/slotTime";
 
 export default function TimeSlotPicker({ slots, selectedSlot, onSelectSlot }) {
   if (!slots.length) {
@@ -50,7 +51,7 @@ export default function TimeSlotPicker({ slots, selectedSlot, onSelectSlot }) {
                     : "font-light text-[#f1e8ca]"
                 }`}
               >
-                {slot.slot_time}
+                {formatSlotTime(slot.slot_time)}
               </span>
 
               <span

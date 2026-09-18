@@ -1,3 +1,5 @@
+import { formatSlotTime } from "../../../utils/slotTime";
+
 const fieldClass =
   "rounded-xl border border-[#d9d5ca] bg-white px-4 py-3 text-[#29332b] outline-none transition placeholder:text-[#9a9e98] focus:border-[#6f8c72] focus:ring-2 focus:ring-[#6f8c72]/10";
 
@@ -55,7 +57,7 @@ export default function CreateBookingPanel({
             <option value="">Select an available slot</option>
             {availableSlots.map((slot) => (
               <option key={slot.id} value={slot.id}>
-                {slot.slot_date} - {slot.slot_time}
+                {slot.slot_date} - {formatSlotTime(slot.slot_time)}
               </option>
             ))}
           </select>

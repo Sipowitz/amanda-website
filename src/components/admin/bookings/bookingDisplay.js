@@ -1,3 +1,5 @@
+import { formatLocalTimestamp } from "../../../utils/slotTime";
+
 export const adminBookingFilters = [
   ["all", "All"],
   ["confirmed", "Confirmed"],
@@ -94,7 +96,7 @@ export function formatMinorCurrency(value, currency) {
 }
 
 export function formatTimestamp(timestamp) {
-  return timestamp ? new Date(timestamp).toLocaleString("en-GB") : null;
+  return formatLocalTimestamp(timestamp);
 }
 
 export function formatBookingDate(dateString) {

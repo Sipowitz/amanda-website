@@ -2,6 +2,7 @@ import { useState } from "react";
 
 import BookingTimeline from "./BookingTimeline";
 import BookingPaymentEditor from "./BookingPaymentEditor";
+import { formatSlotTime } from "../../../utils/slotTime";
 
 import {
   formatBookingDate,
@@ -94,7 +95,7 @@ export default function BookingCard({
                 {formatBookingDate(slot.slot_date)}
               </p>
               <p className="mt-1 text-2xl font-semibold tracking-tight text-[#1f2922]">
-                {slot.slot_time}
+                {formatSlotTime(slot.slot_time)}
               </p>
             </>
           ) : (

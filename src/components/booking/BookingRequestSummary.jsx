@@ -1,3 +1,5 @@
+import { formatSlotTime } from "../../utils/slotTime";
+
 function formatTotal(amountMinor, currency) {
   if (!Number.isInteger(amountMinor) || !currency) return "";
   return (amountMinor / 100).toLocaleString("en-US", {
@@ -48,7 +50,7 @@ export default function BookingRequestSummary({ details }) {
           {isTimed && details.appointmentTime && (
             <p className="min-w-0 break-words">
               <span className="text-[#f1e8ca]/45">Time</span>{" "}
-              <span className="text-[#f1e8ca]">{details.appointmentTime}</span>
+              <span className="text-[#f1e8ca]">{formatSlotTime(details.appointmentTime)}</span>
             </p>
           )}
           <p className="min-w-0 truncate">
