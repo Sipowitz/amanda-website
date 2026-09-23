@@ -16,7 +16,7 @@ const functionSql = (sql, name) => {
 // isolated PostgreSQL with fixture tables, auth and email transport. Calls use
 // SET ROLE as well as JWT claims, not just a postgres impersonation.
 // No Supabase project, Square API, host port or persistent volume is used.
-test("business-time availability boundary in PostgreSQL", { timeout: 240000 }, async (t) => {
+test("business-time availability boundary in PostgreSQL", { timeout: 600000 }, async (t) => {
   if (spawnSync("docker", ["image", "inspect", "postgres:17"], { stdio: "ignore" }).status !== 0) {
     t.skip("Requires Docker with local postgres:17 image.");
     return;
@@ -319,5 +319,55 @@ test("business-time availability boundary in PostgreSQL", { timeout: 240000 }, a
       assert.doesNotMatch(await query(`select pg_get_functiondef(p.oid) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname||'.'||p.proname='${name}';`), /current_date/i);
     }
     assert.doesNotMatch(await query("select qual from pg_policies where tablename='availability_slots';"), /current_date/i);
+  });
+
+  await t.test('customer cutoff uses stored instants, keeps admin slots and existing bookings', async () => {
+    const cutoff = await read('20260923000000_customer_timed_booking_24_hour_cutoff.sql');
+    await query(cutoff.slice(0, cutoff.indexOf('create or replace function public.create_booking_request(')));
+    await query(functionSql(cutoff, 'public.create_booking_request'));
+    const near = await makeSlot('23 hours 59 minutes');
+    const beyond = await makeSlot('24 hours 2 minutes');
+    const instant = await query(`select starts_at from public.availability_slots where id='${beyond}';`);
+    for (const [offset, expected] of [['23 hours 59 minutes 59 seconds','f'], ['24 hours','t'], ['24 hours 1 second','t']]) {
+      assert.equal(await query(`select private.slot_is_bookable_for_customer('${beyond}', '${instant}'::timestamptz - interval '${offset}');`), expected);
+    }
+    assert.equal(await asRole('anon', `select count(*) from public.availability_slots where id='${near}';`), '0');
+    assert.equal(await asRole('anon', `select count(*) from public.availability_slots where id='${beyond}';`), '1');
+    assert.equal(await asAdmin(`select count(*) from public.availability_slots where id='${near}';`), '1');
+    await assert.rejects(asRole('anon', `select public.create_booking_request('${legacyId}','${near}','Customer','customer@example.test');`), /24 hours notice/);
+    assert.equal(await query(`select count(*) from public.bookings where slot_id='${near}';`), '0');
+    assert.equal(await query(`select count(*) from private.payment_attempts a join public.bookings b on b.id=a.booking_id where b.slot_id='${near}';`), '0');
+    assert.equal(await query(`select is_available from public.availability_slots where id='${near}';`), 't');
+    assert.ok(await asRole('anon', `select public.create_booking_request('${legacyId}','${beyond}','Customer','customer@example.test');`));
+    assert.equal(await query(`select count(*) from public.bookings where slot_id='${beyond}';`), '1');
+    await query(`update public.availability_slots set slot_date=((clock_timestamp()+interval '2 hours') at time zone public.get_business_timezone())::date,
+      slot_time=to_char((clock_timestamp()+interval '2 hours') at time zone public.get_business_timezone(),'HH24:MI:SS') where id='${beyond}';`);
+    assert.equal(await query(`select count(*) from public.bookings where slot_id='${beyond}';`), '1');
+    assert.equal(await asAdmin(`select count(*) from public.availability_slots where id='${beyond}';`), '1');
+  });
+
+  await t.test('legacy creation rechecks after database time crosses the cutoff', async () => {
+    // Replace only the fixture helper with a deterministic database clock.
+    // Its first invocation sees 24h+1s; its second sees 23h59m59s.
+    await query(`create sequence private.cutoff_test_calls;
+      create or replace function private.slot_is_bookable_for_customer(
+        p_slot_id uuid, p_now timestamptz default clock_timestamp()
+      ) returns boolean language plpgsql volatile security definer set search_path = '' as $$
+      declare start_instant timestamptz; check_now timestamptz; call_number bigint;
+      begin
+        select starts_at into start_instant from public.availability_slots where id=p_slot_id;
+        call_number := nextval('private.cutoff_test_calls'::regclass);
+        check_now := start_instant - interval '24 hours'
+          + case when call_number % 2 = 1 then interval '-1 second' else interval '1 second' end;
+        return coalesce(start_instant >= check_now + interval '24 hours', false);
+      end; $$;`);
+    const slotId = await makeSlot('26 hours');
+    const before = await query(`select (select count(*) from public.bookings) || '|' ||
+      (select count(*) from private.payment_attempts) || '|' || (select count(*) from public.test_emails);`);
+    await assert.rejects(asRole('anon', `select public.create_booking_request('${legacyId}','${slotId}','Race','race@example.test');`), /24 hours notice/);
+    assert.equal(await query('select last_value from private.cutoff_test_calls;'), '2');
+    assert.equal(await query(`select (select count(*) from public.bookings) || '|' ||
+      (select count(*) from private.payment_attempts) || '|' || (select count(*) from public.test_emails);`), before);
+    assert.equal(await query(`select is_available from public.availability_slots where id='${slotId}';`), 't');
   });
 });

@@ -3,7 +3,7 @@ import test from 'node:test';
 import { Buffer } from 'node:buffer';
 import { readFile } from 'node:fs/promises';
 import { rolldown } from 'rolldown';
-import { businessDate, formatSlotTime, isSlotPast, visibleAdminSlots } from '../src/utils/slotTime.js';
+import { businessDate, formatSlotTime, isSlotPast, isSlotWithinBookingCutoff, visibleAdminSlots } from '../src/utils/slotTime.js';
 
 test('slot wall times use a 12-hour AM/PM display without changing their stored values', () => {
   for (const [stored, display] of [
@@ -31,6 +31,16 @@ test('elapsed start, exact start, later today, yesterday and tomorrow use actual
   assert.equal(isSlotPast(slot('2026-07-16T04:30:00Z'), now + 1), true);
   assert.equal(isSlotPast({}, now), true);
   assert.equal(isSlotPast(slot('invalid'), now), true);
+});
+
+test('customer cutoff excludes less than 24 hours and includes its exact boundary', () => {
+  const at = Date.parse('2026-07-15T15:00:00Z');
+  for (const [start, excluded] of [
+    ['2026-07-16T14:59:59Z', true],
+    ['2026-07-16T15:00:00Z', false],
+    ['2026-07-16T15:00:01Z', false],
+  ]) assert.equal(isSlotWithinBookingCutoff(slot(start), at), excluded);
+  assert.equal(isSlotWithinBookingCutoff(slot('2026-07-16T15:00:00Z'), at + 1), true);
 });
 
 test('business calendar day is independent of browser/UTC boundaries and observes DST', () => {

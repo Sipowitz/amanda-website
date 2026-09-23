@@ -26,6 +26,11 @@ export function isSlotPast(slot, now = Date.now()) {
   return !Number.isFinite(instant) || instant < Number(now);
 }
 
+export function isSlotWithinBookingCutoff(slot, now = Date.now()) {
+  const instant = Date.parse(slot?.starts_at);
+  return !Number.isFinite(instant) || instant < Number(now) + 24 * 60 * 60 * 1000;
+}
+
 export function businessDate(timezone, now = Date.now()) {
   if (!timezone) return null;
   const parts = new Intl.DateTimeFormat("en-US", {

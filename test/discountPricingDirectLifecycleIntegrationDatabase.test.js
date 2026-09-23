@@ -16,7 +16,7 @@ const functionSql = (sql, name) => {
 // This executes the current direct-payment RPC bodies, rather than a
 // reimplementation, in an isolated PostgreSQL fixture with their required
 // schema dependencies. It never contacts Supabase or Square.
-test("discount pricing coexists with effective direct-payment lifecycle", { timeout: 240000 }, async (t) => {
+test("discount pricing coexists with effective direct-payment lifecycle", { timeout: 600000 }, async (t) => {
   if (spawnSync("docker", ["image", "inspect", "postgres:17"], { stdio: "ignore" }).status !== 0) {
     t.skip("Requires Docker with local postgres:17 image.");
     return;
@@ -573,5 +573,74 @@ test("discount pricing coexists with effective direct-payment lifecycle", { time
     assert.equal(await query(`set request.jwt.claims = '{"role":"service_role"}'; select public.record_provider_payment_result('square',null,'api.create_payment','${booking}',(select id from private.payment_attempts where booking_id='${booking}'),'hist-payment','sandbox','COMPLETED',2000,'USD');`), "f");
     assert.equal(await query(`select status || '|' || payment_status || '|' || amount_paid from public.bookings where id='${booking}';`), "confirmed|paid|20");
     assert.equal(await query(`select count(*) from private.discount_redemptions where booking_id='${booking}';`), "0");
+  });
+
+  await t.test("24-hour cutoff rejects direct and reviewed discounted timed RPCs without artifacts", async () => {
+    const cutoff = await read("20260923000000_customer_timed_booking_24_hour_cutoff.sql");
+    await query(`alter table public.availability_slots add column starts_at timestamptz;
+      update public.availability_slots set starts_at=(slot_date + slot_time::time) at time zone 'UTC';`);
+    await query(cutoff.slice(0, cutoff.indexOf('drop policy "Public can view future available slots"')));
+    await query(functionSql(cutoff, 'private.create_pending_payment_booking_with_review_guard'));
+    await query("insert into private.discount_codes(code,percentage_off,scope) values ('CUTOFF25',25,'all');");
+    const guard = JSON.parse(await query(`set role anon; select row_to_json(result) from public.quote_direct_payment_discount('${ids.private}','CUTOFF25') result;`)).review_guard;
+    const near = await query(`insert into public.availability_slots(slot_date,slot_time,starts_at)
+      select (at_time at time zone 'UTC')::date, to_char(at_time at time zone 'UTC','HH24:MI:SS'), at_time
+      from (select date_trunc('second',clock_timestamp()) + interval '23 hours 59 minutes' as at_time) q returning id;`);
+    const later = await query(`insert into public.availability_slots(slot_date,slot_time,starts_at)
+      select (at_time at time zone 'UTC')::date, to_char(at_time at time zone 'UTC','HH24:MI:SS'), at_time
+      from (select date_trunc('second',clock_timestamp()) + interval '25 hours' as at_time) q returning id;`);
+    for (const service of ['private','wheel']) {
+      await assert.rejects(query(`set role anon; select public.create_pending_payment_booking('${ids[service]}','Cutoff Direct','cutoff@example.test',null,'Question','${near}');`), /24 hours notice/);
+    }
+    await assert.rejects(query(`set role anon; select public.create_discounted_pending_payment_booking('${ids.private}','Cutoff Discount','cutoff@example.test',null,'Question','${near}','CUTOFF25','${guard}');`), /24 hours notice/);
+    assert.equal(await query(`select count(*) from public.bookings where slot_id='${near}' or customer_email='cutoff@example.test';`), '0');
+    assert.equal(await query(`select count(*) from private.booking_pricing bp join public.bookings b on b.id=bp.booking_id where b.slot_id='${near}';`), '0');
+    assert.equal(await query(`select count(*) from private.payment_attempts a join public.bookings b on b.id=a.booking_id where b.slot_id='${near}';`), '0');
+    assert.equal(await query(`select count(*) from private.discount_redemptions r join public.bookings b on b.id=r.booking_id where b.slot_id='${near}';`), '0');
+    assert.equal(await query(`select is_available from public.availability_slots where id='${near}';`), 't');
+    assert.ok(JSON.parse(await query(`set role anon; select public.create_pending_payment_booking('${ids.wheel}','Later','later@example.test',null,'Question','${later}');`)).booking_id);
+    assert.ok(JSON.parse(await query(`set role anon; select public.create_pending_payment_booking('${ids.voice}','Voice','voice-cutoff@example.test',null,'Question',null);`)).booking_id);
+  });
+
+  await t.test("direct and reviewed creation recheck after database time crosses the cutoff", async () => {
+    // The test-only helper advances a database-controlled clock between calls.
+    // Both public wrappers must reach the same private creation function twice.
+    await query(`create sequence private.cutoff_test_calls;
+      create or replace function private.slot_is_bookable_for_customer(
+        p_slot_id uuid, p_now timestamptz default clock_timestamp()
+      ) returns boolean language plpgsql volatile security definer set search_path = '' as $$
+      declare start_instant timestamptz; check_now timestamptz; call_number bigint;
+      begin
+        select starts_at into start_instant from public.availability_slots where id=p_slot_id;
+        call_number := nextval('private.cutoff_test_calls'::regclass);
+        check_now := start_instant - interval '24 hours'
+          + case when call_number % 2 = 1 then interval '-1 second' else interval '1 second' end;
+        return coalesce(start_instant >= check_now + interval '24 hours', false);
+      end; $$;`);
+    const snapshot = () => query(`select (select count(*) from public.bookings) || '|' ||
+      (select count(*) from private.booking_pricing) || '|' ||
+      (select count(*) from private.booking_payment_access) || '|' ||
+      (select count(*) from private.payment_attempts) || '|' ||
+      (select count(*) from private.discount_redemptions);`);
+    const makeRaceSlot = (hours) => query(`insert into public.availability_slots(slot_date,slot_time,starts_at)
+      select (at_time at time zone 'UTC')::date, to_char(at_time at time zone 'UTC','HH24:MI:SS'), at_time
+      from (select date_trunc('second',clock_timestamp()) + interval '${hours} hours' as at_time) q returning id;`);
+    const reviewed = JSON.parse(await query(`set role anon; select row_to_json(result)
+      from public.quote_direct_payment_discount('${ids.private}','CUTOFF25') result;`));
+    const cases = [
+      { slotId: await makeRaceSlot(26), sql: (id) => `set role anon; select public.create_pending_payment_booking('${ids.wheel}','Race Direct','race-direct@example.test',null,'Question','${id}');` },
+      { slotId: await makeRaceSlot(27), sql: (id) => `set role anon; select public.create_discounted_pending_payment_booking('${ids.private}','Race Discount','race-discount@example.test',null,'Question','${id}','CUTOFF25','${reviewed.review_guard}');` },
+    ];
+    for (const { slotId, sql } of cases) {
+      await query("select setval('private.cutoff_test_calls'::regclass,1,false);");
+      const before = await snapshot();
+      await assert.rejects(query(sql(slotId)), /24 hours notice/);
+      assert.equal(await query('select last_value from private.cutoff_test_calls;'), '2');
+      assert.equal(await snapshot(), before);
+      assert.equal(await query(`select is_available from public.availability_slots where id='${slotId}';`), 't');
+    }
+    const callsBeforeVoice = await query('select last_value from private.cutoff_test_calls;');
+    assert.ok(JSON.parse(await query(`set role anon; select public.create_pending_payment_booking('${ids.voice}','Voice Race','voice-race@example.test',null,'Question',null);`)).booking_id);
+    assert.equal(await query('select last_value from private.cutoff_test_calls;'), callsBeforeVoice);
   });
 });

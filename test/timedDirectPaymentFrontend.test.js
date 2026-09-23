@@ -112,6 +112,7 @@ test("choosing a new appointment clears identity and refreshes availability", as
 test("unavailable-slot race returns to authoritative slot selection", async () => {
   const source = await bookingPage();
   assert.match(source, /slot\.\*\(\?:no longer available\|already been booked\)/);
+  assert.match(source, /appointment requires at least 24 hours notice/);
   assert.match(source, /setSlots\(await getAvailableSlots\(\)\)/);
   assert.match(source, /setSelectedDate\(null\)/);
   assert.match(source, /setSelectedSlot\(null\)/);

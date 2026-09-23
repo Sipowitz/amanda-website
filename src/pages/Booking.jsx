@@ -1,5 +1,5 @@
 import useBusinessClock from "../hooks/useBusinessClock";
-import { isSlotPast } from "../utils/slotTime";
+import { isSlotWithinBookingCutoff } from "../utils/slotTime";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { format } from "date-fns";
@@ -214,7 +214,7 @@ export default function Booking({ expectedMode, modal = false }) {
     return () => window.removeEventListener("storage", changed);
   }, [expectedMode, paymentIdentity]);
 
-  const futureSlots = useMemo(() => timezone ? slots.filter((slot) => !isSlotPast(slot, now)) : [], [slots, timezone, now]);
+  const futureSlots = useMemo(() => timezone ? slots.filter((slot) => !isSlotWithinBookingCutoff(slot, now)) : [], [slots, timezone, now]);
 
   const uniqueDates = useMemo(
     () => [...new Set(futureSlots.map((slot) => slot.slot_date))],
@@ -284,7 +284,13 @@ export default function Booking({ expectedMode, modal = false }) {
   }, [discountCode, service]);
 
   async function handleBookingSubmit(formData) {
-    if ((expectedMode === "timed" && (loading || cleanupBlocked || paymentIdentity)) || !service || (service.booking_mode === "timed" && (!timezone || !selectedSlot || isSlotPast(selectedSlot)))) {
+    if ((expectedMode === "timed" && (loading || cleanupBlocked || paymentIdentity)) || !service || (service.booking_mode === "timed" && (!timezone || !selectedSlot))) {
+      return;
+    }
+    if (service.booking_mode === "timed" && isSlotWithinBookingCutoff(selectedSlot)) {
+      setSelectedDate(null);
+      setSelectedSlot(null);
+      setError("That appointment time is no longer available. Please choose another time.");
       return;
     }
 
@@ -355,8 +361,7 @@ export default function Booking({ expectedMode, modal = false }) {
     } catch (bookingError) {
       console.error("Booking failed:", bookingError);
       const unavailableSlot = service?.booking_mode === "timed" &&
-        service?.payment_flow === "direct_payment" &&
-        /slot.*(?:no longer available|already been booked)/i.test(
+        /(?:slot.*(?:no longer available|already been booked)|appointment requires at least 24 hours notice)/i.test(
           bookingError.message || "",
         );
       if (unavailableSlot) {
@@ -589,7 +594,7 @@ export default function Booking({ expectedMode, modal = false }) {
                     }}
                   />
 
-                  {selectedSlot && !isSlotPast(selectedSlot, now) && !success && (
+                  {selectedSlot && !isSlotWithinBookingCutoff(selectedSlot, now) && !success && (
                     <BookingForm
                       service={service}
                       selectedSlot={selectedSlot}

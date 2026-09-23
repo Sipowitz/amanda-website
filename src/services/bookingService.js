@@ -1,5 +1,5 @@
 import { supabase } from "../lib/supabase";
-import { isSlotPast } from "../utils/slotTime";
+import { isSlotWithinBookingCutoff } from "../utils/slotTime";
 
 export async function getActiveServices() {
   const { data, error } = await supabase.rpc("get_active_services");
@@ -38,7 +38,7 @@ export async function getAvailableSlots() {
     throw error;
   }
 
-  return (data || []).filter((slot) => !isSlotPast(slot));
+  return (data || []).filter((slot) => !isSlotWithinBookingCutoff(slot));
 }
 
 export async function createBooking({
