@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { Link, useLocation, useNavigate } from "react-router-dom";
 
@@ -6,8 +6,11 @@ import { motion } from "framer-motion";
 
 import useTripleActivation from "../hooks/useTripleActivation";
 
+const MOBILE_SERVICES_DELAY_MS = 450;
+
 export default function Navbar() {
   const [menuOpen, setMenuOpen] = useState(false);
+  const mobileServicesTimer = useRef(null);
 
   const location = useLocation();
 
@@ -46,7 +49,17 @@ export default function Navbar() {
 
   const handleSecretAdminAccess = useTripleActivation(openAdmin);
 
+  const cancelMobileServicesNavigation = useCallback(() => {
+    if (mobileServicesTimer.current !== null) {
+      clearTimeout(mobileServicesTimer.current);
+      mobileServicesTimer.current = null;
+    }
+  }, []);
+
+  useEffect(() => cancelMobileServicesNavigation, [cancelMobileServicesNavigation]);
+
   function handleMenuButtonClick() {
+    cancelMobileServicesNavigation();
     setMenuOpen((prev) => !prev);
   }
 
@@ -59,8 +72,23 @@ export default function Navbar() {
   }
 
   function handleMobileServicesClick(event) {
-    handleServicesClick(event);
+    event.preventDefault();
+    const openedAdmin = handleSecretAdminAccess();
+    cancelMobileServicesNavigation();
+    if (openedAdmin) {
+      setMenuOpen(false);
+      return;
+    }
 
+    mobileServicesTimer.current = setTimeout(() => {
+      mobileServicesTimer.current = null;
+      navigate("/services");
+      setMenuOpen(false);
+    }, MOBILE_SERVICES_DELAY_MS);
+  }
+
+  function handleOtherMobileLink() {
+    cancelMobileServicesNavigation();
     setMenuOpen(false);
   }
 
@@ -172,7 +200,7 @@ export default function Navbar() {
                   onClick={
                     link.path === "/services"
                       ? handleMobileServicesClick
-                      : () => setMenuOpen(false)
+                      : handleOtherMobileLink
                   }
                   className={`text-3xl uppercase tracking-[0.18em] transition-colors duration-300 ${
                     active

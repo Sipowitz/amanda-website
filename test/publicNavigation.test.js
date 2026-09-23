@@ -72,6 +72,10 @@ function servicesLinks(root) {
   return root.findAllByType("a").filter((link) => label(link) === "Services");
 }
 
+function mobileMenu(root) {
+  return root.findByProps({ className: "fixed inset-0 z-40 bg-[#6f876f]/88 md:hidden" });
+}
+
 function event() {
   return { prevented: false, preventDefault() { this.prevented = true; } };
 }
@@ -125,28 +129,53 @@ test("Services activations outside the 1.2-second window do not enter admin", as
   assert.deepEqual(globalThis.publicNavigationTest.calls, []);
 });
 
-test("mobile Services keeps normal navigation and closes the menu", async (t) => {
+test("mobile Services single tap navigates after a short delay and closes the menu", async (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
   const root = await mount(t);
   const menuButton = root.findByProps({ "aria-label": "Toggle Menu" });
   await act(async () => menuButton.props.onClick());
   const mobileServices = servicesLinks(root)[1];
   const click = event();
   await act(async () => mobileServices.props.onClick(click));
-  assert.equal(click.prevented, false);
+  assert.equal(click.prevented, true);
+  assert.equal(mobileMenu(root).props.animate.pointerEvents, "auto");
   assert.deepEqual(globalThis.publicNavigationTest.calls, []);
+  await act(async () => t.mock.timers.tick(449));
+  assert.deepEqual(globalThis.publicNavigationTest.calls, []);
+  await act(async () => t.mock.timers.tick(1));
+  assert.deepEqual(globalThis.publicNavigationTest.calls, [["/services"]]);
+  assert.equal(mobileMenu(root).props.animate.pointerEvents, "none");
 });
 
-test("three rapid mobile Services activations enter admin", async (t) => {
+test("three rapid mobile Services taps enter admin without reopening or later Services navigation", async (t) => {
   t.mock.timers.enable({ apis: ["setTimeout"] });
   const root = await mount(t);
   const menuButton = root.findByProps({ "aria-label": "Toggle Menu" });
+  await act(async () => menuButton.props.onClick());
   for (let count = 1; count <= 3; count += 1) {
-    await act(async () => menuButton.props.onClick());
     const click = event();
     await act(async () => servicesLinks(root)[1].props.onClick(click));
-    assert.equal(click.prevented, count === 3);
+    assert.equal(click.prevented, true);
+    assert.equal(mobileMenu(root).props.animate.pointerEvents, count === 3 ? "none" : "auto");
   }
   assert.deepEqual(globalThis.publicNavigationTest.calls, [["/admin"]]);
+  await act(async () => t.mock.timers.tick(2000));
+  assert.deepEqual(globalThis.publicNavigationTest.calls, [["/admin"]]);
+});
+
+test("other mobile links close normally and cancel pending Services navigation", async (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  const root = await mount(t);
+  const menuButton = root.findByProps({ "aria-label": "Toggle Menu" });
+  await act(async () => menuButton.props.onClick());
+  await act(async () => servicesLinks(root)[1].props.onClick(event()));
+  const about = root.findAllByType("a").find((link) => label(link) === "About" && link.props.className.includes("text-3xl"));
+  const click = event();
+  await act(async () => about.props.onClick(click));
+  assert.equal(click.prevented, false);
+  assert.equal(mobileMenu(root).props.animate.pointerEvents, "none");
+  await act(async () => t.mock.timers.tick(2000));
+  assert.deepEqual(globalThis.publicNavigationTest.calls, []);
 });
 
 test("hamburger interactions only open and close the mobile menu", async (t) => {
