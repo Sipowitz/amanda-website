@@ -582,6 +582,9 @@ export default function Booking({ expectedMode, modal = false }) {
                     <h2 className="text-3xl font-light text-[#f1e8ca] sm:text-4xl">
                       {formattedSelectedDate}
                     </h2>
+                    <p className="mt-3 text-sm text-[#f1e8ca]/70">
+                      All appointment times are shown in Central Time (CT).
+                    </p>
                   </div>
 
                   <TimeSlotPicker
