@@ -13,6 +13,7 @@ import {
   cancelBooking,
   getAdminBookingPricing,
   getAdminBookings,
+  setBookingTestClassification,
   updateBookingPayment,
   updateBookingStatus,
 } from "../../services/adminService";
@@ -160,6 +161,29 @@ export default function AdminBookings() {
     }
   }
 
+  async function handleTestClassification(booking, isTest) {
+    const accepted = await confirm({
+      title: isTest ? "Mark as test" : "Mark as real",
+      message: isTest
+        ? "This booking will remain stored with its payment history, but it will be excluded from Dashboard workload, Stats, and discount usage reporting."
+        : "This booking will be included in Dashboard workload, Stats, and discount usage reporting again where applicable.",
+      confirmText: isTest ? "Mark as test" : "Mark as real",
+    });
+    if (!accepted) return;
+
+    try {
+      setUpdatingBookingId(booking.id);
+      await setBookingTestClassification({ bookingId: booking.id, isTest });
+      await loadData();
+      toast.success(isTest ? "Booking marked as test" : "Booking marked as real");
+    } catch (error) {
+      console.error(error);
+      toast.error(error.message || "Failed to update booking classification");
+    } finally {
+      setUpdatingBookingId(null);
+    }
+  }
+
   async function handleLogout() {
     const accepted = await confirm({ title: "Logout", message: "Are you sure you want to logout?", confirmText: "Logout" });
     if (!accepted) return;
@@ -243,6 +267,7 @@ export default function AdminBookings() {
               onPaymentSubmit={handlePaymentSubmit}
               onStatusChange={handleStatusChange}
               onCancel={handleCancelBooking}
+              onSetTestClassification={handleTestClassification}
             />
           ))}
         </div>
@@ -264,6 +289,7 @@ export default function AdminBookings() {
               onPaymentSubmit={handlePaymentSubmit}
               onStatusChange={handleStatusChange}
               onCancel={handleCancelBooking}
+              onSetTestClassification={handleTestClassification}
             />
             ))}
           </div>

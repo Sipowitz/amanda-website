@@ -300,6 +300,22 @@ export async function updateBookingStatus(bookingId, status) {
   return data;
 }
 
+export async function setBookingTestClassification({ bookingId, isTest }) {
+  const { data, error } = await supabase.rpc(
+    "set_booking_test_classification",
+    {
+      p_booking_id: bookingId,
+      p_is_test: isTest,
+    },
+  );
+
+  if (error) {
+    throw error;
+  }
+
+  return data;
+}
+
 export async function updateBookingPayment({
   bookingId,
   paymentStatus,

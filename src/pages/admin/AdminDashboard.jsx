@@ -60,7 +60,7 @@ export default function AdminDashboard() {
 
   const work = useMemo(() => {
     const confirmed = bookingRecords.filter((booking) =>
-      isNormalAdminBooking(booking) && booking.status === "confirmed",
+      !booking.is_test && isNormalAdminBooking(booking) && booking.status === "confirmed",
     );
     const timed = confirmed.filter((booking) =>
       booking.service_booking_mode_snapshot === "timed" && booking.availability_slots,
@@ -75,7 +75,7 @@ export default function AdminDashboard() {
   }, [bookingRecords, today]);
 
   const legacyNeedsReview = bookingRecords.some((booking) =>
-    booking.service_payment_flow_snapshot !== "direct_payment" && (
+    !booking.is_test && booking.service_payment_flow_snapshot !== "direct_payment" && (
       booking.status === "pending" ||
       (booking.status === "confirmed" && ["unpaid", "part_paid"].includes(booking.payment_status))
     ),

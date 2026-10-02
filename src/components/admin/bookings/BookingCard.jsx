@@ -37,6 +37,7 @@ export default function BookingCard({
   onPaymentSubmit,
   onStatusChange,
   onCancel,
+  onSetTestClassification,
 }) {
   const [expanded, setExpanded] = useState(false);
 
@@ -132,6 +133,12 @@ export default function BookingCard({
           <Badge className={getPaymentStyles(booking.payment_status)}>
             {getPaymentLabel(booking.payment_status)}
           </Badge>
+          )}
+
+          {booking.is_test && (
+            <Badge className="border-[#d9c9e8] bg-[#f3ebf9] text-[#71478d]">
+              TEST
+            </Badge>
           )}
         </div>
 
@@ -329,6 +336,15 @@ export default function BookingCard({
                     This booking has been cancelled.
                   </p>
                 )}
+
+                <button
+                  type="button"
+                  disabled={isUpdating}
+                  onClick={() => onSetTestClassification(booking, !booking.is_test)}
+                  className="mt-2 rounded-xl border border-[#d9c9e8] bg-[#f3ebf9] px-4 py-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#71478d] disabled:opacity-40"
+                >
+                  {booking.is_test ? "Mark as real" : "Mark as test"}
+                </button>
               </section>
 
               {paymentPanelOpen && !isDirectPayment && (

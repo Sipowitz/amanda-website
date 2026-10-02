@@ -2,6 +2,7 @@ import { Buffer } from 'node:buffer';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createRequire } from 'node:module';
+import { readFile } from 'node:fs/promises';
 import { pathToFileURL } from 'node:url';
 import React from 'react';
 import { act, create } from 'react-test-renderer';
@@ -26,13 +27,17 @@ const bundle = await rolldown({
         export const getAdminBookings = async () => globalThis.adminTest.bookings;
         export const getAdminBookingPricing = async () => [];
         export const updateBookingStatus = async (...args) => globalThis.adminTest.calls.push(args);
+        export const setBookingTestClassification = async (...args) => globalThis.adminTest.classificationCalls.push(args);
         export const updateBookingPayment = async () => {};
         export const cancelBooking = async () => {};
       `;
       if (id === '\0contexts') return `
         export const useAdminAuth = () => ({logout: async () => {}});
         export const useToast = () => ({success() {}, error(message) { throw Error(message); }});
-        export const useConfirm = () => async () => true;
+        export const useConfirm = () => async (options) => {
+          globalThis.adminTest.confirmations.push(options);
+          return globalThis.adminTest.confirmResult;
+        };
       `;
       if (id === '\0router') return `
         export const useLocation = () => globalThis.adminTest.location;
@@ -64,7 +69,8 @@ function text(node) {
 const button = (root, label) => root.findAllByType('button').find((b) => text(b) === label);
 async function mount(t, bookings, filter) {
   globalThis.adminTest = {
-    bookings, calls: [], location: {pathname: '/admin/bookings', state: {filter}},
+    bookings, calls: [], classificationCalls: [], confirmations: [], confirmResult: true,
+    location: {pathname: '/admin/bookings', state: {filter}},
     navigate() { globalThis.adminTest.location = {pathname: '/admin/bookings', state: {}}; },
   };
   let renderer;
@@ -163,4 +169,32 @@ test('legacy pending requests retain conditional confirmation and payment contro
   assert.deepEqual(globalThis.adminTest.calls, [['Legacy', 'confirmed']]);
   const confirmed = await expand(root, 'LegacyConfirmed');
   assert.ok(button(confirmed, 'Pending'));
+});
+
+test('test bookings remain visible, have a TEST badge, and classification is confirmed then reloaded', async (t) => {
+  const root = await mount(t, [booking('Real'), booking('Test', {is_test: true})]);
+  assert.doesNotMatch(text(root.findAllByType('article').find((card) => text(card).includes('Real'))), /TEST/);
+  const testCard = root.findAllByType('article').find((card) => text(card).includes('Test'));
+  assert.match(text(testCard), /TEST/);
+
+  const realCard = await expand(root, 'Real');
+  assert.ok(button(realCard, 'Mark as test'));
+  globalThis.adminTest.confirmResult = false;
+  await act(async () => button(realCard, 'Mark as test').props.onClick());
+  assert.equal(globalThis.adminTest.classificationCalls.length, 0);
+  assert.match(globalThis.adminTest.confirmations.at(-1).message, /remain stored with its payment history/);
+
+  globalThis.adminTest.confirmResult = true;
+  await act(async () => button(realCard, 'Mark as test').props.onClick());
+  assert.deepEqual(globalThis.adminTest.classificationCalls, [[{bookingId: 'Real', isTest: true}]]);
+  const openedTestCard = await expand(root, 'Test');
+  assert.ok(button(openedTestCard, 'Mark as real'));
+  assert.ok(button(openedTestCard, 'Mark completed'), 'existing workflow actions remain available');
+});
+
+test('classification uses the protected admin RPC wrapper rather than a browser table mutation', async () => {
+  const service = await readFile(new URL('../src/services/adminService.js', import.meta.url), 'utf8');
+  assert.match(service, /setBookingTestClassification/);
+  assert.match(service, /rpc\(\s*"set_booking_test_classification"/);
+  assert.doesNotMatch(service, /from\("bookings"\)\.update\(\{\s*is_test/);
 });

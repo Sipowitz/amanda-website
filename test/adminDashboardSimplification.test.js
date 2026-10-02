@@ -115,6 +115,18 @@ test('terminal bookings and unfinished direct checkouts never become outstanding
   assert.match(text(root), /No Voice Memos awaiting completion/);
 });
 
+test('test bookings are excluded from every operational queue and legacy review without affecting real work', async (t) => {
+  const {root} = await mount(t, [
+    memo('RealMemo'),
+    memo('TestMemo', {is_test: true}),
+    booking('TestTimed', {is_test: true}),
+    booking('TestLegacy', {is_test: true, service_payment_flow_snapshot: 'payment_link', payment_status: 'unpaid'}),
+  ]);
+  assert.match(text(section(root, 'Voice Memos awaiting completion')), /RealMemo/);
+  assert.doesNotMatch(text(root), /TestMemo|TestTimed|TestLegacy|Review historical/);
+  assert.equal(text(section(root, 'Today’s appointments')).match(/\b1\b/)?.length ?? 0, 0);
+});
+
 test('upcoming preview is bounded, counted in full, and Voice Memos remain oldest first', async (t) => {
   const {root} = await mount(t, [
     ...Array.from({length: 6}, (_, i) => booking(`Future${i}`, slot(`2026-09-${10 + i}`))).reverse(),
