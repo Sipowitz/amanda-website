@@ -20,6 +20,7 @@ import AdminBookings from "./pages/admin/AdminBookings";
 import AdminSettings from "./pages/admin/AdminSettings";
 import AdminPaymentSettings from "./pages/admin/AdminPaymentSettings";
 import AdminDiscounts from "./pages/admin/AdminDiscounts";
+import AdminStats from "./pages/admin/AdminStats";
 
 export default function App() {
   return (
@@ -61,6 +62,8 @@ export default function App() {
             path="/admin/dashboard"
             element={<AdminDashboard />}
           />
+
+          <Route path="/admin/stats" element={<AdminStats />} />
 
           <Route
             path="/admin/bookings"

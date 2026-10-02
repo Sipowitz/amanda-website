@@ -154,6 +154,16 @@ export async function getAdminBookingPricing() {
   return data || [];
 }
 
+export async function getAdminStats() {
+  const { data, error } = await supabase.rpc("get_admin_stats");
+
+  if (error) {
+    throw error;
+  }
+
+  return data;
+}
+
 export async function getAdminDiscountCodes() {
   const { data, error } = await supabase.rpc("get_admin_discount_codes");
 
