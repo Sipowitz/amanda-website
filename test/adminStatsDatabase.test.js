@@ -6,6 +6,11 @@ import { setTimeout as delay } from "node:timers/promises";
 import test from "node:test";
 
 const read = (file) => readFile(new URL(`../supabase/migrations/${file}`, import.meta.url), "utf8");
+const functionSql = (sql, name) => {
+  const match = sql.match(new RegExp(`create(?: or replace)? function ${name.replaceAll(".", "\\.")}\\([^]*?\\n\\$\\$;`))?.[0];
+  assert.ok(match, `Missing effective function ${name}`);
+  return match;
+};
 
 test("admin stats projection uses immutable paid booking history", { timeout: 240000 }, async (t) => {
   if (spawnSync("docker", ["image", "inspect", "postgres:17"], { stdio: "ignore" }).status !== 0) {
@@ -33,9 +38,10 @@ test("admin stats projection uses immutable paid booking history", { timeout: 24
     }
   }
 
-  const [security, stats] = await Promise.all([
+  const [security, stats, testClassification] = await Promise.all([
     read("20260817185300_booking_security_admin_foundation.sql"),
     read("20261002000000_admin_stats_projection.sql"),
+    read("20261003000000_admin_test_booking_classification.sql"),
   ]);
   const adminId = randomUUID();
   await query(`
@@ -64,6 +70,8 @@ test("admin stats projection uses immutable paid booking history", { timeout: 24
       final_amount_minor integer, currency text
     );
     ${stats}
+    alter table public.bookings add column is_test boolean not null default false;
+    ${functionSql(testClassification, "public.get_admin_stats")}
   `);
   const asRole = (role, sql, user = null) => query(`set role ${role}; set request.jwt.claims = '${JSON.stringify({ role, ...(user ? { sub: user } : {}) })}'; ${sql}`);
   const asAdmin = (sql) => asRole("authenticated", sql, adminId);
@@ -73,10 +81,10 @@ test("admin stats projection uses immutable paid booking history", { timeout: 24
   await query(`insert into public.services values
     ('${serviceA}', 'Live service A', 999999, 'USD'),
     ('${serviceB}', 'Live service B', 999999, 'EUR');`);
-  const insert = async ({ service = serviceA, name = "Frozen Reading", status = "paid", paidAt, amount = 8500, currency = "USD", pricing = true }) => {
+  const insert = async ({ service = serviceA, name = "Frozen Reading", status = "paid", paidAt, amount = 8500, currency = "USD", pricing = true, isTest = false }) => {
     const id = randomUUID();
-    await query(`insert into public.bookings(id,service_id,service_name_snapshot,payment_status,paid_at,customer_name,customer_email,customer_phone,customer_message,payment_reference,payment_access_token)
-      values ('${id}','${service}','${name}','${status}',${paidAt ? `'${paidAt}'` : "null"},'Secret Customer','secret@example.test','555','private message','provider-ref','recovery-secret');
+    await query(`insert into public.bookings(id,service_id,service_name_snapshot,payment_status,paid_at,customer_name,customer_email,customer_phone,customer_message,payment_reference,payment_access_token,is_test)
+      values ('${id}','${service}','${name}','${status}',${paidAt ? `'${paidAt}'` : "null"},'Secret Customer','secret@example.test','555','private message','provider-ref','recovery-secret',${isTest});
       ${pricing ? `insert into private.booking_pricing(booking_id,service_id,final_amount_minor,currency) values ('${id}','${service}',${amount},'${currency}');` : ""}`);
     return id;
   };
@@ -142,5 +150,18 @@ test("admin stats projection uses immutable paid booking history", { timeout: 24
     for (const secret of ["Secret Customer", "secret@example.test", "private message", "provider-ref", "recovery-secret", "payment_access_token", "booking_id"]) {
       assert.doesNotMatch(raw, new RegExp(secret));
     }
+  });
+
+  await t.test("an arbitrary new service is grouped by its frozen name while test bookings remain excluded", async () => {
+    const genericService = randomUUID();
+    await query(`insert into public.services values ('${genericService}','Current Generic Name',4200,'USD');`);
+    await insert({ service: genericService, name: "Frozen Generic Session", paidAt: "2026-07-15T08:00:00Z", amount: 4200 });
+    await insert({ service: genericService, name: "Frozen Generic Session", paidAt: "2026-07-15T09:00:00Z", amount: 4200, isTest: true });
+    await query(`update public.services set name='Renamed Current Generic',price_amount=9900 where id='${genericService}';`);
+    const result = await statsAt();
+    const row = result.service_breakdown.find((item) => item.service_id === genericService);
+    assert.equal(row.service_name, "Frozen Generic Session");
+    assert.equal(row.paid_booking_count, 1);
+    assert.equal(row.value_by_currency[0].value_minor, 4200);
   });
 });

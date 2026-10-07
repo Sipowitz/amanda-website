@@ -42,7 +42,7 @@ test("discount pricing coexists with effective direct-payment lifecycle", { time
     }
   }
 
-  const [security, phaseOne, current, supersession, discount, stageTwo, stageThree, stageFour] = await Promise.all([
+  const [security, phaseOne, current, supersession, discount, stageTwo, stageThree, stageFour, adminServices] = await Promise.all([
     read("20260817185300_booking_security_admin_foundation.sql"),
     read("20260818001000_direct_payment_phase_one.sql"),
     read("20260908000000_business_timezone_slot_expiry.sql"),
@@ -51,7 +51,9 @@ test("discount pricing coexists with effective direct-payment lifecycle", { time
     read("20260915000000_discount_aware_booking_creation.sql"),
     read("20260915001000_discount_revalidation_and_redemption.sql"),
     read("20260915002000_discount_customer_quote_api.sql"),
+    read("20261004000000_admin_managed_services.sql"),
   ]);
+  const adminId = randomUUID();
   const attempts = phaseOne.match(/create table private\.payment_attempts \([^]*?\n\);/)?.[0];
   const access = phaseOne.match(/create table private\.booking_payment_access \([^]*?\n\);/)?.[0];
   const events = phaseOne.match(/create table private\.payment_webhook_events \([^]*?\n\);/)?.[0];
@@ -63,12 +65,26 @@ test("discount pricing coexists with effective direct-payment lifecycle", { time
     create function auth.jwt() returns jsonb language sql as $$ select current_setting('request.jwt.claims', true)::jsonb $$;
     create function auth.uid() returns uuid language sql as $$ select (auth.jwt() ->> 'sub')::uuid $$;
     ${security}
+    insert into auth.users(id) values ('${adminId}');
+    insert into public.admin_users(user_id) values ('${adminId}');
     create table public.services (
       id uuid primary key default gen_random_uuid(), slug text unique not null, name text not null,
       booking_mode text not null, duration_minutes integer, price_amount integer not null,
       currency text not null default 'USD', payment_required boolean not null default true,
-      is_active boolean not null default true, payment_flow text not null default 'direct_payment'
+      is_active boolean not null default true, payment_flow text not null default 'direct_payment',
+      display_order integer not null default 0, created_at timestamptz not null default now(),
+      updated_at timestamptz not null default now()
     );
+    grant all on table public.services to authenticated, service_role;
+    create function public.get_active_services()
+    returns table (id uuid, slug text, name text, booking_mode text, duration_minutes integer,
+      price_amount integer, currency text, payment_required boolean, payment_flow text, display_order integer)
+    language sql stable security definer set search_path='' as $$
+      select service.id,service.slug,service.name,service.booking_mode,service.duration_minutes,
+        service.price_amount,service.currency,service.payment_required,service.payment_flow,service.display_order
+      from public.services service where service.is_active order by service.display_order,service.name;
+    $$;
+    grant execute on function public.get_active_services() to anon, authenticated, service_role;
     create table public.availability_slots (
       id uuid primary key default gen_random_uuid(), slot_date date not null,
       slot_time text not null, is_available boolean not null default true
@@ -111,7 +127,13 @@ test("discount pricing coexists with effective direct-payment lifecycle", { time
     ${stageTwo}
     ${stageThree}
     ${stageFour}
+    ${adminServices}
   `);
+
+  const admin = (sql) => query(`set role authenticated; set request.jwt.claims='${JSON.stringify({ role: "authenticated", sub: adminId })}'; ${sql}`);
+  const genericTimedId = await admin("select public.create_admin_service('Constellation Session','A generic timed service.','timed',4200);");
+  const genericUntimedId = await admin("select public.create_admin_service('Written Reflection','A generic untimed service.','untimed',1800);");
+  await admin(`select public.set_admin_service_active('${genericTimedId}',true); select public.set_admin_service_active('${genericUntimedId}',true);`);
 
   const ids = Object.fromEntries((await query("select slug || '=' || id from public.services order by slug;")).split("\n").map((row) => row.split("=")));
   const slot = async () => query("insert into public.availability_slots(slot_date,slot_time) values (current_date + 1,'12:00') returning id;");
@@ -128,6 +150,38 @@ test("discount pricing coexists with effective direct-payment lifecycle", { time
       assert.equal(await query(`select count(*) || '|' || min(final_amount_minor) from private.booking_pricing where booking_id='${booking}';`), `1|${amount}`);
       assert.equal(await query(`select count(*) || '|' || bool_and(pricing_id is not null) from private.payment_attempts where booking_id='${booking}';`), "1|true");
     }
+  });
+
+  await t.test("arbitrary admin-created timed and untimed services use generic pricing and discount paths", async () => {
+    assert.equal(await query(`select count(*) from public.get_active_services() where id in ('${genericTimedId}','${genericUntimedId}');`), "2");
+    assert.equal(await query(`select duration_minutes || '|' || payment_flow from public.services where id='${genericTimedId}';`), "60|direct_payment");
+    assert.equal(await query(`select (duration_minutes is null) || '|' || payment_flow from public.services where id='${genericUntimedId}';`), "true|direct_payment");
+
+    const timedBooking = await create("constellation-session", await slot());
+    const untimedBooking = await create("written-reflection");
+    assert.equal(await query(`select service_name_snapshot || '|' || service_booking_mode_snapshot || '|' || service_duration_minutes_snapshot || '|' || service_price_amount_snapshot from public.bookings where id='${timedBooking.booking_id}';`), "Constellation Session|timed|60|4200");
+    assert.equal(await query(`select service_name_snapshot || '|' || service_booking_mode_snapshot || '|' || (service_duration_minutes_snapshot is null) || '|' || service_price_amount_snapshot from public.bookings where id='${untimedBooking.booking_id}';`), "Written Reflection|untimed|true|1800");
+    assert.equal(await query(`select original_amount_minor || '|' || final_amount_minor || '|' || currency from private.booking_pricing where booking_id='${timedBooking.booking_id}';`), "4200|4200|USD");
+    assert.equal(await query(`select original_amount_minor || '|' || final_amount_minor || '|' || currency from private.booking_pricing where booking_id='${untimedBooking.booking_id}';`), "1800|1800|USD");
+
+    await query("insert into private.discount_codes(code,percentage_off,scope) values ('GENERICALL10',10,'all');");
+    const quote = JSON.parse(await query(`set role anon; select row_to_json(result) from public.quote_direct_payment_discount('${genericUntimedId}','GENERICALL10') result;`));
+    assert.equal(`${quote.accepted}|${quote.original_amount_minor}|${quote.final_amount_minor}`, "true|1800|1620");
+    const discounted = JSON.parse(await query(`set role anon; select public.create_discounted_pending_payment_booking('${genericUntimedId}','Generic Discount','generic-discount@example.test',null,'Question',null,'GENERICALL10','${quote.review_guard}');`));
+    assert.equal(discounted.created, true);
+    assert.equal(await query(`select discount_amount_minor || '|' || final_amount_minor from private.booking_pricing where booking_id='${discounted.booking_id}';`), "180|1620");
+
+    const selectedCode = await query(`with code as (
+      insert into private.discount_codes(code,percentage_off,scope) values ('ORIGINALONLY',10,'selected') returning id
+    ) insert into private.discount_code_services(discount_code_id,service_id)
+      select id,'${ids.private}' from code returning discount_code_id;`);
+    const selectedQuote = JSON.parse(await query(`set role anon; select row_to_json(result) from public.quote_direct_payment_discount('${genericUntimedId}','ORIGINALONLY') result;`));
+    assert.equal(selectedQuote.accepted, false);
+    assert.equal(await query(`select count(*) from private.discount_code_services where discount_code_id='${selectedCode}' and service_id in ('${genericTimedId}','${genericUntimedId}');`), "0");
+
+    await admin(`select public.update_admin_service('${genericTimedId}','Renamed Constellation','Updated generic summary.',9900); select public.set_admin_service_active('${genericTimedId}',false);`);
+    assert.equal(await query(`select service_name_snapshot || '|' || service_price_amount_snapshot from public.bookings where id='${timedBooking.booking_id}';`), "Constellation Session|4200");
+    assert.equal(await query(`select original_amount_minor || '|' || final_amount_minor from private.booking_pricing where booking_id='${timedBooking.booking_id}';`), "4200|4200");
   });
 
   await t.test("deployed six-argument named contract remains unambiguous and undiscounted", async () => {

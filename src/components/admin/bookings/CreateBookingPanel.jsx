@@ -101,7 +101,7 @@ export default function CreateBookingPanel({
           name="message"
           placeholder={
             selectedService?.booking_mode === "untimed"
-              ? "Voice memo topic or question..."
+              ? "Topic or question..."
               : "Internal or customer notes..."
           }
           value={formData.message}

@@ -10,7 +10,6 @@ export default function BookingForm({
   loading,
   disabled = false,
   bookingMode,
-  presentation,
   animateOnMount = true,
   submitLabel,
   formData,
@@ -25,16 +24,10 @@ export default function BookingForm({
   onRemoveDiscount,
 }) {
   const isTimed = (service?.booking_mode || bookingMode) === "timed";
-  const displayName = service?.name || presentation?.name;
-  const displayPriceAmount = service
-    ? service.price_amount
-    : presentation?.displayPriceAmount;
-  const displayCurrency = service
-    ? service.currency
-    : presentation?.displayCurrency;
-  const displayDurationMinutes = service
-    ? service.duration_minutes
-    : presentation?.displayDurationMinutes;
+  const displayName = service?.name || "Booking";
+  const displayPriceAmount = service?.price_amount;
+  const displayCurrency = service?.currency;
+  const displayDurationMinutes = service?.duration_minutes;
 
   if (isTimed && !selectedSlot) {
     return null;
@@ -195,7 +188,7 @@ export default function BookingForm({
         placeholder={
           isTimed
             ? "Optional message"
-            : "Tell Amanda the topic or question for your voice memo reading"
+            : "Tell Amanda the topic or question for this request"
         }
         rows="5"
         required={!isTimed}
@@ -213,7 +206,7 @@ export default function BookingForm({
           ? "Sending..."
           : isTimed
             ? submitLabel || "Confirm Booking"
-            : submitLabel || "Request Voice Memo Reading"}
+            : submitLabel || "Send request"}
       </button>
     </motion.form>
   );

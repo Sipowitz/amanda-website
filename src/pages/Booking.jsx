@@ -39,27 +39,6 @@ const checkoutEntryPolicy = createCheckoutEntryPolicy(
   window.location.pathname,
 );
 
-const servicePresentation = {
-  "private-readings": {
-    name: "Private Readings",
-    displayPriceAmount: 8500,
-    displayCurrency: "USD",
-    displayDurationMinutes: 60,
-  },
-  "wheel-of-the-year": {
-    name: "Wheel of the Year",
-    displayPriceAmount: 6000,
-    displayCurrency: "USD",
-    displayDurationMinutes: 60,
-  },
-  "voice-memo-reading": {
-    name: "Voice Memo Reading",
-    displayPriceAmount: 2000,
-    displayCurrency: "USD",
-    displayDurationMinutes: null,
-  },
-};
-
 function formatPrice(amount, currency) {
   return (amount / 100).toLocaleString("en-US", {
     style: "currency",
@@ -466,17 +445,10 @@ export default function Booking({ expectedMode, modal = false }) {
   const isTimed = service
     ? service.booking_mode === "timed"
     : expectedMode === "timed";
-  const presentation = servicePresentation[serviceSlug];
-  const displayTitle = service?.name || presentation?.name || "Booking";
-  const displayPriceAmount = service
-    ? service.price_amount
-    : presentation?.displayPriceAmount;
-  const displayCurrency = service
-    ? service.currency
-    : presentation?.displayCurrency;
-  const displayDurationMinutes = service
-    ? service.duration_minutes
-    : presentation?.displayDurationMinutes;
+  const displayTitle = service?.name || "Booking";
+  const displayPriceAmount = service?.price_amount;
+  const displayCurrency = service?.currency;
+  const displayDurationMinutes = service?.duration_minutes;
   const compactVoiceMemoModal = modal && !isTimed;
   const usesDirectPayment = service?.payment_flow === "direct_payment";
   const showingDirectPayment = (!isTimed || !loading) && usesDirectPayment && paymentIdentity;
@@ -637,7 +609,6 @@ export default function Booking({ expectedMode, modal = false }) {
                   <BookingForm
                       service={service}
                       bookingMode={expectedMode}
-                      presentation={presentation}
                       onSubmit={handleBookingSubmit}
                       loading={submitting}
                       disabled={loading || !service}

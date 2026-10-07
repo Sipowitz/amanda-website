@@ -143,7 +143,7 @@ export default function AdminDashboard() {
       <AdminHeader
         title={timezone ? `${greeting}, Amanda` : "Amanda"}
         subtitle={currentDateLabel}
-        description="Your appointments and Voice Memos awaiting completion."
+        description="Your appointments and untimed requests awaiting completion."
         onLogout={handleLogout}
       />
       {loading || !timezone ? <AdminCard className="p-8"><p className="text-sm text-[#202620]/50">Loading dashboard...</p></AdminCard>
@@ -162,7 +162,7 @@ export default function AdminDashboard() {
           {renderSection("Today’s appointments", work.today, "Nothing scheduled today.")}
           <div className="grid gap-8 xl:grid-cols-2">
             {renderSection("Upcoming appointments", work.upcoming, "No upcoming appointments.", { limit: 5 })}
-            {renderSection("Voice Memos awaiting completion", work.memos, "No Voice Memos awaiting completion.")}
+            {renderSection("Untimed requests awaiting completion", work.memos, "No untimed requests awaiting completion.")}
           </div>
           {legacyNeedsReview && <div className="border-t border-[#e1e5df] pt-5">
             <button type="button" onClick={openBookings} className="text-sm text-[#202620]/65">Review historical bookings in Bookings →</button>

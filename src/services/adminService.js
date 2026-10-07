@@ -164,6 +164,52 @@ export async function getAdminStats() {
   return data;
 }
 
+export async function getAdminServices() {
+  const { data, error } = await supabase.rpc("get_admin_services");
+  if (error) throw error;
+  return data || [];
+}
+
+export async function createAdminService({ name, publicSummary, bookingMode, priceAmount }) {
+  const { data, error } = await supabase.rpc("create_admin_service", {
+    p_name: name,
+    p_public_summary: publicSummary,
+    p_booking_mode: bookingMode,
+    p_price_amount: priceAmount,
+  });
+  if (error) throw error;
+  return data;
+}
+
+export async function updateAdminService({ serviceId, name, publicSummary, priceAmount }) {
+  const { data, error } = await supabase.rpc("update_admin_service", {
+    p_service_id: serviceId,
+    p_name: name,
+    p_public_summary: publicSummary,
+    p_price_amount: priceAmount,
+  });
+  if (error) throw error;
+  return data;
+}
+
+export async function setAdminServiceActive(serviceId, isActive) {
+  const { data, error } = await supabase.rpc("set_admin_service_active", {
+    p_service_id: serviceId,
+    p_is_active: isActive,
+  });
+  if (error) throw error;
+  return data;
+}
+
+export async function moveAdminService(serviceId, direction) {
+  const { data, error } = await supabase.rpc("move_admin_service", {
+    p_service_id: serviceId,
+    p_direction: direction,
+  });
+  if (error) throw error;
+  return data;
+}
+
 export async function getAdminDiscountCodes() {
   const { data, error } = await supabase.rpc("get_admin_discount_codes");
 

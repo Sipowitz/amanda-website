@@ -96,7 +96,7 @@ test('today, chronological upcoming, overdue, and untimed work have dedicated se
   assert.ok(future.indexOf('Sooner') < future.indexOf('Later'));
   assert.doesNotMatch(future, /EarlierToday/);
   assert.match(text(section(root, 'Overdue appointments')), /Overdue/);
-  assert.match(text(section(root, 'Voice Memos awaiting completion')), /Memo.*Voice Memo Reading/);
+  assert.match(text(section(root, 'Untimed requests awaiting completion')), /Memo.*Voice Memo Reading/);
   const row = section(root, 'Today’s appointments').findAllByType('button')[0];
   await act(async () => row.props.onClick());
   assert.deepEqual(globalThis.dashboardTest.calls, [['/admin/bookings', {state: {filter: 'confirmed'}}]]);
@@ -112,7 +112,7 @@ test('terminal bookings and unfinished direct checkouts never become outstanding
   assert.doesNotMatch(text(root), /Hidden-|Review historical/);
   assert.equal(section(root, 'Overdue appointments'), undefined);
   assert.match(text(root), /Nothing scheduled today/);
-  assert.match(text(root), /No Voice Memos awaiting completion/);
+  assert.match(text(root), /No untimed requests awaiting completion/);
 });
 
 test('test bookings are excluded from every operational queue and legacy review without affecting real work', async (t) => {
@@ -122,12 +122,12 @@ test('test bookings are excluded from every operational queue and legacy review 
     booking('TestTimed', {is_test: true}),
     booking('TestLegacy', {is_test: true, service_payment_flow_snapshot: 'payment_link', payment_status: 'unpaid'}),
   ]);
-  assert.match(text(section(root, 'Voice Memos awaiting completion')), /RealMemo/);
+  assert.match(text(section(root, 'Untimed requests awaiting completion')), /RealMemo/);
   assert.doesNotMatch(text(root), /TestMemo|TestTimed|TestLegacy|Review historical/);
   assert.equal(text(section(root, 'Today’s appointments')).match(/\b1\b/)?.length ?? 0, 0);
 });
 
-test('upcoming preview is bounded, counted in full, and Voice Memos remain oldest first', async (t) => {
+test('upcoming preview is bounded, counted in full, and untimed requests remain oldest first', async (t) => {
   const {root} = await mount(t, [
     ...Array.from({length: 6}, (_, i) => booking(`Future${i}`, slot(`2026-09-${10 + i}`))).reverse(),
     memo('NewMemo', {created_at: '2026-09-06T12:00:00Z'}),
@@ -137,7 +137,7 @@ test('upcoming preview is bounded, counted in full, and Voice Memos remain oldes
   assert.match(future, /Future0/);
   assert.doesNotMatch(future, /Future5/);
   assert.match(future, /View all 6 upcoming appointments/);
-  const memos = text(section(root, 'Voice Memos awaiting completion'));
+  const memos = text(section(root, 'Untimed requests awaiting completion'));
   assert.ok(memos.indexOf('OldMemo') < memos.indexOf('NewMemo'));
 });
 
