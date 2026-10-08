@@ -223,26 +223,45 @@ test("Admin Services has observable loading and load-error behavior", async () =
   await act(async () => failed.renderer.unmount());
 });
 
-test("public Services renders ordered DB cards, generic routes and collision-safe static cards", async () => {
+test("public Services groups DB cards by booking mode while preserving each group's order and links", async () => {
   const active = [
-    service("z", { slug: "parties-gatherings", name: "Bookable Collision", public_summary: "Timed DB summary", price_amount: 2000 }),
-    service("u", { slug: "fresh-untimed", name: "Fresh Untimed", public_summary: "Untimed DB summary", booking_mode: "untimed", duration_minutes: null, price_amount: 20, display_order: 20 }),
+    service("t1", { slug: "parties-gatherings", name: "First Live", public_summary: "First live summary", price_amount: 2000, display_order: 10 }),
+    service("u1", { slug: "first-memo", name: "First Memo", public_summary: "First memo summary", booking_mode: "untimed", duration_minutes: null, price_amount: 20, display_order: 20 }),
+    service("t2", { slug: "second-live", name: "Second Live", public_summary: "Second live summary", display_order: 30 }),
+    service("u2", { slug: "second-memo", name: "Second Memo", public_summary: "Second memo summary", booking_mode: "untimed", duration_minutes: null, display_order: 40 }),
   ];
   const { renderer, root } = await mountPublic(async () => active);
   const pageText = text(root);
-  assert.ok(pageText.indexOf("Bookable Collision") < pageText.indexOf("Fresh Untimed"));
-  assert.match(pageText, /Timed DB summary/);
-  assert.match(pageText, /Untimed DB summary/);
+  const live = root.findByProps({ "aria-labelledby": "live-readings-heading" });
+  const memos = root.findByProps({ "aria-labelledby": "voice-memo-readings-heading" });
+  assert.match(text(live), /Live ReadingsBook a personal, one-to-one reading at a time that suits you\./);
+  assert.match(text(memos), /Voice Memo ReadingsReceive a personal recorded reading, with no appointment needed\./);
+  assert.match(text(live), /First Live.*Second Live/);
+  assert.match(text(memos), /First Memo.*Second Memo/);
+  assert.doesNotMatch(text(live), /First Memo|Second Memo/);
+  assert.doesNotMatch(text(memos), /First Live|Second Live/);
   assert.match(pageText, /\$20\.00.*60 minutes/);
   assert.match(pageText, /\$0\.20/);
   const links = root.findAllByType("a");
-  assert.equal(links.find((link) => text(link).includes("Book now")).props.href, "/services/parties-gatherings/book");
-  assert.equal(links.find((link) => text(link).includes("Request now")).props.href, "/services/fresh-untimed/request");
-  assert.match(pageText, /Bookable Collision.*Parties & Gatherings/);
+  assert.equal(links.find((link) => link.props["data-service-trigger"] === "parties-gatherings").props.href, "/services/parties-gatherings/book");
+  assert.equal(links.find((link) => link.props["data-service-trigger"] === "first-memo").props.href, "/services/first-memo/request");
+  assert.equal(links.every((link) => link.props.state.openedFromServices), true);
+  assert.match(pageText, /Second Memo.*Parties & Gatherings/);
   assert.match(pageText, /Corporate & Public Events/);
-  assert.equal(links.length, 2, "static cards remain non-bookable");
-  assert.doesNotMatch(pageText, /Inactive Sentinel/);
+  assert.equal(links.length, 4, "static cards remain non-bookable");
   await act(async () => renderer.unmount());
+});
+
+test("public Services omits empty group headings", async () => {
+  const timedOnly = await mountPublic(async () => [service("only")]);
+  assert.match(text(timedOnly.root), /Live Readings/);
+  assert.doesNotMatch(text(timedOnly.root), /Voice Memo Readings/);
+  await act(async () => timedOnly.renderer.unmount());
+
+  const untimedOnly = await mountPublic(async () => [service("only", { booking_mode: "untimed", duration_minutes: null })]);
+  assert.doesNotMatch(text(untimedOnly.root), /Live Readings/);
+  assert.match(text(untimedOnly.root), /Voice Memo Readings/);
+  await act(async () => untimedOnly.renderer.unmount());
 });
 
 test("public Services handles empty catalogue, loading and RPC failure safely", async () => {
@@ -252,6 +271,7 @@ test("public Services handles empty catalogue, loading and RPC failure safely", 
   assert.match(text(loading.root), /Loading services/);
   await act(async () => resolve([]));
   assert.match(text(loading.root), /Parties & Gatherings/);
+  assert.doesNotMatch(text(loading.root), /Live Readings|Voice Memo Readings/);
   assert.equal(loading.root.findAllByType("a").length, 0);
   await act(async () => loading.renderer.unmount());
 
