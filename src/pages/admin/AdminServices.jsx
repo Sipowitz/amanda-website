@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import AdminCard from "../../components/admin/AdminCard";
 import AdminHeader from "../../components/admin/AdminHeader";
@@ -29,6 +29,7 @@ export default function AdminServices() {
   const [saving, setSaving] = useState(false);
   const [workingId, setWorkingId] = useState(null);
   const [formError, setFormError] = useState("");
+  const formRef = useRef(null);
   const { logout } = useAdminAuth();
   const toast = useToast();
   const confirm = useConfirm();
@@ -46,6 +47,10 @@ export default function AdminServices() {
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, [toast]);
+
+  useEffect(() => {
+    if (formOpen) formRef.current?.scrollIntoView({ block: "start" });
+  }, [editing, formOpen]);
 
   function openCreate() {
     setEditing(null);
@@ -138,7 +143,7 @@ export default function AdminServices() {
       </div>
 
       {formOpen && <AdminCard className="p-5 sm:p-7">
-        <form onSubmit={submit} className="flex flex-col gap-5" noValidate>
+        <form ref={formRef} onSubmit={submit} className="scroll-mt-24 flex flex-col gap-5 lg:scroll-mt-8" noValidate>
           <div><p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#677266]">{editing ? "Edit service" : "New service"}</p><h2 className="mt-2 font-serif text-2xl text-[#202620]">{editing ? editing.name : "Add service"}</h2></div>
           <label className="flex flex-col gap-2 text-sm font-medium text-[#39443c]">Name<input name="name" value={form.name} onChange={(event) => updateForm("name", event.target.value)} maxLength="160" required className="admin-input" /></label>
           <label className="flex flex-col gap-2 text-sm font-medium text-[#39443c]">Public summary<textarea name="public-summary" value={form.publicSummary} onChange={(event) => updateForm("publicSummary", event.target.value)} maxLength="1000" required rows="4" className="admin-input" /></label>

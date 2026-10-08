@@ -88,7 +88,7 @@ const button = (root, label) => root.findAllByType("button").find((item) => text
 const field = (root, name) => root.findAll((item) => item.props.name === name)[0];
 
 async function mountAdmin(services, options = {}) {
-  const calls = { create: [], update: [], active: [], move: [], confirm: [], errors: [], success: [] };
+  const calls = { create: [], update: [], active: [], move: [], confirm: [], errors: [], success: [], scroll: [] };
   globalThis.adminServicesTest = {
     get: options.get || (async () => services),
     create: async (...args) => { calls.create.push(args); },
@@ -99,7 +99,11 @@ async function mountAdmin(services, options = {}) {
     toast: { error: (message) => calls.errors.push(message), success: (message) => calls.success.push(message) },
   };
   let renderer;
-  await act(async () => { renderer = create(React.createElement(AdminServices)); });
+  await act(async () => {
+    renderer = create(React.createElement(AdminServices), {
+      createNodeMock: (element) => element.type === "form" ? { scrollIntoView: (...args) => calls.scroll.push(args) } : null,
+    });
+  });
   return { renderer, root: renderer.root, calls };
 }
 
@@ -220,18 +224,30 @@ test("untimed create has no arbitrary duration control and uses untimed mode", a
   await act(async () => renderer.unmount());
 });
 
-test("edit exposes only name, summary and price while showing immutable identity", async () => {
-  const record = service("edit", { slug: "stable-slug" });
-  const { renderer, root, calls } = await mountAdmin([record]);
-  await act(async () => button(root, "Edit").props.onClick());
+test("Edit reveals and populates the correct form, then Save and Cancel work", async () => {
+  const other = service("other", { name: "Other service" });
+  const record = service("edit", { slug: "stable-slug", name: "Selected service", public_summary: "Selected summary", price_amount: 4321 });
+  const { renderer, root, calls } = await mountAdmin([other, record]);
+  const editButton = root.findByProps({ "data-service-card": "edit" }).findAllByType("button").find((item) => text(item) === "Edit");
+  await act(async () => editButton.props.onClick());
+  assert.equal(calls.scroll.length, 1);
+  assert.deepEqual(calls.scroll[0], [{ block: "start" }]);
+  assert.match(root.findByType("form").props.className, /scroll-mt-24/);
   assert.match(text(root), /Slug: stable-slug/);
   assert.equal(root.findAll((item) => item.props.name === "booking-mode").length, 0);
   assert.equal(field(root, "slug"), undefined);
   assert.equal(field(root, "duration"), undefined);
-  assert.deepEqual([field(root, "name").props.value, field(root, "public-summary").props.value, field(root, "price").props.value], [record.name, record.public_summary, "85"]);
+  assert.deepEqual([field(root, "name").props.value, field(root, "public-summary").props.value, field(root, "price").props.value], [record.name, record.public_summary, "43.21"]);
   await act(async () => field(root, "name").props.onChange({ target: { value: "Edited" } }));
   await act(async () => root.findByType("form").props.onSubmit({ preventDefault() {} }));
-  assert.deepEqual(calls.update[0][0], { serviceId: "edit", name: "Edited", publicSummary: record.public_summary, priceAmount: 8500 });
+  assert.deepEqual(calls.update, [[{ serviceId: "edit", name: "Edited", publicSummary: record.public_summary, priceAmount: 4321 }]]);
+  assert.equal(root.findAllByType("form").length, 0);
+
+  await act(async () => editButton.props.onClick());
+  assert.equal(calls.scroll.length, 2);
+  await act(async () => button(root, "Cancel").props.onClick());
+  assert.equal(root.findAllByType("form").length, 0);
+  assert.equal(calls.update.length, 1);
   assert.equal(button(root, "Delete"), undefined);
   await act(async () => renderer.unmount());
 });
