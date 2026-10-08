@@ -30,6 +30,7 @@ test("admin-managed services enforce the V1 catalogue boundary", { timeout: 3000
   const base = await read("20260817210000_add_booking_services.sql");
   const security = await read("20260817185300_booking_security_admin_foundation.sql");
   const migration = await read("20261004000000_admin_managed_services.sql");
+  const groupedOrdering = await read("20261008000000_group_admin_service_ordering.sql");
   const adminId = randomUUID(); const ordinaryId = randomUUID();
   await query(`
     create schema auth; create schema private; create schema extensions; create extension pgcrypto with schema extensions;
@@ -77,6 +78,7 @@ test("admin-managed services enforce the V1 catalogue boundary", { timeout: 3000
     insert into public.services(slug,name,booking_mode,duration_minutes,price_amount,currency,payment_required,payment_flow,is_active,display_order)
       values ('private-readings','Private Readings','timed',60,8500,'USD',true,'direct_payment',true,10);
     ${migration}
+    ${groupedOrdering}
   `);
 
   const asRole = (role, id, sql) => query(`set role ${role}; set request.jwt.claims = '${JSON.stringify({ role, sub: id })}'; ${sql}`);
@@ -149,15 +151,24 @@ test("admin-managed services enforce the V1 catalogue boundary", { timeout: 3000
     assert.equal(await query(`select is_active from public.services where id='${valid}';`), "t");
   });
 
-  await t.test("move validation and deterministic ordering cover boundaries, ties and inactive rows", async () => {
+  await t.test("moves stay within booking mode with deterministic boundaries, ties and inactive rows", async () => {
     await assert.rejects(admin(`select public.move_admin_service('${timed}',null);`), /Direction must be up or down/);
     await assert.rejects(admin(`select public.move_admin_service('${timed}','sideways');`), /Direction must be up or down/);
-    const first = await query("select id from public.services order by display_order,name,id limit 1;");
-    const last = await query("select id from public.services order by display_order desc,name desc,id desc limit 1;");
-    assert.equal(await admin(`select public.move_admin_service('${first}','up');`), "f");
-    assert.equal(await admin(`select public.move_admin_service('${last}','down');`), "f");
+    await assert.rejects(ordinary(`select public.move_admin_service('${timed}','up');`), /Administrator access/);
+    for (const mode of ["timed", "untimed"]) {
+      const first = await query(`select id from public.services where booking_mode='${mode}' order by display_order,name,id limit 1;`);
+      const last = await query(`select id from public.services where booking_mode='${mode}' order by display_order desc,name desc,id desc limit 1;`);
+      assert.equal(await admin(`select public.move_admin_service('${first}','up');`), "f");
+      assert.equal(await admin(`select public.move_admin_service('${last}','down');`), "f");
+    }
     const alpha = await createService("Equal Alpha"); const beta = await createService("Equal Beta");
     await query(`update public.services set display_order=500 where id in ('${alpha}','${beta}');`);
+    assert.equal(await query(`select string_agg(name,',' order by display_order,name,id) from public.services where id in ('${alpha}','${beta}');`), "Equal Alpha,Equal Beta");
+    const untimedBefore = await query("select string_agg(id::text || ':' || display_order,',' order by display_order,name,id) from public.services where booking_mode='untimed';");
+    assert.equal(await admin(`select public.move_admin_service('${beta}','up');`), "t");
+    assert.equal(await query(`select string_agg(name,',' order by display_order,name,id) from public.services where id in ('${alpha}','${beta}');`), "Equal Beta,Equal Alpha");
+    assert.equal(await query("select string_agg(id::text || ':' || display_order,',' order by display_order,name,id) from public.services where booking_mode='untimed';"), untimedBefore);
+    assert.equal(await admin(`select public.move_admin_service('${beta}','down');`), "t");
     assert.equal(await query(`select string_agg(name,',' order by display_order,name,id) from public.services where id in ('${alpha}','${beta}');`), "Equal Alpha,Equal Beta");
     assert.equal(await admin(`select public.move_admin_service('${beta}','up');`), "t");
     assert.equal(await query(`select string_agg(name,',' order by display_order,name,id) from public.services where id in ('${alpha}','${beta}');`), "Equal Beta,Equal Alpha");

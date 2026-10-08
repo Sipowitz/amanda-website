@@ -133,12 +133,52 @@ test("price parser converts decimal dollars exactly and enforces the server boun
   assert.equal(parseServicePriceAmount(String(MAX_SERVICE_PRICE_AMOUNT / 100)), MAX_SERVICE_PRICE_AMOUNT);
 });
 
-test("Admin Services renders active and inactive catalogue entries", async () => {
-  const { renderer, root } = await mountAdmin([service("a"), service("b", { is_active: false, booking_mode: "untimed", duration_minutes: null })]);
-  assert.match(text(root), /Service a.*Active/);
-  assert.match(text(root), /Service b.*Inactive/);
-  assert.match(text(root), /Timed · 60 minutes/);
-  assert.match(text(root), /Untimed/);
+test("Admin Services groups active and inactive entries while preserving group order", async () => {
+  const records = [
+    service("t1", { name: "First Live" }),
+    service("u1", { name: "First Memo", booking_mode: "untimed", duration_minutes: null, is_active: false }),
+    service("t2", { name: "Second Live", is_active: false }),
+    service("u2", { name: "Second Memo", booking_mode: "untimed", duration_minutes: null }),
+  ];
+  const { renderer, root } = await mountAdmin(records);
+  const live = root.findByProps({ "aria-labelledby": "live-readings-heading" });
+  const memos = root.findByProps({ "aria-labelledby": "voice-memo-readings-heading" });
+  assert.match(text(live), /Live Readings.*First Live.*Active.*Second Live.*Inactive/);
+  assert.match(text(memos), /Voice Memo Readings.*First Memo.*Inactive.*Second Memo.*Active/);
+  assert.doesNotMatch(text(live), /First Memo|Second Memo/);
+  assert.doesNotMatch(text(memos), /First Live|Second Live/);
+  await act(async () => renderer.unmount());
+});
+
+test("Admin Services uses group boundaries and a consistent card action row", async () => {
+  const longSummary = `A long description ${"with naturally wrapping detail ".repeat(30)}`;
+  const records = [
+    service("t1", { public_summary: longSummary }),
+    service("u1", { booking_mode: "untimed", duration_minutes: null }),
+    service("t2"),
+    service("u2", { booking_mode: "untimed", duration_minutes: null }),
+  ];
+  const { renderer, root } = await mountAdmin(records);
+  const card = (id) => root.findByProps({ "data-service-card": id });
+  const actionButtons = (id) => card(id).findByProps({ role: "group" }).findAllByType("button");
+
+  assert.deepEqual(actionButtons("t1").map(text), ["Move up", "Move down", "Edit", "Deactivate"]);
+  assert.deepEqual(actionButtons("u1").map(text), ["Move up", "Move down", "Edit", "Deactivate"]);
+  assert.deepEqual(actionButtons("t1").slice(0, 2).map((item) => item.props.disabled), [true, false]);
+  assert.deepEqual(actionButtons("t2").slice(0, 2).map((item) => item.props.disabled), [false, true]);
+  assert.deepEqual(actionButtons("u1").slice(0, 2).map((item) => item.props.disabled), [true, false]);
+  assert.deepEqual(actionButtons("u2").slice(0, 2).map((item) => item.props.disabled), [false, true]);
+  const summary = card("t1").findAllByType("p").find((item) => text(item) === longSummary);
+  assert.match(summary.props.className, /whitespace-pre-wrap/);
+  assert.match(summary.props.className, /break-words/);
+  assert.doesNotMatch(summary.props.className, /truncate|line-clamp|h-/);
+  await act(async () => renderer.unmount());
+});
+
+test("Admin Services omits empty group headings", async () => {
+  const { renderer, root } = await mountAdmin([service("only")]);
+  assert.match(text(root), /Live Readings/);
+  assert.doesNotMatch(text(root), /Voice Memo Readings/);
   await act(async () => renderer.unmount());
 });
 

@@ -124,6 +124,11 @@ export default function AdminServices() {
 
   async function handleLogout() { await logout(); }
 
+  const serviceGroups = [
+    { id: "live-readings", title: "Live Readings", services: services.filter((service) => service.booking_mode === "timed") },
+    { id: "voice-memo-readings", title: "Voice Memo Readings", services: services.filter((service) => service.booking_mode === "untimed") },
+  ].filter((group) => group.services.length > 0);
+
   return (
     <div className="flex flex-col gap-8">
       <AdminHeader title="Services" subtitle="Booking catalogue" description="Create services inactive, review them, then activate when ready." onLogout={handleLogout} />
@@ -149,7 +154,24 @@ export default function AdminServices() {
       </AdminCard>}
 
       {loading ? <AdminCard className="p-8"><p className="text-sm text-[#687068]">Loading services...</p></AdminCard>
-        : <div className="flex flex-col gap-4">{services.map((service, index) => <AdminCard key={service.id} className="p-5 sm:p-6"><div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between"><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><h2 className="font-serif text-2xl text-[#202620]">{service.name}</h2><span className={`rounded-full px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] ${service.is_active ? "bg-[#e7f2e7] text-[#2f6b38]" : "bg-[#efeee9] text-[#68685f]"}`}>{service.is_active ? "Active" : "Inactive"}</span></div><p className="mt-3 max-w-3xl text-sm leading-6 text-[#516051]">{service.public_summary || "No public summary configured."}</p><p className="mt-3 text-sm text-[#516051]">{formatPrice(service.price_amount)} · {service.booking_mode === "timed" ? "Timed · 60 minutes" : "Untimed"} · /services/{service.slug}</p></div><div className="flex flex-wrap gap-3"><button type="button" disabled={workingId === service.id || index === 0} onClick={() => move(service, "up")} className="admin-button-secondary">Move up</button><button type="button" disabled={workingId === service.id || index === services.length - 1} onClick={() => move(service, "down")} className="admin-button-secondary">Move down</button><button type="button" onClick={() => openEdit(service)} className="admin-button-secondary">Edit</button><button type="button" disabled={workingId === service.id} onClick={() => toggleActive(service)} className="admin-button-secondary">{service.is_active ? "Deactivate" : "Activate"}</button></div></div></AdminCard>)}</div>}
+        : <div className="flex flex-col gap-8">{serviceGroups.map((group) => <section key={group.id} aria-labelledby={`${group.id}-heading`} className="flex flex-col gap-4">
+          <h2 id={`${group.id}-heading`} className="font-serif text-2xl text-[#202620]">{group.title}</h2>
+          {group.services.map((service, index) => <AdminCard key={service.id} className="p-5 sm:p-6">
+            <article data-service-card={service.id} className="flex flex-col">
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2"><h3 className="font-serif text-2xl text-[#202620]">{service.name}</h3><span className={`rounded-full px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] ${service.is_active ? "bg-[#e7f2e7] text-[#2f6b38]" : "bg-[#efeee9] text-[#68685f]"}`}>{service.is_active ? "Active" : "Inactive"}</span></div>
+                <p className="mt-3 max-w-3xl whitespace-pre-wrap break-words text-sm leading-6 text-[#516051]">{service.public_summary || "No public summary configured."}</p>
+                <p className="mt-3 break-words text-sm text-[#516051]">{formatPrice(service.price_amount)} · {service.booking_mode === "timed" ? "Timed · 60 minutes" : "Untimed"} · /services/{service.slug}</p>
+              </div>
+              <div role="group" aria-label={`${service.name} actions`} className="mt-6 grid grid-cols-2 gap-3 border-t border-[#e2e6df] pt-5 sm:flex sm:flex-wrap sm:items-center">
+                <button type="button" disabled={workingId === service.id || index === 0} onClick={() => move(service, "up")} className="admin-button-secondary whitespace-nowrap">Move up</button>
+                <button type="button" disabled={workingId === service.id || index === group.services.length - 1} onClick={() => move(service, "down")} className="admin-button-secondary whitespace-nowrap">Move down</button>
+                <button type="button" onClick={() => openEdit(service)} className="admin-button-secondary whitespace-nowrap">Edit</button>
+                <button type="button" disabled={workingId === service.id} onClick={() => toggleActive(service)} className="admin-button-secondary whitespace-nowrap">{service.is_active ? "Deactivate" : "Activate"}</button>
+              </div>
+            </article>
+          </AdminCard>)}
+        </section>)}</div>}
     </div>
   );
 }
