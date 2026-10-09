@@ -164,6 +164,28 @@ export async function getAdminStats() {
   return data;
 }
 
+export async function getAdminAnalytics(period, { refresh = false } = {}) {
+  const { data, error } = await supabase.functions.invoke("admin-analytics", {
+    body: { period, refresh },
+  });
+
+  if (error) {
+    let message = "Unable to load analytics. Please try again.";
+    try {
+      const response = error.context;
+      if (response instanceof Response) {
+        const body = await response.clone().json();
+        if (typeof body?.error === "string") message = body.error;
+      }
+    } catch {
+      // Preserve the safe fallback when the Functions client has no JSON body.
+    }
+    throw new Error(message);
+  }
+
+  return data;
+}
+
 export async function getAdminServices() {
   const { data, error } = await supabase.rpc("get_admin_services");
   if (error) throw error;

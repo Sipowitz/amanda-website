@@ -16,6 +16,12 @@ verify_jwt = true
 import_map = "./functions/square-payment/deno.json"
 entrypoint = "./functions/square-payment/index.ts"
 
+[functions.admin-analytics]
+enabled = true
+verify_jwt = true
+import_map = "./functions/admin-analytics/deno.json"
+entrypoint = "./functions/admin-analytics/index.ts"
+
 # Square authenticates this endpoint with its signature, not a Supabase JWT.
 [functions.square-webhook]
 enabled = true

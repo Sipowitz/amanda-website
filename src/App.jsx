@@ -21,6 +21,7 @@ import AdminSettings from "./pages/admin/AdminSettings";
 import AdminPaymentSettings from "./pages/admin/AdminPaymentSettings";
 import AdminDiscounts from "./pages/admin/AdminDiscounts";
 import AdminStats from "./pages/admin/AdminStats";
+import AdminAnalytics from "./pages/admin/AdminAnalytics";
 import AdminServices from "./pages/admin/AdminServices";
 
 export default function App() {
@@ -65,6 +66,8 @@ export default function App() {
           />
 
           <Route path="/admin/stats" element={<AdminStats />} />
+
+          <Route path="/admin/analytics" element={<AdminAnalytics />} />
 
           <Route path="/admin/services" element={<AdminServices />} />
 
