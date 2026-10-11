@@ -89,6 +89,7 @@ test("renders a clear API error and retry control", async () => {
   await act(async () => { renderer = create(React.createElement(AdminAnalytics)); });
   try {
     assert.match(text(renderer.root), /temporarily rate limited/);
+    assert.match(text(renderer.root), /Diagnostic code: ANALYTICS_UNKNOWN/);
     assert.ok(renderer.root.findAllByType("button").some((button) => text(button) === "Try again"));
   } finally { await act(async () => renderer.unmount()); }
 });

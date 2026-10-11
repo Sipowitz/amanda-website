@@ -12,6 +12,11 @@ Set these Edge Function secrets in the target Supabase project:
 - `CLOUDFLARE_ACCOUNT_ID`: the Cloudflare account containing the Web Analytics site.
 - `PUBLIC_SITE_URL`: the exact production origin, without a trailing slash.
 
+When `PUBLIC_SITE_URL` is either production hostname, the function accepts the
+exact HTTPS origins `https://reachamandabeach.com` and
+`https://www.reachamandabeach.com`. Other environments remain restricted to
+their single configured origin.
+
 `SUPABASE_URL` and `SUPABASE_ANON_KEY` are supplied automatically by Supabase.
 The function validates the caller's JWT and then calls the existing
 `public.is_admin()` allowlist check before reading analytics or using its cache.

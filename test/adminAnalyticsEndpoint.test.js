@@ -115,6 +115,37 @@ test("requires a valid JWT and an independently allowlisted administrator", asyn
   assert.equal(globalThis.analyticsEdge.authCalls, 0);
 });
 
+test("CORS allows only the configured environment or the two exact production origins", async () => {
+  environment.PUBLIC_SITE_URL = "https://reachamandabeach.com";
+  try {
+    for (const origin of [
+      "https://reachamandabeach.com",
+      "https://www.reachamandabeach.com",
+    ]) {
+      const response = await handler(new Request("https://edge.example.test/admin-analytics", {
+        method: "OPTIONS",
+        headers: { Origin: origin },
+      }));
+      assert.equal(response.status, 200);
+      assert.equal(response.headers.get("Access-Control-Allow-Origin"), origin);
+    }
+    for (const origin of [
+      "http://reachamandabeach.com",
+      "https://administration.reachamandabeach.com",
+      "https://unrelated.test",
+    ]) {
+      const response = await handler(new Request("https://edge.example.test/admin-analytics", {
+        method: "OPTIONS",
+        headers: { Origin: origin },
+      }));
+      assert.equal(response.status, 403);
+      assert.equal(response.headers.get("Access-Control-Allow-Origin"), null);
+    }
+  } finally {
+    environment.PUBLIC_SITE_URL = "https://example.test";
+  }
+});
+
 test("accepts only fixed reporting periods and a boolean refresh flag", async () => {
   configureAuth();
   let fetchCalls = 0;

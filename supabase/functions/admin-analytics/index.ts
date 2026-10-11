@@ -4,6 +4,10 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 
 const CLOUDFLARE_GRAPHQL_URL = "https://api.cloudflare.com/client/v4/graphql";
 const PRODUCTION_HOST = "reachamandabeach.com";
+const PRODUCTION_ORIGINS = new Set([
+  `https://${PRODUCTION_HOST}`,
+  `https://www.${PRODUCTION_HOST}`,
+]);
 const CACHE_TTL_MS = 60_000;
 
 const PERIODS = {
@@ -37,7 +41,13 @@ const cache = new Map<Period, { expiresAt: number; report: AnalyticsReport }>();
 function allowedOrigin(request: Request) {
   const configured = Deno.env.get("PUBLIC_SITE_URL")?.replace(/\/$/, "");
   const origin = request.headers.get("Origin")?.replace(/\/$/, "");
-  return configured && origin === configured ? configured : null;
+  if (!configured || !origin) return null;
+  if (origin === configured) return origin;
+  // Both production hostnames currently serve the same admin application.
+  // Keep non-production environments restricted to their one configured origin.
+  return PRODUCTION_ORIGINS.has(configured) && PRODUCTION_ORIGINS.has(origin)
+    ? origin
+    : null;
 }
 
 function corsHeaders(request: Request) {

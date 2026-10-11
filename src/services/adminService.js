@@ -164,26 +164,109 @@ export async function getAdminStats() {
   return data;
 }
 
-export async function getAdminAnalytics(period, { refresh = false } = {}) {
-  const { data, error } = await supabase.functions.invoke("admin-analytics", {
-    body: { period, refresh },
-  });
+function analyticsError(code, message) {
+  const error = new Error(message);
+  error.code = code;
+  return error;
+}
 
-  if (error) {
-    let message = "Unable to load analytics. Please try again.";
-    try {
-      const response = error.context;
-      if (response instanceof Response) {
-        const body = await response.clone().json();
-        if (typeof body?.error === "string") message = body.error;
-      }
-    } catch {
-      // Preserve the safe fallback when the Functions client has no JSON body.
-    }
-    throw new Error(message);
+function isNonNegativeNumber(value) {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0;
+}
+
+function isAdminAnalyticsResponse(data, period) {
+  return Boolean(
+    data && typeof data === "object" && !Array.isArray(data) &&
+    data.period === period &&
+    data.totals && typeof data.totals === "object" &&
+    isNonNegativeNumber(data.totals.visits) &&
+    isNonNegativeNumber(data.totals.publicPageviews) &&
+    isNonNegativeNumber(data.totals.bookingPageviews) &&
+    Array.isArray(data.trend) && data.trend.every((bucket) =>
+      bucket && typeof bucket.timestamp === "string" &&
+      isNonNegativeNumber(bucket.visits) && isNonNegativeNumber(bucket.pageviews)) &&
+    Array.isArray(data.pages) && data.pages.every((page) =>
+      page && typeof page.path === "string" && isNonNegativeNumber(page.pageviews)) &&
+    data.sampling && typeof data.sampling.sampled === "boolean" &&
+    isNonNegativeNumber(data.sampling.maxSampleInterval)
+  );
+}
+
+export function describeAdminAnalyticsError(error) {
+  if (error?.name === "FunctionsFetchError") {
+    return analyticsError(
+      "ANALYTICS_NETWORK",
+      "The browser could not reach the analytics service. Check the current site address, connection, and browser privacy or network blocking, then try again.",
+    );
   }
 
-  return data;
+  if (error?.name === "FunctionsRelayError") {
+    return analyticsError(
+      "ANALYTICS_RELAY",
+      "Supabase could not reach the analytics function. Please try again shortly.",
+    );
+  }
+
+  if (error?.name === "FunctionsHttpError") {
+    const status = Number(error.context?.status);
+    if (status === 401) {
+      return analyticsError(
+        "ANALYTICS_AUTH",
+        "Your admin session is no longer valid. Sign in again and retry.",
+      );
+    }
+    if (status === 403) {
+      return analyticsError(
+        "ANALYTICS_FORBIDDEN",
+        "This session or site address is not authorized to access analytics.",
+      );
+    }
+    if (status === 429) {
+      return analyticsError(
+        "ANALYTICS_RATE_LIMITED",
+        "Analytics is temporarily rate limited. Please try again shortly.",
+      );
+    }
+    if ([502, 503, 504].includes(status)) {
+      return analyticsError(
+        "ANALYTICS_UPSTREAM",
+        "The analytics service is temporarily unavailable. Please try again shortly.",
+      );
+    }
+    return analyticsError(
+      "ANALYTICS_HTTP",
+      `The analytics service returned an HTTP error${Number.isInteger(status) ? ` (${status})` : ""}.`,
+    );
+  }
+
+  return analyticsError(
+    "ANALYTICS_UNKNOWN",
+    "Unable to load analytics. Please try again.",
+  );
+}
+
+export async function getAdminAnalytics(period, { refresh = false } = {}) {
+  let result;
+  try {
+    result = await supabase.functions.invoke("admin-analytics", {
+      body: { period, refresh },
+    });
+  } catch (error) {
+    throw describeAdminAnalyticsError(error);
+  }
+
+  if (result.error) {
+    throw describeAdminAnalyticsError(result.error);
+  }
+
+  if (!isAdminAnalyticsResponse(result.data, period)) {
+    throw analyticsError(
+      "ANALYTICS_INVALID_RESPONSE",
+      "The analytics service returned an invalid response. Please try again.",
+    );
+  }
+
+  return result.data;
 }
 
 export async function getAdminServices() {

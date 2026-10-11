@@ -87,7 +87,7 @@ export default function AdminAnalytics() {
   const [period, setPeriod] = useState("24h");
   const [analytics, setAnalytics] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const [error, setError] = useState(null);
   const [reload, setReload] = useState(0);
   const forceRefresh = useRef(false);
 
@@ -100,7 +100,12 @@ export default function AdminAnalytics() {
         if (active) setAnalytics(data);
       })
       .catch((requestError) => {
-        if (active) setError(requestError?.message || "Unable to load analytics. Please try again.");
+        if (active) {
+          setError({
+            message: requestError?.message || "Unable to load analytics. Please try again.",
+            code: requestError?.code || "ANALYTICS_UNKNOWN",
+          });
+        }
       })
       .finally(() => {
         if (active) setLoading(false);
@@ -112,7 +117,7 @@ export default function AdminAnalytics() {
     forceRefresh.current = true;
     setLoading(true);
     setAnalytics(null);
-    setError("");
+    setError(null);
     setReload((value) => value + 1);
   }
 
@@ -120,7 +125,7 @@ export default function AdminAnalytics() {
     if (value === period) return;
     setLoading(true);
     setAnalytics(null);
-    setError("");
+    setError(null);
     setPeriod(value);
   }
 
@@ -160,7 +165,8 @@ export default function AdminAnalytics() {
 
       {!loading && error && (
         <AdminCard className="p-8">
-          <p role="alert" className="text-sm text-[#39443c]">{error}</p>
+          <p role="alert" className="text-sm text-[#39443c]">{error.message}</p>
+          <p className="mt-2 text-xs text-[#758075]">Diagnostic code: {error.code}</p>
           <button type="button" className="mt-4 text-sm font-medium text-[#365d3c]" onClick={refresh}>Try again</button>
         </AdminCard>
       )}
