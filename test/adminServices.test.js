@@ -302,9 +302,12 @@ test("public Services groups DB cards by booking mode while preserving each grou
   assert.equal(links.find((link) => link.props["data-service-trigger"] === "parties-gatherings").props.href, "/services/parties-gatherings/book");
   assert.equal(links.find((link) => link.props["data-service-trigger"] === "first-memo").props.href, "/services/first-memo/request");
   assert.equal(links.every((link) => link.props.state.openedFromServices), true);
-  assert.match(pageText, /Second Memo.*Parties & Gatherings/);
-  assert.match(pageText, /Corporate & Public Events/);
-  assert.equal(links.length, 4, "static cards remain non-bookable");
+  const events = root.findByProps({ "aria-labelledby": "parties-and-events-heading" });
+  assert.match(text(events), /Parties and EventsParties and EventsBook me for your party or eventBook now→/);
+  const eventsButton = events.findByType("button");
+  assert.equal(eventsButton.props.disabled, true);
+  assert.equal(eventsButton.props.type, "button");
+  assert.equal(links.length, 4, "Parties and Events remains non-bookable");
   await act(async () => renderer.unmount());
 });
 
@@ -326,13 +329,13 @@ test("public Services handles empty catalogue, loading and RPC failure safely", 
   const loading = await mountPublic(() => pending);
   assert.match(text(loading.root), /Loading services/);
   await act(async () => resolve([]));
-  assert.match(text(loading.root), /Parties & Gatherings/);
+  assert.match(text(loading.root), /Parties and Events/);
   assert.doesNotMatch(text(loading.root), /Live Readings|Voice Memo Readings/);
   assert.equal(loading.root.findAllByType("a").length, 0);
   await act(async () => loading.renderer.unmount());
 
   const failed = await mountPublic(async () => { throw new Error("offline"); });
   assert.match(text(failed.root), /Services could not be loaded/);
-  assert.match(text(failed.root), /Corporate & Public Events/);
+  assert.match(text(failed.root), /Parties and Events/);
   await act(async () => failed.renderer.unmount());
 });

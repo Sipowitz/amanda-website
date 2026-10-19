@@ -4,25 +4,27 @@ import { Link, Outlet, useMatch } from "react-router-dom";
 
 import { getActiveServices } from "../services/bookingService";
 
-const staticServices = [
-  { slug: "parties-gatherings", title: "Parties & Gatherings", description: "Intuitive readings for private parties, celebrations and gatherings, creating a memorable and engaging experience for your guests." },
-  { slug: "corporate-public-events", title: "Corporate & Public Events", description: "Professional intuitive services for corporate functions, public events, festivals and other larger gatherings." },
-];
+const partiesAndEvents = {
+  title: "Parties and Events",
+  description: "Book me for your party or event",
+};
 
 function formatPrice(amount, currency) {
   return (amount / 100).toLocaleString("en-US", { style: "currency", currency });
 }
 
-function ServiceCard({ service, bookable = false, index }) {
+function ServiceCard({ service, bookable = false, disabledAction = false, sectioned = false, index }) {
   const timed = service.booking_mode === "timed";
   const route = bookable ? `/services/${service.slug}/${timed ? "book" : "request"}` : null;
-  const Heading = bookable ? "h3" : "h2";
+  const Heading = bookable || sectioned ? "h3" : "h2";
+  const actionClassName = "mt-10 inline-flex items-center gap-3 rounded-full border border-[#f1e8ca]/30 px-6 py-3 text-sm font-medium uppercase tracking-[0.18em] text-[#f1e8ca] shadow-[0_5px_14px_rgba(22,34,22,0.14),inset_0_1px_0_rgba(241,232,202,0.10)] transition-all duration-300";
 
   return <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7, delay: 0.1 + index * 0.08, ease: [0.22, 1, 0.36, 1] }} className="rounded-3xl border border-white/10 bg-black/10 p-8 shadow-[0_18px_44px_rgba(22,34,22,0.17),0_4px_12px_rgba(22,34,22,0.06),inset_0_1px_0_rgba(241,232,202,0.12)] backdrop-blur-md md:p-10">
     <Heading className="text-3xl font-light text-[#f1e8ca]">{service.name || service.title}</Heading>
     {bookable && <div className="mt-3 flex flex-wrap items-center gap-3"><p className="text-2xl font-light text-[#f1e8ca]">{formatPrice(service.price_amount, service.currency)}</p>{timed && <span className="text-xs uppercase tracking-[0.18em] text-[#f1e8ca]/50">{service.duration_minutes} minutes</span>}</div>}
     <p className="mt-5 max-w-3xl text-lg leading-[1.8] text-[#f1e8ca]/75">{service.public_summary || service.description}</p>
-    {route && <Link to={route} state={{ openedFromServices: true }} data-service-trigger={service.slug} className="mt-10 inline-flex items-center gap-3 rounded-full border border-[#f1e8ca]/30 px-6 py-3 text-sm font-medium uppercase tracking-[0.18em] text-[#f1e8ca] shadow-[0_5px_14px_rgba(22,34,22,0.14),inset_0_1px_0_rgba(241,232,202,0.10)] transition-all duration-300 hover:border-[#f1e8ca]/60 hover:bg-white/10 hover:shadow-[0_7px_18px_rgba(22,34,22,0.18),inset_0_1px_0_rgba(241,232,202,0.13)]">{timed ? "Book now" : "Request now"}<span aria-hidden="true">-&gt;</span></Link>}
+    {route && <Link to={route} state={{ openedFromServices: true }} data-service-trigger={service.slug} className={`${actionClassName} hover:border-[#f1e8ca]/60 hover:bg-white/10 hover:shadow-[0_7px_18px_rgba(22,34,22,0.18),inset_0_1px_0_rgba(241,232,202,0.13)]`}>{timed ? "Book now" : "Request now"}<span aria-hidden="true">-&gt;</span></Link>}
+    {disabledAction && <button type="button" disabled className={`${actionClassName} cursor-not-allowed`}>Book now<span aria-hidden="true">→</span></button>}
   </motion.div>;
 }
 
@@ -60,9 +62,12 @@ export default function Services() {
               {group.services.map((service, index) => <ServiceCard key={`booking:${service.slug}`} service={service} bookable index={groupIndex === 0 ? index : serviceGroups[0].services.length + index} />)}
             </div>
           </section>)}
-          <div className="space-y-6">
-            {staticServices.map((service, index) => <ServiceCard key={`static:${service.slug}`} service={service} index={services.length + index} />)}
-          </div>
+          <section aria-labelledby="parties-and-events-heading">
+            <h2 id="parties-and-events-heading" className="text-3xl font-light text-[#f1e8ca] md:text-4xl">Parties and Events</h2>
+            <div className="mt-8 space-y-6">
+              <ServiceCard service={partiesAndEvents} disabledAction sectioned index={services.length} />
+            </div>
+          </section>
         </div>}
       </motion.div></div>
     </section>
