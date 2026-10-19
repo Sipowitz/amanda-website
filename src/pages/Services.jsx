@@ -24,7 +24,7 @@ function ServiceCard({ service, bookable = false, disabledAction = false, sectio
     {bookable && <div className="mt-3 flex flex-wrap items-center gap-3"><p className="text-2xl font-light text-[#f1e8ca]">{formatPrice(service.price_amount, service.currency)}</p>{timed && <span className="text-xs uppercase tracking-[0.18em] text-[#f1e8ca]/50">{service.duration_minutes} minutes</span>}</div>}
     <p className="mt-5 max-w-3xl text-lg leading-[1.8] text-[#f1e8ca]/75">{service.public_summary || service.description}</p>
     {route && <Link to={route} state={{ openedFromServices: true }} data-service-trigger={service.slug} className={`${actionClassName} hover:border-[#f1e8ca]/60 hover:bg-white/10 hover:shadow-[0_7px_18px_rgba(22,34,22,0.18),inset_0_1px_0_rgba(241,232,202,0.13)]`}>{timed ? "Book now" : "Request now"}<span aria-hidden="true">-&gt;</span></Link>}
-    {disabledAction && <button type="button" disabled className={`${actionClassName} cursor-not-allowed`}>Book now<span aria-hidden="true">→</span></button>}
+    {disabledAction && <button type="button" disabled className={`${actionClassName} cursor-not-allowed`}>Request info<span aria-hidden="true">→</span></button>}
   </motion.div>;
 }
 

@@ -303,7 +303,7 @@ test("public Services groups DB cards by booking mode while preserving each grou
   assert.equal(links.find((link) => link.props["data-service-trigger"] === "first-memo").props.href, "/services/first-memo/request");
   assert.equal(links.every((link) => link.props.state.openedFromServices), true);
   const events = root.findByProps({ "aria-labelledby": "parties-and-events-heading" });
-  assert.match(text(events), /Parties and EventsParties and EventsBook me for your party or eventBook now→/);
+  assert.match(text(events), /Parties and EventsParties and EventsBook me for your party or eventRequest info→/);
   const eventsButton = events.findByType("button");
   assert.equal(eventsButton.props.disabled, true);
   assert.equal(eventsButton.props.type, "button");
