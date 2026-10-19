@@ -9,6 +9,18 @@ import { supabase } from "./lib/supabase.ts";
 import { processQueueMessage } from "./queue/process-message.ts";
 import type { QueueMessage } from "./types.ts";
 
+function secretsMatch(supplied: string, expected: string): boolean {
+  const suppliedBytes = new TextEncoder().encode(supplied);
+  const expectedBytes = new TextEncoder().encode(expected);
+  let difference = suppliedBytes.length ^ expectedBytes.length;
+
+  for (let index = 0; index < expectedBytes.length; index += 1) {
+    difference |= (suppliedBytes[index] ?? 0) ^ expectedBytes[index];
+  }
+
+  return difference === 0;
+}
+
 Deno.serve(async (request) => {
   if (request.method !== "POST") {
     return new Response(
@@ -22,6 +34,22 @@ Deno.serve(async (request) => {
           Allow: "POST",
         },
       },
+    );
+  }
+
+  const expectedSecret = Deno.env.get("EMAIL_PROCESSOR_SECRET");
+  if (!expectedSecret) {
+    return Response.json(
+      { error: "Email processor authentication is not configured" },
+      { status: 503 },
+    );
+  }
+
+  const suppliedSecret = request.headers.get("X-Email-Processor-Secret");
+  if (!suppliedSecret || !secretsMatch(suppliedSecret, expectedSecret)) {
+    return Response.json(
+      { error: "Unauthorized" },
+      { status: 401 },
     );
   }
 
