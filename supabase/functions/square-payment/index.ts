@@ -7,6 +7,10 @@ const uuidPattern =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const recoveryTokenPattern = /^[0-9a-f]{64}$/i;
 const sourceTokenPattern = /^[\x21-\x7e]{1,2048}$/;
+const PRODUCTION_ORIGINS = new Set([
+  "https://reachamandabeach.com",
+  "https://www.reachamandabeach.com",
+]);
 
 type BasePayload = {
   action: "initialize" | "status";
@@ -43,7 +47,13 @@ type SubmitPayload = {
 function allowedOrigin(request: Request) {
   const configured = Deno.env.get("PUBLIC_SITE_URL")?.replace(/\/$/, "");
   const origin = request.headers.get("Origin")?.replace(/\/$/, "");
-  return configured && origin === configured ? configured : null;
+  if (!configured || !origin) return null;
+  if (origin === configured) return origin;
+
+  // Keep non-production environments restricted to their one configured origin.
+  return PRODUCTION_ORIGINS.has(configured) && PRODUCTION_ORIGINS.has(origin)
+    ? origin
+    : null;
 }
 
 function corsHeaders(request: Request) {

@@ -18,14 +18,49 @@ const bundle = await rolldown({
 const { output } = await bundle.generate({ format: "esm" });
 await bundle.close();
 let handler;
-globalThis.Deno = { serve: (callback) => { handler = callback; }, env: { get: (key) => ({
+const environment = {
   PUBLIC_SITE_URL: "https://example.test", SQUARE_ENVIRONMENT: "sandbox", SQUARE_API_VERSION: "2026-08-19",
-}[key] || "test-only") } };
+};
+globalThis.Deno = { serve: (callback) => { handler = callback; }, env: { get: (key) => environment[key] || "test-only" } };
 await import(`data:text/javascript;base64,${Buffer.from(output[0].code).toString("base64")}`);
 const body = { action: "cleanup", bookingId: "123e4567-e89b-42d3-a456-426614174000", attemptId: "123e4567-e89b-42d3-a456-426614174001", cleanupCapability: "c".repeat(64) };
 const request = (payload, origin = "https://example.test") => handler(new Request("https://edge.test", {
   method: "POST", headers: { Origin: origin, "Content-Type": "application/json" }, body: JSON.stringify(payload),
 }));
+
+test("CORS allows both exact production origins and rejects unrelated origins", async () => {
+  environment.PUBLIC_SITE_URL = "https://reachamandabeach.com";
+  try {
+    for (const origin of [
+      "https://reachamandabeach.com",
+      "https://www.reachamandabeach.com",
+    ]) {
+      const response = await handler(new Request("https://edge.test", {
+        method: "OPTIONS", headers: { Origin: origin },
+      }));
+      assert.equal(response.status, 200);
+      assert.equal(response.headers.get("Access-Control-Allow-Origin"), origin);
+    }
+    for (const origin of [
+      "http://reachamandabeach.com",
+      "https://administration.reachamandabeach.com",
+      "https://unrelated.test",
+    ]) {
+      const response = await handler(new Request("https://edge.test", {
+        method: "OPTIONS", headers: { Origin: origin },
+      }));
+      assert.equal(response.status, 403);
+      assert.equal(response.headers.get("Access-Control-Allow-Origin"), null);
+    }
+  } finally {
+    environment.PUBLIC_SITE_URL = "https://example.test";
+  }
+  const nonProductionResponse = await handler(new Request("https://edge.test", {
+    method: "OPTIONS", headers: { Origin: "https://www.reachamandabeach.com" },
+  }));
+  assert.equal(nonProductionResponse.status, 403);
+  assert.equal(nonProductionResponse.headers.get("Access-Control-Allow-Origin"), null);
+});
 
 for (const allowed of [true, false]) {
   test(`cleanup endpoint returns only an acknowledgement (${allowed})`, async () => {
