@@ -105,7 +105,7 @@ export default function DateSelector({
       aria-busy={loading}
       className="mx-auto w-full max-w-[940px]"
     >
-      <div className="rounded-[1.5rem] border border-[#f1e8ca]/14 bg-white/[0.05] p-3 shadow-[0_20px_60px_rgba(0,0,0,0.14)] backdrop-blur-xl sm:rounded-[2rem] sm:p-6 md:p-8">
+      <div className="rounded-[1.5rem] border border-[#f1e8ca]/14 bg-[linear-gradient(145deg,rgba(241,232,202,0.06),rgba(255,255,255,0.05)_42%,rgba(22,34,22,0.10))] p-3 shadow-[inset_0_1px_0_rgba(241,232,202,0.14),inset_0_18px_40px_rgba(22,34,22,0.16),inset_0_-1px_0_rgba(22,34,22,0.10),0_14px_36px_rgba(22,34,22,0.10)] backdrop-blur-xl sm:rounded-[2rem] sm:p-6 md:p-8">
         {/* Header */}
         <div className="mb-5 grid grid-cols-[2.5rem_minmax(0,1fr)_2.5rem] items-center gap-3 sm:mb-7 sm:grid-cols-[2.75rem_minmax(0,1fr)_2.75rem] sm:gap-5">
           <button
@@ -115,7 +115,7 @@ export default function DateSelector({
             aria-label="View previous month"
             className={`flex h-10 w-10 items-center justify-center rounded-full border text-lg transition duration-300 sm:h-11 sm:w-11 ${
               canGoToPreviousMonth
-                ? "border-[#f1e8ca]/14 bg-white/[0.04] text-[#f1e8ca]/70 hover:border-[#f1e8ca]/30 hover:bg-white/[0.06] hover:text-[#f1e8ca]"
+                ? "border-[#f1e8ca]/14 bg-white/[0.04] text-[#f1e8ca]/70 shadow-[0_4px_10px_rgba(22,34,22,0.08),inset_0_1px_0_rgba(241,232,202,0.08)] hover:border-[#f1e8ca]/30 hover:bg-white/[0.06] hover:text-[#f1e8ca] hover:shadow-[0_6px_14px_rgba(22,34,22,0.10),inset_0_1px_0_rgba(241,232,202,0.10)]"
                 : "cursor-not-allowed border-white/[0.04] bg-black/[0.06] text-[#f1e8ca]/18"
             }`}
           >
@@ -130,7 +130,7 @@ export default function DateSelector({
             type="button"
             onClick={handleNextMonth}
             aria-label="View next month"
-            className="flex h-10 w-10 items-center justify-center rounded-full border border-[#f1e8ca]/14 bg-white/[0.04] text-lg text-[#f1e8ca]/70 transition duration-300 hover:border-[#f1e8ca]/30 hover:bg-white/[0.06] hover:text-[#f1e8ca] sm:h-11 sm:w-11"
+            className="flex h-10 w-10 items-center justify-center rounded-full border border-[#f1e8ca]/14 bg-white/[0.04] text-lg text-[#f1e8ca]/70 shadow-[0_4px_10px_rgba(22,34,22,0.08),inset_0_1px_0_rgba(241,232,202,0.08)] transition duration-300 hover:border-[#f1e8ca]/30 hover:bg-white/[0.06] hover:text-[#f1e8ca] hover:shadow-[0_6px_14px_rgba(22,34,22,0.10),inset_0_1px_0_rgba(241,232,202,0.10)] sm:h-11 sm:w-11"
           >
             →
           </button>
@@ -185,9 +185,9 @@ export default function DateSelector({
                 }`}
                 className={`min-w-0 h-12 rounded-lg border transition-all duration-200 sm:h-[60px] sm:rounded-xl md:h-[68px] md:rounded-[1rem] ${
                   active
-                    ? "border-[#f1e8ca]/70 bg-[#f1e8ca]/22 shadow-[0_0_28px_rgba(241,232,202,0.16)]"
+                    ? "border-[#f1e8ca]/70 bg-[#f1e8ca]/22 shadow-[0_0_24px_rgba(241,232,202,0.16),inset_0_2px_12px_rgba(22,34,22,0.16),inset_0_1px_0_rgba(255,253,245,0.20)]"
                     : available
-                      ? "border-[#f1e8ca]/18 bg-white/[0.065] hover:border-[#f1e8ca]/28 hover:bg-[#f1e8ca]/08"
+                      ? "border-[#f1e8ca]/18 bg-white/[0.065] shadow-[0_5px_14px_rgba(22,34,22,0.10),0_1px_3px_rgba(22,34,22,0.04),inset_0_1px_0_rgba(241,232,202,0.13)] hover:border-[#f1e8ca]/28 hover:bg-[#f1e8ca]/08 hover:shadow-[0_7px_18px_rgba(22,34,22,0.12),0_1px_3px_rgba(22,34,22,0.05),inset_0_1px_0_rgba(241,232,202,0.16)]"
                       : "cursor-not-allowed border-white/[0.03] bg-black/[0.12]"
                 }`}
               >
@@ -198,7 +198,7 @@ export default function DateSelector({
                         ? "text-lg font-semibold text-[#fffdf5] sm:text-xl"
                         : available
                           ? "text-base font-medium text-[#f1e8ca] sm:text-lg"
-                          : "text-sm font-light text-[#f1e8ca]/18 sm:text-base"
+                          : "text-sm font-light text-[#f1e8ca]/25 sm:text-base"
                     }`}
                   >
                     {format(day, "d")}

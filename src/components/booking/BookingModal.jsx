@@ -97,7 +97,7 @@ export default function BookingModal({ expectedMode }) {
         aria-modal="true"
         aria-labelledby="booking-dialog-title"
         tabIndex={-1}
-        className={`relative max-h-[calc(100dvh-1rem)] w-[calc(100vw-1rem)] max-w-[1080px] overflow-y-auto overflow-x-hidden rounded-[1.5rem] border border-[#f1e8ca]/20 bg-[#789478]/95 shadow-[0_28px_90px_rgba(22,34,22,0.48)] [overscroll-behavior:contain] sm:max-h-[88vh] sm:w-[88vw] sm:rounded-[2rem] ${desktopHeightClass}`}
+        className={`relative max-h-[calc(100dvh-1rem)] w-[calc(100vw-1rem)] max-w-[1080px] overflow-y-auto overflow-x-hidden rounded-[1.5rem] border border-[#f1e8ca]/20 bg-[#789478]/95 shadow-[0_34px_104px_rgba(22,34,22,0.54),0_10px_26px_rgba(22,34,22,0.14),inset_0_1px_0_rgba(241,232,202,0.18)] [overscroll-behavior:contain] sm:max-h-[88vh] sm:w-[88vw] sm:rounded-[2rem] ${desktopHeightClass}`}
         onMouseDown={(event) => event.stopPropagation()}
       >
         <button
@@ -105,7 +105,7 @@ export default function BookingModal({ expectedMode }) {
           type="button"
           onClick={closeModal}
           aria-label="Close booking dialog"
-          className="sticky right-3 top-3 z-20 ml-auto mr-3 mt-3 flex h-11 w-11 items-center justify-center rounded-full border border-[#f1e8ca]/25 bg-[#526b52]/90 text-2xl font-light leading-none text-[#f1e8ca] shadow-lg backdrop-blur-md transition hover:border-[#f1e8ca]/50 hover:bg-[#496249] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#f1e8ca] sm:right-5 sm:top-5 sm:mr-5 sm:mt-5"
+          className="sticky right-3 top-3 z-20 ml-auto mr-3 mt-3 flex h-11 w-11 items-center justify-center rounded-full border border-[#f1e8ca]/25 bg-[#526b52]/90 text-2xl font-light leading-none text-[#f1e8ca] shadow-[0_6px_16px_rgba(22,34,22,0.18),inset_0_1px_0_rgba(241,232,202,0.12)] backdrop-blur-md transition hover:border-[#f1e8ca]/50 hover:bg-[#496249] hover:shadow-[0_8px_20px_rgba(22,34,22,0.22),inset_0_1px_0_rgba(241,232,202,0.16)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#f1e8ca] sm:right-5 sm:top-5 sm:mr-5 sm:mt-5"
         >
           <span aria-hidden="true">×</span>
         </button>

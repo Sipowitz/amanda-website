@@ -18,11 +18,11 @@ function ServiceCard({ service, bookable = false, index }) {
   const route = bookable ? `/services/${service.slug}/${timed ? "book" : "request"}` : null;
   const Heading = bookable ? "h3" : "h2";
 
-  return <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7, delay: 0.1 + index * 0.08, ease: [0.22, 1, 0.36, 1] }} className="rounded-3xl border border-white/10 bg-black/10 p-8 backdrop-blur-md md:p-10">
+  return <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7, delay: 0.1 + index * 0.08, ease: [0.22, 1, 0.36, 1] }} className="rounded-3xl border border-white/10 bg-black/10 p-8 shadow-[0_18px_44px_rgba(22,34,22,0.17),0_4px_12px_rgba(22,34,22,0.06),inset_0_1px_0_rgba(241,232,202,0.12)] backdrop-blur-md md:p-10">
     <Heading className="text-3xl font-light text-[#f1e8ca]">{service.name || service.title}</Heading>
     {bookable && <div className="mt-3 flex flex-wrap items-center gap-3"><p className="text-2xl font-light text-[#f1e8ca]">{formatPrice(service.price_amount, service.currency)}</p>{timed && <span className="text-xs uppercase tracking-[0.18em] text-[#f1e8ca]/50">{service.duration_minutes} minutes</span>}</div>}
     <p className="mt-5 max-w-3xl text-lg leading-[1.8] text-[#f1e8ca]/75">{service.public_summary || service.description}</p>
-    {route && <Link to={route} state={{ openedFromServices: true }} data-service-trigger={service.slug} className="mt-10 inline-flex items-center gap-3 rounded-full border border-[#f1e8ca]/30 px-6 py-3 text-sm font-medium uppercase tracking-[0.18em] text-[#f1e8ca] transition-all duration-300 hover:border-[#f1e8ca]/60 hover:bg-white/10">{timed ? "Book now" : "Request now"}<span aria-hidden="true">-&gt;</span></Link>}
+    {route && <Link to={route} state={{ openedFromServices: true }} data-service-trigger={service.slug} className="mt-10 inline-flex items-center gap-3 rounded-full border border-[#f1e8ca]/30 px-6 py-3 text-sm font-medium uppercase tracking-[0.18em] text-[#f1e8ca] shadow-[0_5px_14px_rgba(22,34,22,0.14),inset_0_1px_0_rgba(241,232,202,0.10)] transition-all duration-300 hover:border-[#f1e8ca]/60 hover:bg-white/10 hover:shadow-[0_7px_18px_rgba(22,34,22,0.18),inset_0_1px_0_rgba(241,232,202,0.13)]">{timed ? "Book now" : "Request now"}<span aria-hidden="true">-&gt;</span></Link>}
   </motion.div>;
 }
 

@@ -1,5 +1,7 @@
 import { motion } from "framer-motion";
 
+import heroImage from "../assets/hero-image.jpg";
+
 export default function About() {
   return (
     <section className="min-h-[75vh] px-6 pb-24 pt-3">
@@ -61,9 +63,9 @@ export default function About() {
               className="flex w-full justify-center"
             >
               <img
-                src="/amanda-reading.jpg"
-                alt="Amanda Beach giving a tarot reading"
-                className="h-auto w-full max-w-[340px] object-cover"
+                src={heroImage}
+                alt="Portrait of Amanda Beach"
+                className="h-auto w-full max-w-[340px] rounded-[8px] object-cover object-center shadow-[0_18px_44px_rgba(22,34,22,0.17),0_4px_12px_rgba(22,34,22,0.06),inset_0_1px_0_rgba(241,232,202,0.12)] ring-1 ring-inset ring-[#f1e8ca]/12"
               />
             </motion.div>
           </div>

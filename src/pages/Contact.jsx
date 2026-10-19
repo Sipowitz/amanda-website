@@ -118,7 +118,7 @@ export default function Contact() {
           </p>
 
           <div className="space-y-6">
-            <div className="rounded-3xl border border-white/10 bg-black/10 p-4 backdrop-blur-md sm:p-8 md:p-10">
+            <div className="rounded-3xl border border-white/10 bg-black/10 p-4 shadow-[0_18px_44px_rgba(22,34,22,0.17),0_4px_12px_rgba(22,34,22,0.06),inset_0_1px_0_rgba(241,232,202,0.12)] backdrop-blur-md sm:p-8 md:p-10">
               <h2 className="mb-6 text-2xl font-light text-[#f1e8ca] sm:mb-8 sm:text-3xl">
                 Contact Details
               </h2>
@@ -142,7 +142,7 @@ export default function Contact() {
               </div>
             </div>
 
-            <div className="rounded-3xl border border-white/10 bg-black/10 p-4 backdrop-blur-md sm:p-8 md:p-10">
+            <div className="rounded-3xl border border-white/10 bg-black/10 p-4 shadow-[0_18px_44px_rgba(22,34,22,0.17),0_4px_12px_rgba(22,34,22,0.06),inset_0_1px_0_rgba(241,232,202,0.12)] backdrop-blur-md sm:p-8 md:p-10">
               <h2 className="mb-6 text-2xl font-light text-[#f1e8ca] sm:mb-8 sm:text-3xl">
                 Socials
               </h2>
@@ -154,7 +154,7 @@ export default function Contact() {
                     href={social.href}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="group flex min-w-0 items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.045] p-3 transition-colors duration-300 hover:border-[#f1e8ca]/22 hover:bg-white/[0.075] sm:gap-5 sm:p-5"
+                    className="group flex min-w-0 items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.045] p-3 shadow-[0_5px_14px_rgba(22,34,22,0.10),inset_0_1px_0_rgba(241,232,202,0.08)] transition-colors duration-300 hover:border-[#f1e8ca]/22 hover:bg-white/[0.075] sm:gap-5 sm:p-5"
                   >
                     <IconCircle size="large">{social.icon}</IconCircle>
 
