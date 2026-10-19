@@ -40,3 +40,17 @@ test('calendar uses supplied business date in a different browser timezone and a
   assert.ok(root.root.findAllByType('button').some((b) => b.props['aria-label']?.includes('August 1, 2026') && !b.props.disabled));
   assert.ok(!root.root.findAllByType('button').some((b) => b.props['aria-label']?.includes('July 31, 2026')));
 });
+
+test('calendar uses only the complete weeks needed by each month', async (t) => {
+  const props = {availableDates: [], onSelectDate: () => {}};
+  const emptyCells = (root) => root.root.findAllByType('div').filter((cell) => cell.props.className === 'aspect-square h-auto sm:aspect-auto sm:h-[60px] md:h-[68px]').length;
+  const mountCalendar = async (todayDate) => {
+    let root;
+    await act(async () => { root = create(React.createElement(DateSelector, {...props, todayDate})); });
+    t.after(async () => { await act(async () => root.unmount()); });
+    return root;
+  };
+  assert.equal(emptyCells(await mountCalendar('2026-02-01')), 0, 'February 2026 uses four rows');
+  assert.equal(emptyCells(await mountCalendar('2026-03-01')), 4, 'March 2026 uses five rows');
+  assert.equal(emptyCells(await mountCalendar('2021-05-01')), 11, 'May 2021 uses six rows');
+});

@@ -19,9 +19,7 @@ export default function BookingModal({ expectedMode }) {
   const returnFocusRef = useRef(document.activeElement);
   const navigate = useNavigate();
   const location = useLocation();
-  const desktopHeightClass = expectedMode === "timed"
-    ? "sm:min-h-[72vh]"
-    : "sm:min-h-[60vh]";
+  const desktopHeightClass = expectedMode === "timed" ? "" : "sm:min-h-[60vh]";
 
   const closeModal = useCallback(() => {
     if (location.state?.openedFromServices) {

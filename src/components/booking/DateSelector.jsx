@@ -16,7 +16,7 @@ import {
 
 const weekdayLabels = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
-const CALENDAR_CELL_COUNT = 42;
+const DAYS_PER_WEEK = 7;
 
 export default function DateSelector({
   availableDates,
@@ -46,10 +46,9 @@ export default function DateSelector({
 
   const populatedCellCount = leadingEmptyDays + days.length;
 
-  const trailingEmptyDays = Math.max(
-    CALENDAR_CELL_COUNT - populatedCellCount,
-    0,
-  );
+  const calendarCellCount = Math.ceil(populatedCellCount / DAYS_PER_WEEK) * DAYS_PER_WEEK;
+
+  const trailingEmptyDays = calendarCellCount - populatedCellCount;
 
   const calendarCells = [
     ...Array.from({ length: leadingEmptyDays }, (_, index) => ({
@@ -105,7 +104,7 @@ export default function DateSelector({
       aria-busy={loading}
       className="mx-auto w-full max-w-[940px]"
     >
-      <div className="rounded-[1.5rem] border border-[#f1e8ca]/14 bg-[linear-gradient(145deg,rgba(241,232,202,0.06),rgba(255,255,255,0.05)_42%,rgba(22,34,22,0.10))] p-3 shadow-[inset_0_1px_0_rgba(241,232,202,0.14),inset_0_18px_40px_rgba(22,34,22,0.16),inset_0_-1px_0_rgba(22,34,22,0.10),0_14px_36px_rgba(22,34,22,0.10)] backdrop-blur-xl sm:rounded-[2rem] sm:p-6 md:p-8">
+      <div className="rounded-[1.5rem] border border-[#f1e8ca]/14 bg-[linear-gradient(145deg,rgba(241,232,202,0.06),rgba(255,255,255,0.05)_42%,rgba(22,34,22,0.10))] p-3 pb-8 shadow-[inset_0_1px_0_rgba(241,232,202,0.14),inset_0_18px_40px_rgba(22,34,22,0.16),inset_0_-1px_0_rgba(22,34,22,0.10),0_14px_36px_rgba(22,34,22,0.10)] backdrop-blur-xl sm:rounded-[2rem] sm:p-6 sm:pb-8 md:p-8">
         {/* Header */}
         <div className="mb-5 grid grid-cols-[2.5rem_minmax(0,1fr)_2.5rem] items-center gap-3 sm:mb-7 sm:grid-cols-[2.75rem_minmax(0,1fr)_2.75rem] sm:gap-5">
           <button
@@ -155,7 +154,7 @@ export default function DateSelector({
               return (
                 <div
                   key={day.id}
-                  className="h-12 sm:h-[60px] md:h-[68px]"
+                  className="aspect-square h-auto sm:aspect-auto sm:h-[60px] md:h-[68px]"
                 />
               );
             }
@@ -183,7 +182,7 @@ export default function DateSelector({
                 aria-label={`${format(day, "EEEE, MMMM d, yyyy")}${
                   available ? ", available" : ", unavailable"
                 }`}
-                className={`min-w-0 h-12 rounded-lg border transition-all duration-200 sm:h-[60px] sm:rounded-xl md:h-[68px] md:rounded-[1rem] ${
+                className={`aspect-square min-w-0 h-auto rounded-lg border transition-all duration-200 sm:aspect-auto sm:h-[60px] sm:rounded-xl md:h-[68px] md:rounded-[1rem] ${
                   active
                     ? "border-[#f1e8ca]/70 bg-[#f1e8ca]/22 shadow-[0_0_24px_rgba(241,232,202,0.16),inset_0_2px_12px_rgba(22,34,22,0.16),inset_0_1px_0_rgba(255,253,245,0.20)]"
                     : available
