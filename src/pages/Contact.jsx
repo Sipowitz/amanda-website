@@ -96,7 +96,7 @@ const socialLinks = [
 
 export default function Contact() {
   return (
-    <section className="px-6 pb-24">
+    <section className="px-4 pb-16 sm:px-6 sm:pb-24">
       <div className="mx-auto w-full max-w-7xl">
         <motion.div
           initial={{ opacity: 0, y: 24 }}
@@ -108,29 +108,29 @@ export default function Contact() {
             Contact
           </p>
 
-          <h1 className="mb-8 text-5xl font-light leading-[1.05] text-[#f1e8ca] md:text-7xl">
+          <h1 className="mb-8 text-4xl font-light leading-[1.05] text-[#f1e8ca] sm:text-5xl md:text-7xl">
             Get in Touch
           </h1>
 
-          <p className="mb-16 max-w-4xl text-lg leading-[1.9] text-[#f1e8ca]/80">
+          <p className="mb-12 max-w-4xl text-base leading-[1.9] text-[#f1e8ca]/80 sm:mb-16 sm:text-lg">
             Whether you're interested in a private reading, booking an event, or
             simply have a question, I'd love to hear from you.
           </p>
 
           <div className="space-y-6">
-            <div className="rounded-3xl border border-white/10 bg-black/10 p-6 backdrop-blur-md sm:p-8 md:p-10">
-              <h2 className="mb-8 text-3xl font-light text-[#f1e8ca]">
+            <div className="rounded-3xl border border-white/10 bg-black/10 p-4 backdrop-blur-md sm:p-8 md:p-10">
+              <h2 className="mb-6 text-2xl font-light text-[#f1e8ca] sm:mb-8 sm:text-3xl">
                 Contact Details
               </h2>
 
-              <div className="space-y-7">
+              <div className="space-y-6 sm:space-y-7">
                 {contactDetails.map((detail) => (
-                  <div key={detail.label} className="flex items-start gap-4 sm:items-center sm:gap-5">
+                  <div key={detail.label} className="flex min-w-0 items-start gap-3 sm:items-center sm:gap-5">
                     <IconCircle>{detail.icon}</IconCircle>
-                    <p className="min-w-0 text-base leading-7 text-[#f1e8ca]/80 sm:text-lg">
-                      <span className="font-semibold text-[#f1e8ca]">{detail.label}</span>{" "}
+                    <p className="min-w-0 flex-1 text-base leading-7 text-[#f1e8ca]/80 sm:text-lg">
+                      <span className="block font-semibold text-[#f1e8ca] sm:inline">{detail.label}</span>{" "}
                       {detail.href ? (
-                        <a href={detail.href} className="break-words transition-colors duration-300 hover:text-[#fff9e5]">
+                        <a href={detail.href} className="break-all transition-colors duration-300 hover:text-[#fff9e5] sm:break-words">
                           {detail.value}
                         </a>
                       ) : (
@@ -142,8 +142,8 @@ export default function Contact() {
               </div>
             </div>
 
-            <div className="rounded-3xl border border-white/10 bg-black/10 p-6 backdrop-blur-md sm:p-8 md:p-10">
-              <h2 className="mb-8 text-3xl font-light text-[#f1e8ca]">
+            <div className="rounded-3xl border border-white/10 bg-black/10 p-4 backdrop-blur-md sm:p-8 md:p-10">
+              <h2 className="mb-6 text-2xl font-light text-[#f1e8ca] sm:mb-8 sm:text-3xl">
                 Socials
               </h2>
 
@@ -154,7 +154,7 @@ export default function Contact() {
                     href={social.href}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="group flex min-w-0 items-center gap-4 rounded-2xl border border-white/10 bg-white/[0.045] p-4 transition-colors duration-300 hover:border-[#f1e8ca]/22 hover:bg-white/[0.075] sm:gap-5 sm:p-5"
+                    className="group flex min-w-0 items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.045] p-3 transition-colors duration-300 hover:border-[#f1e8ca]/22 hover:bg-white/[0.075] sm:gap-5 sm:p-5"
                   >
                     <IconCircle size="large">{social.icon}</IconCircle>
 
@@ -162,7 +162,7 @@ export default function Contact() {
                       <p className="text-[10px] font-medium uppercase tracking-[0.24em] text-[#f1e8ca]/55 sm:text-xs">
                         {social.platform}
                       </p>
-                      <p className="mt-1 break-words text-base text-[#f1e8ca] sm:text-lg">
+                      <p className="mt-1 break-all text-base text-[#f1e8ca] sm:break-words sm:text-lg">
                         {social.handle}
                       </p>
                     </div>
