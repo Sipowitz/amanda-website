@@ -34,6 +34,14 @@ a {
   text-decoration: none;
 }
 
+/* Apple's native Web button appearance. It is rendered only after Square's
+   Apple Pay payment method has initialized successfully. */
+.apple-pay-button {
+  -webkit-appearance: -apple-pay-button;
+  -apple-pay-button-type: buy;
+  -apple-pay-button-style: black;
+}
+
 h1,
 h2,
 h3,

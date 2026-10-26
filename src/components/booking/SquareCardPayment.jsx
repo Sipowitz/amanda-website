@@ -85,9 +85,11 @@ function formatPrice(amount, currency) {
 
 export default function SquareCardPayment({ bookingId, paymentAccessToken, service, onBookingRecovered, onPaymentVerified, onChooseNewAppointment }) {
   const cardRef = useRef(null);
+  const applePayRef = useRef(null);
   const renewalDelayRef = useRef(60000);
   const containerRef = useRef(null);
   const bindingRef = useRef(null);
+  const applePayBindingRef = useRef(null);
   const generationRef = useRef(0);
   const statusRequestRef = useRef(0);
   const initializingRef = useRef(null);
@@ -103,6 +105,7 @@ export default function SquareCardPayment({ bookingId, paymentAccessToken, servi
     buyerContact: null,
   });
   const [attemptId, setAttemptId] = useState(null);
+  const [applePayAvailable, setApplePayAvailable] = useState(false);
   const [state, setState] = useState(
     applicationId && locationId && sdkUrl ? "loading" : "configuration_missing",
   );
@@ -117,11 +120,22 @@ export default function SquareCardPayment({ bookingId, paymentAccessToken, servi
     containerRef.current?.replaceChildren();
   }, []);
 
+  const destroyApplePay = useCallback(async () => {
+    applePayBindingRef.current = null;
+    const applePay = applePayRef.current;
+    applePayRef.current = null;
+    await applePay?.destroy();
+  }, []);
+
   const handleStatus = useCallback((status) => {
     if (!mountedRef.current || closingRef.current) return "closing";
-    if (bindingRef.current && (status.attemptId !== bindingRef.current.attemptId ||
-      status.attemptStatus !== "reserved")) {
+    if ((bindingRef.current && (status.attemptId !== bindingRef.current.attemptId ||
+      status.attemptStatus !== "reserved")) ||
+      (applePayBindingRef.current && (status.attemptId !== applePayBindingRef.current.attemptId ||
+        status.attemptStatus !== "reserved"))) {
       bindingRef.current = null;
+      applePayBindingRef.current = null;
+      setApplePayAvailable(false);
       setState("verifying");
     }
     if (service.booking_mode === "timed" && status.attemptId) setAttemptId(status.attemptId);
@@ -229,6 +243,8 @@ export default function SquareCardPayment({ bookingId, paymentAccessToken, servi
       const work = cardWorkRef.current.then(async () => {
         if (!active()) return;
         await destroyCard();
+        await destroyApplePay();
+        setApplePayAvailable(false);
         if (!active()) return;
         const Square = await loadSquareSdk();
         if (!active()) return;
@@ -240,6 +256,29 @@ export default function SquareCardPayment({ bookingId, paymentAccessToken, servi
         await card.attach(containerRef.current || "#square-card-container");
         if (!active()) { await destroyCard(); return; }
         bindingRef.current = { card, attemptId: attempt.attemptId, generation };
+        try {
+          // The payment request is derived from the server-reserved attempt,
+          // never from a customer-editable price or discount value.
+          const paymentRequest = payments.paymentRequest({
+            countryCode: "US",
+            currencyCode: attempt.currency,
+            total: {
+              amount: (attempt.amountMinor / 100).toFixed(2),
+              label: attempt.serviceName || service.name,
+            },
+          });
+          const applePay = await payments.applePay(paymentRequest);
+          if (!active()) { await applePay.destroy(); return; }
+          applePayRef.current = applePay;
+          applePayBindingRef.current = { applePay, attemptId: attempt.attemptId, generation };
+          setApplePayAvailable(true);
+        } catch {
+          // Unsupported browsers, devices, or account/domain configuration must
+          // leave the established Card checkout usable.
+          applePayRef.current = null;
+          applePayBindingRef.current = null;
+          setApplePayAvailable(false);
+        }
         setState("ready");
       });
       cardWorkRef.current = work.catch(() => {});
@@ -253,13 +292,14 @@ export default function SquareCardPayment({ bookingId, paymentAccessToken, servi
     } finally {
       if (initializingRef.current === generation) initializingRef.current = null;
     }
-  }, [bookingId, destroyCard, handleStatus, onBookingRecovered, paymentAccessToken, service.booking_mode]);
+  }, [bookingId, destroyApplePay, destroyCard, handleStatus, onBookingRecovered, paymentAccessToken, service.booking_mode, service.name]);
 
   const invalidate = useCallback(() => {
     ++generationRef.current;
     ++statusRequestRef.current;
     initializingRef.current = null;
     bindingRef.current = null;
+    applePayBindingRef.current = null;
   }, []);
 
   useEffect(() => {
@@ -274,11 +314,14 @@ export default function SquareCardPayment({ bookingId, paymentAccessToken, servi
       window.clearTimeout(initializeTimer);
       mountedRef.current = false;
       invalidate();
-      cardWorkRef.current = cardWorkRef.current.then(destroyCard);
+      cardWorkRef.current = cardWorkRef.current.then(async () => {
+        await destroyCard();
+        await destroyApplePay();
+      });
       // Retain cleanup failure in the queue: replacement must not attach.
       cardWorkRef.current.catch(() => {});
     };
-  }, [destroyCard, initialize, invalidate]);
+  }, [destroyApplePay, destroyCard, initialize, invalidate]);
 
   useEffect(() => {
     if (state !== "verifying") return undefined;
@@ -320,26 +363,11 @@ export default function SquareCardPayment({ bookingId, paymentAccessToken, servi
     };
   }, [attemptId, bookingId, paymentAccessToken, service.booking_mode, state]);
 
-  async function submit(event) {
-    event.preventDefault();
-    if (service.booking_mode === "timed" && (closingRef.current || state !== "ready")) return;
-    const binding = bindingRef.current;
-    if (submittingRef.current || initializingRef.current || !binding ||
-      binding.card !== cardRef.current || binding.attemptId !== attemptId ||
-      binding.generation !== generationRef.current) return;
-    const active = () => mountedRef.current && !closingRef.current && bindingRef.current === binding &&
+  async function submitToken(binding, sourceToken, isCurrentBinding) {
+    const active = () => mountedRef.current && !closingRef.current && isCurrentBinding() &&
       binding.generation === generationRef.current;
-    submittingRef.current = true;
-    setError("");
-    setState("tokenizing");
+    if (!active()) return;
     try {
-      const tokenized = await binding.card.tokenize(
-        buildSquareVerificationDetails(context),
-      );
-      if (tokenized.status !== "OK" || !tokenized.token) {
-        throw new Error(tokenized.errors?.[0]?.message || "Card details could not be tokenized.");
-      }
-      if (!active()) return;
       // Revalidate after tokenization; another tab may have consumed the hold.
       const status = await checkStatus();
       if (!active()) return;
@@ -348,16 +376,20 @@ export default function SquareCardPayment({ bookingId, paymentAccessToken, servi
         (service.booking_mode === "timed" && (status.bookingStatus !== "pending_payment" ||
           status.paymentStatus !== "unpaid" || status.paid !== false))) {
         bindingRef.current = null;
+        applePayBindingRef.current = null;
+        setApplePayAvailable(false);
         setState("verifying");
         return;
       }
       bindingRef.current = null;
+      applePayBindingRef.current = null;
+      setApplePayAvailable(false);
       setState("verifying");
       const result = await submitSquarePayment({
         bookingId,
         paymentAccessToken,
         attemptId: binding.attemptId,
-        sourceToken: tokenized.token,
+        sourceToken,
       });
       if (!mountedRef.current || binding.generation !== generationRef.current || closingRef.current) return;
       ++statusRequestRef.current;
@@ -373,12 +405,77 @@ export default function SquareCardPayment({ bookingId, paymentAccessToken, servi
       setError(reason.message || "Payment could not be submitted.");
       try {
         const status = await checkStatus();
-        if (status && bindingRef.current === binding && status.attemptStatus === "reserved" &&
+        if (status && isCurrentBinding() && status.attemptStatus === "reserved" &&
           status.attemptId === binding.attemptId && handleStatus(status) === "ready") setState("ready");
       } catch {
         setState("verifying");
       }
     } finally {
+      submittingRef.current = false;
+    }
+  }
+
+  async function submit(event) {
+    event.preventDefault();
+    if (service.booking_mode === "timed" && (closingRef.current || state !== "ready")) return;
+    const binding = bindingRef.current;
+    const isCurrentBinding = () => bindingRef.current === binding && binding.card === cardRef.current;
+    if (submittingRef.current || initializingRef.current || !binding || !isCurrentBinding() ||
+      binding.attemptId !== attemptId || binding.generation !== generationRef.current) return;
+    const active = () => mountedRef.current && !closingRef.current && bindingRef.current === binding &&
+      binding.generation === generationRef.current;
+    submittingRef.current = true;
+    setError("");
+    setState("tokenizing");
+    try {
+      const tokenized = await binding.card.tokenize(
+        buildSquareVerificationDetails(context),
+      );
+      if (tokenized.status !== "OK" || !tokenized.token) {
+        throw new Error(tokenized.errors?.[0]?.message || "Card details could not be tokenized.");
+      }
+      if (!active()) return;
+      await submitToken(binding, tokenized.token, isCurrentBinding);
+    } catch (reason) {
+      if (!mountedRef.current || binding.generation !== generationRef.current || closingRef.current) return;
+      setError(reason.message || "Payment could not be submitted.");
+      try {
+        const status = await checkStatus();
+        if (status && bindingRef.current === binding && status.attemptStatus === "reserved" &&
+          status.attemptId === binding.attemptId && handleStatus(status) === "ready") setState("ready");
+      } catch {
+        setState("verifying");
+      }
+    } finally { submittingRef.current = false; }
+  }
+
+  async function submitApplePay(event) {
+    event.preventDefault();
+    if (service.booking_mode === "timed" && (closingRef.current || state !== "ready")) return;
+    const binding = applePayBindingRef.current;
+    const isCurrentBinding = () => applePayBindingRef.current === binding && binding.applePay === applePayRef.current;
+    if (submittingRef.current || initializingRef.current || !binding || !isCurrentBinding() ||
+      binding.attemptId !== attemptId || binding.generation !== generationRef.current) return;
+    submittingRef.current = true;
+    setError("");
+    setState("tokenizing");
+    try {
+      // Apple requires this to be the first asynchronous operation after the
+      // customer's gesture. Do not add status calls or awaits before it.
+      const tokenized = await binding.applePay.tokenize();
+      if (tokenized.status !== "OK" || !tokenized.token) {
+        if (["CANCELED", "CANCELLED"].includes(tokenized.status)) {
+          setState("ready");
+          submittingRef.current = false;
+          return;
+        }
+        throw new Error(tokenized.errors?.[0]?.message || "Apple Pay was cancelled or could not be authorized.");
+      }
+      await submitToken(binding, tokenized.token, isCurrentBinding);
+    } catch (reason) {
+      if (!mountedRef.current || binding.generation !== generationRef.current || closingRef.current) return;
+      setError(reason.message || "Apple Pay could not be submitted.");
+      setState("ready");
       submittingRef.current = false;
     }
   }
@@ -433,6 +530,20 @@ export default function SquareCardPayment({ bookingId, paymentAccessToken, servi
         {state === "restart" && <Message title="Payment was not completed"><p>{onChooseNewAppointment ? "Your appointment reservation is no longer held." : error || "No charge was recorded for the previous attempt."}</p><div className="flex flex-wrap items-center justify-center gap-3"><Button onClick={() => initialize(true)}>Try payment again</Button>{onChooseNewAppointment && <Button onClick={chooseNewAppointment}>Choose a new appointment</Button>}</div></Message>}
         {state === "success" && <Message title="Payment confirmed">Your {context.serviceName || "booking"} is confirmed and a confirmation email has been sent. Thank you.</Message>}
         <form onSubmit={submit} className={state === "ready" || state === "tokenizing" ? "block" : "hidden"}>
+          {applePayAvailable && <>
+            <button
+              type="button"
+              aria-label={`Pay ${displayAmount} with Apple Pay`}
+              disabled={state !== "ready"}
+              onClick={submitApplePay}
+              className="apple-pay-button mb-4 min-h-12 w-full rounded-xl disabled:cursor-not-allowed disabled:opacity-55"
+            />
+            <div className="mb-4 flex items-center gap-3 text-xs uppercase tracking-[0.18em] text-[#687168] [text-shadow:none]" aria-hidden="true">
+              <span className="h-px flex-1 bg-[#d8d2c5]" />
+              <span>or pay by card</span>
+              <span className="h-px flex-1 bg-[#d8d2c5]" />
+            </div>
+          </>}
           <p className="mb-2 text-sm font-medium text-[#3e4b40] [text-shadow:none]">Card details</p>
           <div ref={containerRef} id="square-card-container" className="min-h-24" />
           {error && <p className="mb-4 text-sm text-red-700">{error}</p>}

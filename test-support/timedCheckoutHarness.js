@@ -57,15 +57,15 @@ const retryId = "123e4567-e89b-42d3-a456-426614174003";
 let moduleId = 0;
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
-export async function mount(t, { mode = "timed", serviceSlug, state = "failed", navigation = "reload", abandon, transport = {}, square, nodeMock, strict = true, emptySession = false, persistent = new Map() } = {}) {
+export async function mount(t, { mode = "timed", serviceSlug, state = "failed", navigation = "reload", abandon, transport = {}, square, nodeMock, strict = true, emptySession = false, persistent = new Map(), amountMinor = 8500, currency = "USD" } = {}) {
   const slug = serviceSlug || (mode === "timed" ? "private-readings" : "voice-memo-reading");
   const identity = { bookingId, paymentAccessToken: "a".repeat(64), serviceId: "service" };
   const key = `amanda:direct-payment:${slug}`;
   const storage = new Map(emptySession ? [] : [[key, JSON.stringify(identity)]]);
   const calls = [];
-  const service = { id: "service", slug, booking_mode: mode, payment_flow: "direct_payment", name: "Reading", price_amount: 8500, currency: "USD" };
+  const service = { id: "service", slug, booking_mode: mode, payment_flow: "direct_payment", name: "Reading", price_amount: amountMinor, currency };
   const context = {
-    serviceId: "service", bookingMode: mode, serviceName: "Reading", amountMinor: 8500, currency: "USD",
+    serviceId: "service", bookingMode: mode, serviceName: "Reading", amountMinor, currency,
     buyerContact: { givenName: "Old customer", email: "old@example.test" },
     bookingDetails: { name: "Old customer", email: "old@example.test", phone: "123", message: "Old private topic" },
   };
