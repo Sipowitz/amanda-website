@@ -66,6 +66,58 @@ export async function generateSlots({
   }
 }
 
+// Phase 4 period administration. Date/time values are intentionally sent as
+// business-local wall-time strings; PostgreSQL owns timezone/DST validation.
+export async function getAdminAvailabilityPeriods() {
+  const { data, error } = await supabase.rpc("get_admin_availability_period_overview");
+  if (error) throw error;
+  return data || [];
+}
+
+export async function previewAvailabilityPeriods(periods, excludePeriodId = null) {
+  const { data, error } = await supabase.rpc("preview_availability_period_batch", {
+    p_periods: periods,
+    p_exclude_period_id: excludePeriodId,
+  });
+  if (error) throw error;
+  return data;
+}
+
+export async function createAvailabilityPeriods(periods) {
+  const { data, error } = await supabase.rpc("create_availability_period_batch", {
+    p_periods: periods,
+  });
+  if (error) throw error;
+  return data;
+}
+
+export async function updateAvailabilityPeriod({ periodId, startLocal, endLocal }) {
+  const { data, error } = await supabase.rpc("update_availability_period", {
+    p_period_id: periodId,
+    p_start_local: startLocal,
+    p_end_local: endLocal,
+  });
+  if (error) throw error;
+  return data;
+}
+
+export async function deleteAvailabilityPeriod(periodId) {
+  const { data, error } = await supabase.rpc("delete_availability_period", {
+    p_period_id: periodId,
+  });
+  if (error) throw error;
+  return data;
+}
+
+export async function getLegacyAvailabilityCount() {
+  const { count, error } = await supabase
+    .from("availability_slots")
+    .select("id", { count: "exact", head: true })
+    .eq("availability_source", "legacy");
+  if (error) throw error;
+  return count || 0;
+}
+
 export async function getAdminSlots() {
   const { data, error } = await supabase
     .from("availability_slots")

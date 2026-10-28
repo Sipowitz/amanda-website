@@ -1,14 +1,16 @@
 import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { readFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import test from "node:test";
 
 const read = (file) => readFile(new URL(`../supabase/migrations/${file}`, import.meta.url), "utf8");
 const functionSql = (sql, name) => {
   const escaped = name.replaceAll(".", "\\.");
-  const result = sql.match(new RegExp(`create(?: or replace)? function ${escaped}\\([^]*?\\n\\$\\$;`))?.[0];
+  const result = sql.match(new RegExp(`create(?: or replace)? function ${escaped}\\([^]*?\\$\\$;`))?.[0];
   assert.ok(result, `Missing real function ${name}`);
   return result;
 };
@@ -17,13 +19,8 @@ const functionSql = (sql, name) => {
 // functions. An isolated fixture supplies only the tables those functions use;
 // this does not apply historical data migrations or contact Supabase/Square.
 test("timed checkout abandonment in PostgreSQL", { timeout: 600000 }, async (t) => {
-  if (spawnSync("docker", ["image", "inspect", "postgres:17"], { stdio: "ignore" }).status !== 0) {
-    t.skip("Requires Docker with local postgres:17 image (docker pull postgres:17).");
-    return;
-  }
-  const container = `amanda-abandon-test-${randomUUID()}`;
-  const exec = (args, input) => new Promise((resolve, reject) => {
-    const child = spawn("docker", args, { stdio: ["pipe", "pipe", "pipe"] });
+  const run = (command, args, input) => new Promise((resolve, reject) => {
+    const child = spawn(command, args, { stdio: ["pipe", "pipe", "pipe"] });
     let output = "";
     let error = "";
     child.stdout.on("data", (data) => { output += data; });
@@ -32,10 +29,31 @@ test("timed checkout abandonment in PostgreSQL", { timeout: 600000 }, async (t) 
     child.on("close", (code) => code === 0 ? resolve(output.trim()) : reject(new Error(error)));
     child.stdin.end(input);
   });
-  await exec(["run", "--rm", "-d", "--name", container, "-e", "POSTGRES_HOST_AUTH_METHOD=trust", "postgres:17"]);
-  t.after(() => exec(["rm", "-f", container]));
-  const psqlArgs = ["exec", "-i", "-e", "PGOPTIONS=-c statement_timeout=15000 -c idle_in_transaction_session_timeout=20000", container, "psql", "-h", "127.0.0.1", "-U", "postgres", "-XqAt", "-v", "ON_ERROR_STOP=1"];
-  const query = (sql) => exec(psqlArgs, sql);
+  let psqlCommand;
+  let psqlArgs;
+  if (spawnSync("docker", ["image", "inspect", "postgres:17"], { stdio: "ignore" }).status === 0) {
+    const container = `amanda-abandon-test-${randomUUID()}`;
+    await run("docker", ["run", "--rm", "-d", "--name", container, "-e", "POSTGRES_HOST_AUTH_METHOD=trust", "postgres:17"]);
+    t.after(() => run("docker", ["rm", "-f", container]));
+    psqlCommand = "docker";
+    psqlArgs = ["exec", "-i", "-e", "PGOPTIONS=-c statement_timeout=15000 -c idle_in_transaction_session_timeout=20000", container, "psql", "-h", "127.0.0.1", "-U", "postgres", "-XqAt", "-v", "ON_ERROR_STOP=1"];
+  } else {
+    const pgBin = globalThis.process?.env.PG17_BIN || "/usr/lib/postgresql/17/bin";
+    const root = await mkdtemp(join(tmpdir(), "amanda-abandon-test-"));
+    const socket = join(root, "socket");
+    const data = join(root, "data");
+    const port = String(30000 + Math.floor(Math.random() * 10000));
+    await mkdir(socket);
+    await run(join(pgBin, "initdb"), ["-D", data, "-A", "trust", "-U", "postgres", "--no-locale", "--encoding", "UTF8"]);
+    await run(join(pgBin, "pg_ctl"), ["-D", data, "-l", join(root, "postgres.log"), "-o", `-F -k ${socket} -p ${port}`, "-w", "start"]);
+    t.after(async () => {
+      await run(join(pgBin, "pg_ctl"), ["-D", data, "-m", "immediate", "-w", "stop"]);
+      await rm(root, { recursive: true, force: true });
+    });
+    psqlCommand = join(pgBin, "psql");
+    psqlArgs = ["-h", socket, "-p", port, "-U", "postgres", "-d", "postgres", "-XqAt", "-v", "ON_ERROR_STOP=1"];
+  }
+  const query = (sql) => run(psqlCommand, psqlArgs, sql);
   for (let i = 0; ; i++) {
     try { await query("select 1;"); break; } catch (error) {
       if (i === 50) throw error;
@@ -47,7 +65,9 @@ test("timed checkout abandonment in PostgreSQL", { timeout: 600000 }, async (t) 
   const migration = await read("20260905000000_abandon_timed_payment_checkout.sql");
   const supersession = await read("20260906000000_payment_failure_supersession.sql");
   const leaseMigration = await read("20260906001000_timed_checkout_cleanup_lease.sql");
+  const cleanupSelfHeal = await read("20260908110000_self_heal_timed_checkout_markers.sql");
   const admin = await read("20260904001000_direct_payment_admin_lifecycle.sql");
+  const phase5 = await read("20261031000000_guarded_legacy_availability_cutover.sql");
   const services = await read("20260817210000_add_booking_services.sql");
   const security = await read("20260817185300_booking_security_admin_foundation.sql");
   const attempts = phaseOne.match(/create table private.payment_attempts \([^]*?\n\);/)?.[0];
@@ -65,7 +85,8 @@ test("timed checkout abandonment in PostgreSQL", { timeout: 600000 }, async (t) 
     ${functionSql(security, "public.is_admin")}
     ${functionSql(security, "private.require_admin")}
     create table public.availability_slots (
-      id uuid primary key, slot_date date default current_date + 1, slot_time time default '12:00', is_available boolean default false
+      id uuid primary key, slot_date date default current_date + 1, slot_time time default '12:00', is_available boolean default false,
+      availability_source text not null default 'legacy', legacy_retired_at timestamptz, legacy_cutover_id uuid
     );
     create table public.bookings (
       id uuid primary key, slot_id uuid references public.availability_slots,
@@ -121,6 +142,11 @@ test("timed checkout abandonment in PostgreSQL", { timeout: 600000 }, async (t) 
     ${migration}
     ${supersession}
     ${leaseMigration}
+    ${cleanupSelfHeal}
+    ${functionSql(phase5, "private.guard_retired_legacy_slot_reopen")}
+    create trigger availability_slots_guard_retired_legacy_reopen
+      before update of is_available on public.availability_slots
+      for each row execute function private.guard_retired_legacy_slot_reopen();
   `);
   const booking = "123e4567-e89b-42d3-a456-426614174000";
   const attempt = "123e4567-e89b-42d3-a456-426614174001";
@@ -139,10 +165,55 @@ test("timed checkout abandonment in PostgreSQL", { timeout: 600000 }, async (t) 
     insert into private.payment_attempts(id, booking_id, provider, idempotency_key, amount_minor, currency)
       values ('${attempt}', '${booking}', 'square', 'test-attempt', 8500, 'USD');
   `);
+  const retireSlot = () => query(`update public.availability_slots
+    set is_available = false, legacy_retired_at = clock_timestamp() where id = '${slot}';`);
   const snapshot = () => query(`select jsonb_build_object(
     'bookings', (select jsonb_agg(to_jsonb(b)) from public.bookings b),
     'attempts', (select jsonb_agg(to_jsonb(a)) from private.payment_attempts a),
     'slots', (select jsonb_agg(to_jsonb(s)) from public.availability_slots s));`);
+
+  await t.test("real lifecycle functions complete without reopening a retired legacy slot", async () => {
+    const failure = `select public.fail_payment_attempt('${booking}', '${attempt}', 'FAILED', 'CARD_DECLINED', 'Declined');`;
+    const completed = `select public.record_provider_payment_result(
+      'square', 'retired-completed', 'payment.updated', '${booking}', '${attempt}', 'retired-payment',
+      'sandbox-location', 'COMPLETED', 8500, 'USD');`;
+    const providerFailure = `select public.record_provider_payment_result(
+      'square', 'retired-failed', 'payment.updated', '${booking}', '${attempt}', 'retired-payment',
+      'sandbox-location', 'FAILED', 8500, 'USD');`;
+
+    await reset(); await retireSlot(); await query(auth + submit + failure);
+    assert.equal(await query("select status from public.bookings; select status from private.payment_attempts; select is_available from public.availability_slots;"), "payment_expired\nfailed\nf");
+
+    await reset(); await retireSlot();
+    await query("update private.payment_attempts set created_at=clock_timestamp()-interval '61 minutes'; select private.expire_stale_reserved_payment_attempts();");
+    assert.equal(await query("select status from public.bookings; select status from private.payment_attempts; select is_available from public.availability_slots;"), "payment_expired\nexpired\nf");
+
+    await reset(); await retireSlot(); await query(adminCancel);
+    assert.equal(await query("select status from public.bookings; select status from private.payment_attempts; select is_available from public.availability_slots;"), "cancelled\ncancelled\nf");
+
+    await reset(); await retireSlot(); await query(auth + abandon);
+    assert.equal(await query("select status from public.bookings; select status from private.payment_attempts; select is_available from public.availability_slots;"), "cancelled\ncancelled\nf");
+
+    await reset(); await retireSlot(); await query(auth + submit + providerFailure);
+    assert.equal(await query("select status from public.bookings; select status from private.payment_attempts; select is_available from public.availability_slots;"), "payment_expired\nfailed\nf");
+
+    await reset(); await retireSlot(); await query(auth + submit + completed);
+    assert.equal(await query("select status from public.bookings; select status from private.payment_attempts; select is_available from public.availability_slots;"), "confirmed\ncompleted\nf");
+    assert.equal(await query(auth + completed), "f", "duplicate webhook event is idempotent");
+
+    await reset();
+    await query("update public.availability_slots set availability_source='period', legacy_retired_at=null;");
+    await query(auth + submit + failure);
+    assert.equal(await query("select status from public.bookings; select status from private.payment_attempts; select is_available from public.availability_slots;"), "payment_expired\nfailed\nt");
+
+    await reset(); await retireSlot();
+    const lease = JSON.parse(await query(auth + `select public.renew_timed_checkout_lease('${booking}', '${token}', '${attempt}', null);`));
+    await query("update private.timed_checkout_cleanup set lease_until=clock_timestamp()-interval '1 second';");
+    assert.equal(await query(auth + `select public.cleanup_timed_checkout('${booking}', '${attempt}', '${lease.cleanupCapability}');`), "t");
+    assert.equal(await query("select status from public.bookings; select status from private.payment_attempts; select is_available from public.availability_slots;"), "cancelled\ncancelled\nf");
+  });
+
+  if (globalThis.process?.env.LIFECYCLE_TEST_SCOPE === "retired") return;
 
   await t.test("safe reservation is terminally cancelled, releases slot, emits no email and creates no booking", async () => {
     await reset();
@@ -204,7 +275,7 @@ test("timed checkout abandonment in PostgreSQL", { timeout: 600000 }, async (t) 
   // waiting on its lock, rather than approximating a race with sequential calls.
   async function race(firstSql, secondSql) {
     const visibleAvailability = await query("select is_available from public.availability_slots;");
-    const holder = spawn("docker", psqlArgs, { stdio: ["pipe", "pipe", "pipe"] });
+    const holder = spawn(psqlCommand, psqlArgs, { stdio: ["pipe", "pipe", "pipe"] });
     let output = "";
     let errors = "";
     holder.stderr.on("data", (data) => { errors += data; });

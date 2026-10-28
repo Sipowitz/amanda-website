@@ -340,9 +340,10 @@ export default function Booking({ expectedMode, modal = false }) {
     } catch (bookingError) {
       console.error("Booking failed:", bookingError);
       const unavailableSlot = service?.booking_mode === "timed" &&
-        /(?:slot.*(?:no longer available|already been booked)|appointment requires at least 24 hours notice)/i.test(
-          bookingError.message || "",
-        );
+        (bookingError?.code === "23P01" ||
+          /(?:slot.*(?:no longer available|already been booked)|appointment(?: time)?(?:.*conflicts?|.*no longer available)|appointment requires at least 24 hours notice)/i.test(
+            bookingError.message || "",
+          ));
       if (unavailableSlot) {
         try {
           setSlots(await getAvailableSlots());
