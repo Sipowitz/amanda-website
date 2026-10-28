@@ -10,9 +10,13 @@ const migrations = [
   "20261029000000_synchronize_period_availability_slots.sql",
   "20261030000000_availability_period_batch_preview.sql",
   "20261031000000_guarded_legacy_availability_cutover.sql",
+  "20261101000000_fix_availability_period_preview_legacy_slots.sql",
+  "20261102000000_optimize_batch_availability_reconciliation.sql",
+  "20261103000000_fast_batch_availability_preview.sql",
+  "20261104000000_optimize_persistent_batch_slot_writes.sql",
 ];
 
-test("period synchronization materializes safe appointment inventory", { timeout: 120000 }, async (t) => {
+test("period synchronization materializes safe appointment inventory", { timeout: 180000 }, async (t) => {
   const testScope = globalThis.process?.env.SYNC_TEST_SCOPE;
   const scoped = (name, fn) => t.test(name, {
     skip: testScope && !name.toLowerCase().includes(testScope.toLowerCase()),
@@ -37,7 +41,7 @@ test("period synchronization materializes safe appointment inventory", { timeout
     await rm(root, { recursive: true, force: true });
   });
   const query = (sql) => run(join(pgBin, "psql"), ["-h", socket, "-p", port, "-U", "postgres", "-d", "postgres", "-XqAt", "-v", "ON_ERROR_STOP=1", "-c", sql]);
-  const [periodMigration, syncMigration, phase4Migration, phase5Migration] = await Promise.all(migrations.map((name) => readFile(new URL(`../supabase/migrations/${name}`, import.meta.url), "utf8")));
+  const [periodMigration, syncMigration, phase4Migration, phase5Migration, previewFixMigration, batchOptimizationMigration, fastPreviewMigration, persistentWriteOptimizationMigration] = await Promise.all(migrations.map((name) => readFile(new URL(`../supabase/migrations/${name}`, import.meta.url), "utf8")));
   await query(`
     create role anon; create role authenticated; create role service_role;
     create schema private; create schema auth; create extension pgcrypto;
@@ -67,6 +71,10 @@ test("period synchronization materializes safe appointment inventory", { timeout
   await query(syncMigration);
   await query(phase4Migration);
   await query(phase5Migration);
+  await query(previewFixMigration);
+  await query(batchOptimizationMigration);
+  await query(fastPreviewMigration);
+  await query(persistentWriteOptimizationMigration);
   await query("alter table public.bookings add constraint bookings_no_overlapping_active_timed_appointments check (true);");
   const asAdmin = (sql) => query(`set role authenticated; set request.jwt.claims='{"admin":true}'; ${sql}`);
   const create = async (start, end) => JSON.parse(await asAdmin(`select public.create_availability_period('${start}'::timestamp,'${end}'::timestamp);`));
@@ -134,6 +142,23 @@ test("period synchronization materializes safe appointment inventory", { timeout
     const countBeforeConflict = await query("select count(*) from public.availability_periods;");
     await assert.rejects(asAdmin("select public.create_availability_period_batch(jsonb_build_array(jsonb_build_object('start_local','2032-01-15T10:30','end_local','2032-01-15T13:00')));"), /incompatible appointment start times/);
     assert.equal(await query("select count(*) from public.availability_periods;"), countBeforeConflict);
+  });
+
+  await scoped("preview includes seven existing legacy starts instead of hiding them before cutover", async () => {
+    await query(`
+      insert into public.availability_slots(slot_date,slot_time,starts_at,is_available)
+      select '2032-10-30'::date, lpad(hour::text, 2, '0') || ':00',
+             '2032-10-30T00:00:00Z'::timestamptz, true
+      from generate_series(10, 16) hour;
+    `);
+    const before = await query("select count(*) from public.availability_slots where slot_date='2032-10-30';");
+    const preview = JSON.parse(await asAdmin("select public.preview_availability_period_batch(jsonb_build_array(jsonb_build_object('start_local','2032-10-30T10:00','end_local','2032-10-30T17:00')), null::uuid);"));
+    const matchingAppointments = preview.appointments.filter((appointment) => appointment.slot_date === "2032-10-30");
+    assert.equal(preview.outcome, "preview");
+    assert.equal(matchingAppointments.length, 7);
+    assert.deepEqual(matchingAppointments.map((appointment) => appointment.slot_time), ["10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00"]);
+    assert.ok(matchingAppointments.every((appointment) => appointment.already_existed));
+    assert.equal(await query("select count(*) from public.availability_slots where slot_date='2032-10-30';"), before, "preview rolls back its temporary period and leaves legacy inventory unchanged");
   });
 
   await scoped("legacy cutover retires future inventory without breaking lifecycle updates", async () => {
@@ -210,7 +235,7 @@ test("period synchronization materializes safe appointment inventory", { timeout
       asAdmin("set lock_timeout='5s'; select public.activate_legacy_availability_cutover();"),
     ]);
     const retired = activations.map(JSON.parse).reduce((total, result) => total + result.retired, 0);
-    assert.equal(retired, 2);
+    assert.ok(retired >= 2, "both newly inserted legacy slots are included even if an earlier test left other legacy inventory");
     assert.equal(await query(`select bool_and(is_available is false and legacy_retired_at is not null) from public.availability_slots where id in ('${first}','${second}');`), "t");
 
     await Promise.all([
@@ -259,5 +284,99 @@ test("period synchronization materializes safe appointment inventory", { timeout
     assert.equal(await query(`select status from private.payment_attempts where id='${expiryAttempt}';`), "expired");
     assert.equal(await query(`select status from public.bookings where id='${expiryBooking}';`), "payment_expired");
     assert.equal(await query(`select is_available is false and legacy_retired_at is not null from public.availability_slots where id='${expirySlot}';`), "t");
+  });
+
+  await scoped("weekday batches reconcile once and remain atomic at 23 and 30 dates", async () => {
+    const selectedDates = [];
+    for (let current = new Date(Date.UTC(2037, 9, 29)); current <= new Date(Date.UTC(2037, 10, 30)); current.setUTCDate(current.getUTCDate() + 1)) {
+      if (current.getUTCDay() > 0 && current.getUTCDay() < 6) selectedDates.push(current.toISOString().slice(0, 10));
+    }
+    assert.equal(selectedDates.length, 23);
+    const payload = `jsonb_build_array(${selectedDates.map((date) => `jsonb_build_object('start_local','${date}T10:00','end_local','${date}T17:00')`).join(",")})`;
+    const periodsBeforePreview = await query("select count(*) from public.availability_periods;");
+    const slotsBeforePreview = await query("select count(*) from public.availability_slots;");
+    const preview = JSON.parse(await asAdmin(`set statement_timeout='5s'; select public.preview_availability_period_batch(${payload}, null::uuid);`));
+    assert.equal(preview.outcome, "preview");
+    assert.equal(preview.appointments.filter((appointment) => selectedDates.includes(appointment.slot_date)).length, 161);
+    assert.equal(await query("select count(*) from public.availability_periods;"), periodsBeforePreview, "preview leaves no temporary periods");
+    assert.equal(await query("select count(*) from public.availability_slots;"), slotsBeforePreview, "preview leaves no temporary inventory");
+
+    const created = JSON.parse(await asAdmin(`set statement_timeout='5s'; select public.create_availability_period_batch(${payload});`));
+    assert.equal(created.periods_requested, 23);
+    assert.equal(created.reconciliation.slots_created, 161);
+    assert.equal(await query("select count(*) from public.availability_periods;"), String(Number(periodsBeforePreview) + 23));
+    assert.equal(await query(`select count(*) from public.availability_slots where availability_source='period' and slot_date = any(array[${selectedDates.map((date) => `'${date}'::date`).join(",")}]);`), "161");
+
+    const thirtyDates = [];
+    for (let current = new Date(Date.UTC(2039, 0, 3)); thirtyDates.length < 30; current.setUTCDate(current.getUTCDate() + 1)) {
+      if (current.getUTCDay() > 0 && current.getUTCDay() < 6) thirtyDates.push(current.toISOString().slice(0, 10));
+    }
+    const thirtyPayload = `jsonb_build_array(${thirtyDates.map((date) => `jsonb_build_object('start_local','${date}T10:00','end_local','${date}T17:00')`).join(",")})`;
+    const thirtyCreated = JSON.parse(await asAdmin(`set statement_timeout='5s'; select public.create_availability_period_batch(${thirtyPayload});`));
+    assert.equal(thirtyCreated.periods_requested, 30);
+    assert.equal(thirtyCreated.reconciliation.slots_created, 210);
+  });
+
+  await scoped("projected preview remains read-only and fast with existing period and retired legacy inventory", async () => {
+    const weekdayDates = (year, month, day, count) => {
+      const dates = [];
+      for (let current = new Date(Date.UTC(year, month, day)); dates.length < count; current.setUTCDate(current.getUTCDate() + 1)) {
+        if (current.getUTCDay() > 0 && current.getUTCDay() < 6) dates.push(current.toISOString().slice(0, 10));
+      }
+      return dates;
+    };
+    const payloadFor = (dates) => `jsonb_build_array(${dates.map((date) => `jsonb_build_object('start_local','${date}T10:00','end_local','${date}T17:00')`).join(",")})`;
+    const existingDates = weekdayDates(2041, 0, 6, 30);
+    await asAdmin(`set statement_timeout='5s'; select public.create_availability_period_batch(${payloadFor(existingDates)});`);
+
+    const previewDates = weekdayDates(2042, 0, 5, 30);
+    const retiredIds = [];
+    for (const date of previewDates.slice(0, 17)) {
+      retiredIds.push(await query(`insert into public.availability_slots(slot_date,slot_time,starts_at,is_available,legacy_retired_at) values('${date}','10:00','${date}T16:00:00Z',false,clock_timestamp()) returning id;`));
+    }
+    await addBooking(retiredIds[0], "confirmed");
+    const periodsBefore = await query("select count(*) from public.availability_periods;");
+    const slotsBefore = await query("select count(*) from public.availability_slots;");
+    const preview = JSON.parse(await asAdmin(`set statement_timeout='3s'; select public.preview_availability_period_batch(${payloadFor(previewDates)}, null::uuid);`));
+    assert.equal(preview.outcome, "preview");
+    assert.equal(preview.appointments.filter((appointment) => previewDates.includes(appointment.slot_date)).length, 210);
+    assert.equal(await query("select count(*) from public.availability_periods;"), periodsBefore);
+    assert.equal(await query("select count(*) from public.availability_slots;"), slotsBefore);
+    const adoptedPreview = preview.appointments.filter((appointment) => previewDates.slice(0, 17).includes(appointment.slot_date) && appointment.slot_time === "10:00");
+    assert.equal(adoptedPreview.filter((appointment) => appointment.is_available).length, 16, "unbooked retired inventory is shown as reusable period inventory");
+    assert.equal(adoptedPreview.filter((appointment) => appointment.has_booking && !appointment.is_available).length, 1, "booking-linked retired inventory remains unavailable");
+
+    await query(`
+      create table private.slot_timezone_reads(count integer not null default 0);
+      create or replace function public.get_business_timezone() returns text
+      language plpgsql volatile security definer set search_path='' as $$
+      begin
+        insert into private.slot_timezone_reads default values;
+        return 'America/Chicago';
+      end;
+      $$;
+    `);
+    const created = JSON.parse(await asAdmin(`set statement_timeout='5s'; select public.create_availability_period_batch(${payloadFor(previewDates)});`));
+    assert.equal(created.periods_requested, 30);
+    assert.equal(created.reconciliation.slots_created, 193);
+    assert.equal(await query("select count(*) from private.slot_timezone_reads;"), "0", "reconciliation supplies the already-validated timezone to every inserted slot");
+    await query("create or replace function public.get_business_timezone() returns text language sql stable security definer set search_path='' as $$ select 'America/Chicago'::text $$;");
+    assert.equal(await query(`select count(*) from public.availability_slots where id = any(array[${retiredIds.slice(1).map((id) => `'${id}'::uuid`).join(",")}]) and availability_source='period' and legacy_retired_at is null and is_available;`), "16");
+    assert.equal(await query(`select is_available is false and availability_source='legacy' and legacy_retired_at is not null from public.availability_slots where id='${retiredIds[0]}';`), "t");
+  });
+
+  await scoped("projected preview retains merge anchors and matches the subsequent creation", async () => {
+    const original = await create("2044-06-03 10:30", "2044-06-03 14:30");
+    const payload = "jsonb_build_array(jsonb_build_object('start_local','2044-06-03T09:00','end_local','2044-06-03T11:00'))";
+    const before = await query(`select starts_at, ends_at, anchor_local_time from public.availability_periods where id='${original.period.id}';`);
+    const preview = JSON.parse(await asAdmin(`set statement_timeout='3s'; select public.preview_availability_period_batch(${payload}, null::uuid);`));
+    assert.equal(preview.outcome, "preview");
+    assert.equal(preview.results.at(-1).outcome, "extended");
+    assert.equal(preview.results.at(-1).period.anchor_local_time, "10:30:00");
+    assert.deepEqual(preview.appointments.filter((appointment) => appointment.slot_date === "2044-06-03").map((appointment) => appointment.slot_time), ["09:30", "10:30", "11:30", "12:30", "13:30"]);
+    assert.equal(await query(`select starts_at, ends_at, anchor_local_time from public.availability_periods where id='${original.period.id}';`), before, "preview does not alter the canonical period");
+    const created = JSON.parse(await asAdmin(`select public.create_availability_period_batch(${payload});`));
+    assert.equal(created.results.at(-1).outcome, "extended");
+    assert.equal(created.results.at(-1).period.anchor_local_time, "10:30:00");
   });
 });
