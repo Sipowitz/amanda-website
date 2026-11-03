@@ -60,11 +60,7 @@ export default function Services() {
           {serviceGroups.map((group, groupIndex) => <section key={group.id} aria-labelledby={`${group.id}-heading`}>
             <h2 id={`${group.id}-heading`} className="text-3xl font-light text-[#f1e8ca] md:text-4xl">{group.title}</h2>
             <p className="mt-3 max-w-3xl text-lg leading-[1.8] text-[#f1e8ca]/75">{group.description}</p>
-            {group.id === "voice-memo-readings" && <div className="mt-8 max-w-3xl text-lg leading-[1.8] text-[#f1e8ca]/75">
-              <h3 className="font-medium text-[#f1e8ca]">Response Times</h3>
-              <p className="mt-3">I aim to respond to Voice Memo Reading requests within 24 hours, although occasionally it may take up to 48 hours.</p>
-              <p className="mt-3">If you require a quicker response, please book an {urgentRoute ? <Link to={urgentRoute} state={{ openedFromServices: true }} className="text-[#f1e8ca] underline decoration-[#f1e8ca]/50 underline-offset-4 transition-colors hover:text-white">Urgent Voice Memo Reading</Link> : "Urgent Voice Memo Reading"}.</p>
-            </div>}
+            {group.id === "voice-memo-readings" && <p className="mt-6 max-w-3xl text-base italic leading-[1.8] text-[#f1e8ca]/75">I aim to respond to Voice Memo Reading requests within 24 hours, although occasionally it may take up to 48 hours. If you require a quicker response, please book an {urgentRoute ? <Link to={urgentRoute} state={{ openedFromServices: true }} className="text-[#f1e8ca] underline decoration-[#f1e8ca]/50 underline-offset-4 transition-colors hover:text-white">Urgent Voice Memo Reading</Link> : "Urgent Voice Memo Reading"}.</p>}
             <div className="mt-8 space-y-6">
               {group.services.map((service, index) => <ServiceCard key={`booking:${service.slug}`} service={service} bookable index={groupIndex === 0 ? index : serviceGroups[0].services.length + index} />)}
             </div>
