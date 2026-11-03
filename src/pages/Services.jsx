@@ -46,7 +46,7 @@ export default function Services() {
     { id: "live-readings", title: "Live Readings", description: "Book a personal, one-to-one reading at a time that suits you.", services: services.filter((service) => service.booking_mode === "timed") },
     { id: "voice-memo-readings", title: "Voice Memo Readings", description: "Receive a personal recorded reading, with no appointment needed.", services: services.filter((service) => service.booking_mode === "untimed") },
   ].filter((group) => group.services.length > 0);
-  const urgentVoiceMemoService = services.find((service) => service.name?.trim().toLowerCase() === "urgent voice memo reading");
+  const urgentVoiceMemoService = services.find((service) => service.slug === "urgent-read");
   const urgentRoute = urgentVoiceMemoService ? `/services/${urgentVoiceMemoService.slug}/${urgentVoiceMemoService.booking_mode === "timed" ? "book" : "request"}` : null;
 
   return <>
@@ -60,7 +60,7 @@ export default function Services() {
           {serviceGroups.map((group, groupIndex) => <section key={group.id} aria-labelledby={`${group.id}-heading`}>
             <h2 id={`${group.id}-heading`} className="text-3xl font-light text-[#f1e8ca] md:text-4xl">{group.title}</h2>
             <p className="mt-3 max-w-3xl text-lg leading-[1.8] text-[#f1e8ca]/75">{group.description}</p>
-            {group.id === "voice-memo-readings" && <p className="mt-6 max-w-3xl text-base italic leading-[1.8] text-[#f1e8ca]/75">I aim to respond to Voice Memo Reading requests within 24 hours, although occasionally it may take up to 48 hours. If you require a quicker response, please book an {urgentRoute ? <Link to={urgentRoute} state={{ openedFromServices: true }} className="text-[#f1e8ca] underline decoration-[#f1e8ca]/50 underline-offset-4 transition-colors hover:text-white">Urgent Voice Memo Reading</Link> : "Urgent Voice Memo Reading"}.</p>}
+            {group.id === "voice-memo-readings" && <p className="mt-6 max-w-3xl text-base italic leading-[1.8] text-[#f1e8ca]/75">I aim to respond to Voice Memo Reading requests within 24 hours, although occasionally it may take up to 48 hours. If you require a quicker response, please book an {urgentRoute ? <Link to={urgentRoute} state={{ openedFromServices: true }} className="text-[#f1e8ca] underline decoration-[#f1e8ca]/50 underline-offset-4 transition-colors hover:text-white focus-visible:rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#f1e8ca]">Urgent Voice Memo Reading</Link> : "Urgent Voice Memo Reading"}.</p>}
             <div className="mt-8 space-y-6">
               {group.services.map((service, index) => <ServiceCard key={`booking:${service.slug}`} service={service} bookable index={groupIndex === 0 ? index : serviceGroups[0].services.length + index} />)}
             </div>
