@@ -13,9 +13,10 @@ function formatPrice(amount, currency) {
   return (amount / 100).toLocaleString("en-US", { style: "currency", currency });
 }
 
-function ServiceCard({ service, bookable = false, disabledAction = false, sectioned = false, index }) {
+function ServiceCard({ service, bookable = false, disabledAction = false, sectioned = false, index, urgentVoiceMemoService }) {
   const timed = service.booking_mode === "timed";
   const route = bookable ? `/services/${service.slug}/${timed ? "book" : "request"}` : null;
+  const urgentRoute = urgentVoiceMemoService ? `/services/${urgentVoiceMemoService.slug}/${urgentVoiceMemoService.booking_mode === "timed" ? "book" : "request"}` : null;
   const Heading = bookable || sectioned ? "h3" : "h2";
   const actionClassName = "mt-10 inline-flex items-center gap-3 rounded-full border border-[#f1e8ca]/30 px-6 py-3 text-sm font-medium uppercase tracking-[0.18em] text-[#f1e8ca] shadow-[0_5px_14px_rgba(22,34,22,0.14),inset_0_1px_0_rgba(241,232,202,0.10)] transition-all duration-300";
 
@@ -23,6 +24,11 @@ function ServiceCard({ service, bookable = false, disabledAction = false, sectio
     <Heading className="text-3xl font-light text-[#f1e8ca]">{service.name || service.title}</Heading>
     {bookable && <div className="mt-3 flex flex-wrap items-center gap-3"><p className="text-2xl font-light text-[#f1e8ca]">{formatPrice(service.price_amount, service.currency)}</p>{timed && <span className="text-xs uppercase tracking-[0.18em] text-[#f1e8ca]/50">{service.duration_minutes} minutes</span>}</div>}
     <p className="mt-5 max-w-3xl text-lg leading-[1.8] text-[#f1e8ca]/75">{service.public_summary || service.description}</p>
+    {service.slug === "voice-memo-reading" && <div className="mt-8 max-w-3xl text-lg leading-[1.8] text-[#f1e8ca]/75">
+      <h4 className="font-medium text-[#f1e8ca]">Response Times</h4>
+      <p className="mt-3">I aim to respond to Voice Memo Reading requests within 24 hours, although occasionally it may take up to 48 hours.</p>
+      <p className="mt-3">If you require a quicker response, please book an {urgentRoute ? <Link to={urgentRoute} state={{ openedFromServices: true }} className="text-[#f1e8ca] underline decoration-[#f1e8ca]/50 underline-offset-4 transition-colors hover:text-white">Urgent Voice Memo Reading</Link> : "Urgent Voice Memo Reading"}.</p>
+    </div>}
     {route && <Link to={route} state={{ openedFromServices: true }} data-service-trigger={service.slug} className={`${actionClassName} hover:border-[#f1e8ca]/60 hover:bg-white/10 hover:shadow-[0_7px_18px_rgba(22,34,22,0.18),inset_0_1px_0_rgba(241,232,202,0.13)]`}>{timed ? "Book now" : "Request now"}<span aria-hidden="true">-&gt;</span></Link>}
     {disabledAction && <button type="button" disabled className={`${actionClassName} cursor-not-allowed`}>Request info<span aria-hidden="true">→</span></button>}
   </motion.div>;
@@ -46,6 +52,7 @@ export default function Services() {
     { id: "live-readings", title: "Live Readings", description: "Book a personal, one-to-one reading at a time that suits you.", services: services.filter((service) => service.booking_mode === "timed") },
     { id: "voice-memo-readings", title: "Voice Memo Readings", description: "Receive a personal recorded reading, with no appointment needed.", services: services.filter((service) => service.booking_mode === "untimed") },
   ].filter((group) => group.services.length > 0);
+  const urgentVoiceMemoService = services.find((service) => service.name?.trim().toLowerCase() === "urgent voice memo reading");
 
   return <>
     <section aria-hidden={modalOpen ? "true" : undefined} inert={modalOpen} className="px-6 pb-24">
@@ -59,7 +66,7 @@ export default function Services() {
             <h2 id={`${group.id}-heading`} className="text-3xl font-light text-[#f1e8ca] md:text-4xl">{group.title}</h2>
             <p className="mt-3 max-w-3xl text-lg leading-[1.8] text-[#f1e8ca]/75">{group.description}</p>
             <div className="mt-8 space-y-6">
-              {group.services.map((service, index) => <ServiceCard key={`booking:${service.slug}`} service={service} bookable index={groupIndex === 0 ? index : serviceGroups[0].services.length + index} />)}
+              {group.services.map((service, index) => <ServiceCard key={`booking:${service.slug}`} service={service} bookable urgentVoiceMemoService={urgentVoiceMemoService} index={groupIndex === 0 ? index : serviceGroups[0].services.length + index} />)}
             </div>
           </section>)}
           <section aria-labelledby="parties-and-events-heading">
