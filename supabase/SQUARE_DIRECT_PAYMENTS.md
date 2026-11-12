@@ -55,6 +55,22 @@ SQUARE_API_VERSION=2026-08-19
 The frontend and server location IDs must identify the same US Square location.
 Never place an access token or webhook signature key in a `VITE_` variable.
 
+## Google Pay
+
+Google Pay uses the same Square Web Payments SDK application and location IDs,
+the existing server-reserved total, and the existing `square-payment` endpoint.
+It does not require a browser secret or a second server integration. The button
+is rendered only when `payments.googlePay(...).attach(...)` succeeds; Square
+performs the browser, device, Google account, and payment-environment
+capability check. Card entry remains available when it does not.
+
+Before enabling production traffic, confirm that the deployed checkout is HTTPS
+and that Google Pay is enabled for the production Square account/location. Do
+not add a Google Pay key or Square access token to frontend variables. If the
+site is ever embedded in a WebView or popup flow, set
+`Cross-Origin-Opener-Policy: same-origin-allow-popups` rather than
+`same-origin`, per Square's Google Pay guidance.
+
 ## Webhook setup
 
 After deploying the reviewed migration and functions, create one webhook
@@ -117,6 +133,23 @@ reviewed against the site's existing policy instead of added automatically.
    Payment Link email flow.
 
 No real Square credentials are required by the local test suite.
+
+### Google Pay Sandbox smoke test
+
+1. Use a separate Square Sandbox application, US location, access token, and
+   the existing Sandbox frontend variables. Never point this flow at production
+   credentials.
+2. Serve the deployed test environment over HTTPS. In a supported browser with
+   a Google Pay account/payment method available, open a direct-payment
+   checkout; the Square-rendered Google Pay button should appear above Card.
+3. Complete the wallet sheet and verify exactly one Sandbox payment for the
+   server-displayed final total (repeat with an accepted discount), then verify
+   the booking becomes `confirmed`/`paid` and only the normal confirmation
+   emails are queued.
+4. Cancel the wallet sheet, retry-click the button, and test a rejected wallet
+   payment. Each must leave Card usable and must not create a duplicate payment
+   or booking. Also verify a browser/device without a configured Google Pay
+   account simply shows Card checkout.
 
 ## Production promotion and rollback
 

@@ -86,10 +86,13 @@ function formatPrice(amount, currency) {
 export default function SquareCardPayment({ bookingId, paymentAccessToken, service, onBookingRecovered, onPaymentVerified, onChooseNewAppointment }) {
   const cardRef = useRef(null);
   const applePayRef = useRef(null);
+  const googlePayRef = useRef(null);
   const renewalDelayRef = useRef(60000);
   const containerRef = useRef(null);
+  const googlePayContainerRef = useRef(null);
   const bindingRef = useRef(null);
   const applePayBindingRef = useRef(null);
+  const googlePayBindingRef = useRef(null);
   const generationRef = useRef(0);
   const statusRequestRef = useRef(0);
   const initializingRef = useRef(null);
@@ -97,6 +100,9 @@ export default function SquareCardPayment({ bookingId, paymentAccessToken, servi
   const mountedRef = useRef(true);
   const submittingRef = useRef(false);
   const closingRef = useRef(false);
+  const stateRef = useRef(null);
+  const attemptIdRef = useRef(null);
+  const submitGooglePayRef = useRef(null);
   const preserveRecoveryRef = useRef(false);
   const [context, setContext] = useState({
     amountMinor: service.price_amount,
@@ -106,10 +112,16 @@ export default function SquareCardPayment({ bookingId, paymentAccessToken, servi
   });
   const [attemptId, setAttemptId] = useState(null);
   const [applePayAvailable, setApplePayAvailable] = useState(false);
+  const [googlePayAvailable, setGooglePayAvailable] = useState(false);
   const [state, setState] = useState(
     applicationId && locationId && sdkUrl ? "loading" : "configuration_missing",
   );
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    stateRef.current = state;
+    attemptIdRef.current = attemptId;
+  }, [attemptId, state]);
 
   // SDK operations are serialized, including cleanup after an obsolete attach.
   const destroyCard = useCallback(async () => {
@@ -127,15 +139,30 @@ export default function SquareCardPayment({ bookingId, paymentAccessToken, servi
     await applePay?.destroy();
   }, []);
 
+  const destroyGooglePay = useCallback(async () => {
+    googlePayBindingRef.current = null;
+    const googlePay = googlePayRef.current;
+    googlePayRef.current = null;
+    // Square owns the rendered Google Pay control. Clear the host too so a
+    // re-initialized attempt cannot leave an obsolete button behind.
+    if (googlePayContainerRef.current) googlePayContainerRef.current.onclick = null;
+    await googlePay?.destroy();
+    googlePayContainerRef.current?.replaceChildren();
+  }, []);
+
   const handleStatus = useCallback((status) => {
     if (!mountedRef.current || closingRef.current) return "closing";
     if ((bindingRef.current && (status.attemptId !== bindingRef.current.attemptId ||
       status.attemptStatus !== "reserved")) ||
       (applePayBindingRef.current && (status.attemptId !== applePayBindingRef.current.attemptId ||
+        status.attemptStatus !== "reserved")) ||
+      (googlePayBindingRef.current && (status.attemptId !== googlePayBindingRef.current.attemptId ||
         status.attemptStatus !== "reserved"))) {
       bindingRef.current = null;
       applePayBindingRef.current = null;
+      googlePayBindingRef.current = null;
       setApplePayAvailable(false);
+      setGooglePayAvailable(false);
       setState("verifying");
     }
     if (service.booking_mode === "timed" && status.attemptId) setAttemptId(status.attemptId);
@@ -244,7 +271,9 @@ export default function SquareCardPayment({ bookingId, paymentAccessToken, servi
         if (!active()) return;
         await destroyCard();
         await destroyApplePay();
+        await destroyGooglePay();
         setApplePayAvailable(false);
+        setGooglePayAvailable(false);
         if (!active()) return;
         const Square = await loadSquareSdk();
         if (!active()) return;
@@ -256,17 +285,18 @@ export default function SquareCardPayment({ bookingId, paymentAccessToken, servi
         await card.attach(containerRef.current || "#square-card-container");
         if (!active()) { await destroyCard(); return; }
         bindingRef.current = { card, attemptId: attempt.attemptId, generation };
-        try {
-          // The payment request is derived from the server-reserved attempt,
-          // never from a customer-editable price or discount value.
-          const paymentRequest = payments.paymentRequest({
+        // This request is derived from the server-reserved attempt, never from
+        // a customer-editable price or discount value. Both wallet methods
+        // receive the identical final amount.
+        const paymentRequest = payments.paymentRequest({
             countryCode: "US",
             currencyCode: attempt.currency,
             total: {
               amount: (attempt.amountMinor / 100).toFixed(2),
               label: attempt.serviceName || service.name,
             },
-          });
+        });
+        try {
           const applePay = await payments.applePay(paymentRequest);
           if (!active()) { await applePay.destroy(); return; }
           applePayRef.current = applePay;
@@ -278,6 +308,27 @@ export default function SquareCardPayment({ bookingId, paymentAccessToken, servi
           applePayRef.current = null;
           applePayBindingRef.current = null;
           setApplePayAvailable(false);
+        }
+        try {
+          // googlePay()/attach() rejects when the browser, device, account or
+          // Square configuration cannot support Google Pay. That is the SDK's
+          // capability check, so Card checkout remains the safe fallback.
+          const googlePay = await payments.googlePay(paymentRequest);
+          if (!active()) { await googlePay.destroy(); return; }
+          googlePayRef.current = googlePay;
+          googlePayBindingRef.current = { googlePay, attemptId: attempt.attemptId, generation };
+          await googlePay.attach(googlePayContainerRef.current || "#google-pay-button", {
+            buttonColor: "default",
+            buttonType: "long",
+          });
+          if (!active()) { await destroyGooglePay(); return; }
+          // Square renders the branded control into this host. Registering on
+          // the host keeps tokenize() directly in the wallet click gesture.
+          googlePayContainerRef.current.onclick = (event) => submitGooglePayRef.current?.(event);
+          setGooglePayAvailable(true);
+        } catch {
+          await destroyGooglePay();
+          setGooglePayAvailable(false);
         }
         setState("ready");
       });
@@ -292,7 +343,7 @@ export default function SquareCardPayment({ bookingId, paymentAccessToken, servi
     } finally {
       if (initializingRef.current === generation) initializingRef.current = null;
     }
-  }, [bookingId, destroyApplePay, destroyCard, handleStatus, onBookingRecovered, paymentAccessToken, service.booking_mode, service.name]);
+  }, [bookingId, destroyApplePay, destroyCard, destroyGooglePay, handleStatus, onBookingRecovered, paymentAccessToken, service.booking_mode, service.name]);
 
   const invalidate = useCallback(() => {
     ++generationRef.current;
@@ -300,6 +351,7 @@ export default function SquareCardPayment({ bookingId, paymentAccessToken, servi
     initializingRef.current = null;
     bindingRef.current = null;
     applePayBindingRef.current = null;
+    googlePayBindingRef.current = null;
   }, []);
 
   useEffect(() => {
@@ -317,11 +369,12 @@ export default function SquareCardPayment({ bookingId, paymentAccessToken, servi
       cardWorkRef.current = cardWorkRef.current.then(async () => {
         await destroyCard();
         await destroyApplePay();
+        await destroyGooglePay();
       });
       // Retain cleanup failure in the queue: replacement must not attach.
       cardWorkRef.current.catch(() => {});
     };
-  }, [destroyApplePay, destroyCard, initialize, invalidate]);
+  }, [destroyApplePay, destroyCard, destroyGooglePay, initialize, invalidate]);
 
   useEffect(() => {
     if (state !== "verifying") return undefined;
@@ -377,13 +430,17 @@ export default function SquareCardPayment({ bookingId, paymentAccessToken, servi
           status.paymentStatus !== "unpaid" || status.paid !== false))) {
         bindingRef.current = null;
         applePayBindingRef.current = null;
+        googlePayBindingRef.current = null;
         setApplePayAvailable(false);
+        setGooglePayAvailable(false);
         setState("verifying");
         return;
       }
       bindingRef.current = null;
       applePayBindingRef.current = null;
+      googlePayBindingRef.current = null;
       setApplePayAvailable(false);
+      setGooglePayAvailable(false);
       setState("verifying");
       const result = await submitSquarePayment({
         bookingId,
@@ -417,11 +474,11 @@ export default function SquareCardPayment({ bookingId, paymentAccessToken, servi
 
   async function submit(event) {
     event.preventDefault();
-    if (service.booking_mode === "timed" && (closingRef.current || state !== "ready")) return;
+    if (service.booking_mode === "timed" && (closingRef.current || stateRef.current !== "ready")) return;
     const binding = bindingRef.current;
     const isCurrentBinding = () => bindingRef.current === binding && binding.card === cardRef.current;
     if (submittingRef.current || initializingRef.current || !binding || !isCurrentBinding() ||
-      binding.attemptId !== attemptId || binding.generation !== generationRef.current) return;
+      binding.attemptId !== attemptIdRef.current || binding.generation !== generationRef.current) return;
     const active = () => mountedRef.current && !closingRef.current && bindingRef.current === binding &&
       binding.generation === generationRef.current;
     submittingRef.current = true;
@@ -479,6 +536,41 @@ export default function SquareCardPayment({ bookingId, paymentAccessToken, servi
       submittingRef.current = false;
     }
   }
+
+  async function submitGooglePay(event) {
+    event?.preventDefault();
+    if (service.booking_mode === "timed" && (closingRef.current || stateRef.current !== "ready")) return;
+    const binding = googlePayBindingRef.current;
+    const isCurrentBinding = () => googlePayBindingRef.current === binding && binding.googlePay === googlePayRef.current;
+    if (submittingRef.current || initializingRef.current || !binding || !isCurrentBinding() ||
+      binding.attemptId !== attemptIdRef.current || binding.generation !== generationRef.current) return;
+    submittingRef.current = true;
+    setError("");
+    setState("tokenizing");
+    try {
+      // Google Pay tokenization automatically verifies the buyer's card in
+      // Square's Web Payments SDK; submit only its single-use source token.
+      const tokenized = await binding.googlePay.tokenize();
+      if (tokenized.status !== "OK" || !tokenized.token) {
+        if (["CANCELED", "CANCELLED"].includes(tokenized.status)) {
+          setState("ready");
+          return;
+        }
+        throw new Error(tokenized.errors?.[0]?.message || "Google Pay could not be authorized.");
+      }
+      await submitToken(binding, tokenized.token, isCurrentBinding);
+    } catch (reason) {
+      if (!mountedRef.current || binding.generation !== generationRef.current || closingRef.current) return;
+      setError(reason.message || "Google Pay could not be submitted.");
+      setState("ready");
+    } finally {
+      submittingRef.current = false;
+    }
+  }
+
+  useEffect(() => {
+    submitGooglePayRef.current = submitGooglePay;
+  });
 
   async function chooseNewAppointment() {
     if (closingRef.current || submittingRef.current || !onChooseNewAppointment) return;
@@ -538,6 +630,19 @@ export default function SquareCardPayment({ bookingId, paymentAccessToken, servi
               onClick={submitApplePay}
               className="apple-pay-button mb-4 min-h-12 w-full rounded-xl disabled:cursor-not-allowed disabled:opacity-55"
             />
+            <div className="mb-4 flex items-center gap-3 text-xs uppercase tracking-[0.18em] text-[#687168] [text-shadow:none]" aria-hidden="true">
+              <span className="h-px flex-1 bg-[#d8d2c5]" />
+              <span>or pay by card</span>
+              <span className="h-px flex-1 bg-[#d8d2c5]" />
+            </div>
+          </>}
+          <div
+            ref={googlePayContainerRef}
+            id="google-pay-button"
+            aria-label={googlePayAvailable ? `Pay ${displayAmount} with Google Pay` : undefined}
+            className={googlePayAvailable ? "google-pay-button mb-4 min-h-12 w-full" : "hidden"}
+          />
+          {googlePayAvailable && <>
             <div className="mb-4 flex items-center gap-3 text-xs uppercase tracking-[0.18em] text-[#687168] [text-shadow:none]" aria-hidden="true">
               <span className="h-px flex-1 bg-[#d8d2c5]" />
               <span>or pay by card</span>
